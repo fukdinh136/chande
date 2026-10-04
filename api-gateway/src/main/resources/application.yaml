@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            - id: user-service
+              uri: ${USER_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/users/**
+server:
+  port: 8080
+
+jwt:
+  secret: ${JWT_SECRET:k69i-ride-hailing-dev-secret-key-2026-change-me}
+  allowed-issuers:
+    - user-service
+    - driver-service
+cors:
+  allowed-origins:
+    - http://localhost:5500
+    - http://127.0.0.1:5500
+
+rate-limit:
+  login:
+    max-attempts: ${LOGIN_MAX_ATTEMPTS:5}
+    window: 1m
