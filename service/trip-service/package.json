@@ -20,6 +20,8 @@
     "start:prod": "node dist/main.js",
     "worker:prod": "node dist/worker.js",
     "outbox:requeue": "node dist/requeue.js",
+    "mock:dev": "tsx watch src/mock.ts",
+    "mock:prod": "node dist/mock.js",
     "migration:run": "node dist/migrate.js",
     "migration:show": "node node_modules/typeorm/cli.js migration:show -d dist/infrastructure/persistence/data-source.js"
   },

@@ -9,3 +9,4 @@ coverage/
 secrets/
 deployment.env
 npm-debug.log*
+.mock-data/
