@@ -13,6 +13,7 @@ Service quản lý nghiệp vụ chuyến đi của Chande, từ báo giá và �
 | [Routes](docs/routes.md) | Bảng route public/internal/outbound, quyền, use case và exposure |
 | [Deploy](docs/deploy.md) | Runtime API/worker/DB, cấu hình, migration, phát hành, rollback và monitoring |
 | [Báo cáo triển khai](docs/bao-cao-trien-khai.md) | Component, commit, kiểm thử, kết quả Docker và phần cần tích hợp thật |
+| [Tích hợp Routing + Price](docs/tich-hop-routing-price.md) | Luồng HTTP ba service, cấu hình local, giá mẫu và kiểm thử tích hợp |
 
 [Mục lục tài liệu dự án](../../docs/README.md).
 
@@ -22,7 +23,7 @@ Service quản lý nghiệp vụ chuyến đi của Chande, từ báo giá và �
 
 Stack đã thống nhất: NestJS, TypeScript, TypeORM và PostgreSQL. Routing, Pricing và Matching được tích hợp qua contract; REST callback và outbox phục vụ luồng bất đồng bộ.
 
-Routing, Pricing, Matching, Gateway và Notification hiện được kiểm chứng bằng contract/mock. Tích hợp các service thật và phát hành lên hosting là bước tiếp theo.
+Trip đã gọi API của Routing và Price qua HTTP trong Compose local và kiểm thử ba service. Routing vẫn dùng map provider mock; Price tính từ biểu giá mẫu có thể cấu hình. Matching, Gateway, Notification và JWT issuer local dùng mock. OSRM thật và phát hành lên hosting là bước tiếp theo.
 
 ## Chạy local
 
@@ -35,7 +36,7 @@ npm.cmd ci
 npm.cmd run smoke:local
 ```
 
-API: <http://localhost:3001>; Swagger: <http://localhost:3001/docs>; worker probe: <http://localhost:3002/health/ready>. Mock và DB dùng credential thử, chỉ mở port host trên loopback. Chi tiết nhận JWT local, kiểm thử và chạy source nằm trong [Deploy](docs/deploy.md).
+API Trip: <http://localhost:3001>; Routing: <http://localhost:3004>; Price: <http://localhost:3005>; Swagger Trip: <http://localhost:3001/docs>; worker probe: <http://localhost:3002/health/ready>. Stack dùng credential thử, chỉ mở port host trên loopback. Chi tiết nhận JWT local, kiểm thử và chạy source nằm trong [Deploy](docs/deploy.md).
 
 ## Kiểm thử
 
@@ -45,6 +46,9 @@ $env:TEST_DATABASE_URL = 'postgres://trip_test:trip_test@127.0.0.1:55434/trip_te
 npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd run test:all
+npm.cmd --prefix ../routing-service ci --ignore-scripts
+npm.cmd --prefix ../price-service ci --ignore-scripts
+npm.cmd run test:services
 npm.cmd run build
 ```
 

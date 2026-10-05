@@ -48,7 +48,7 @@ R08 dùng `eventId` trong body để chống callback lặp; không dùng `Idemp
 
 ## 4. Các route Trip gọi ra ngoài
 
-Các route dưới đây là contract đã dùng trong adapter và mock của Trip. Service thật cần xác nhận trước tích hợp. Mỗi đích dùng base URL/credential riêng trong [Deploy](deploy.md).
+Các route dưới đây là contract đã dùng trong adapter của Trip. O01/O02 đã kiểm thử qua API Routing/Price trong repository; provider map còn mock. O03–O07 dùng mock local. Mỗi đích dùng base URL/credential riêng trong [Deploy](deploy.md); xem [tích hợp Routing + Price](tich-hop-routing-price.md).
 
 | Mã | Đích | Method và route | Bên gửi | Vai trò | ACK thành công |
 | --- | --- | --- | --- | --- | --- |
@@ -76,7 +76,7 @@ Không có route ép trạng thái `ASSIGNED`, `SEARCHING` hoặc `CANCELLED` qu
 - [ ] API xác minh token và quyền sở hữu, không chỉ dựa vào Gateway.
 - [ ] Internal callback có credential riêng; public actor không dùng được.
 - [ ] Probe và Swagger đúng port/môi trường, không public ngoài ý muốn.
-- [x] O01–O07 có HTTP adapter/mock; contract với service thật còn cần xác nhận.
+- [x] O01/O02 có kiểm thử HTTP ba service; O03–O07 có adapter/mock, còn cần xác nhận với service thật.
 
 ## 7. Routes riêng của bộ mock local
 

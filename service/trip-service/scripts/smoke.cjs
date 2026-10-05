@@ -17,6 +17,7 @@ async function main() {
     const headers = { ...rider, 'Idempotency-Key': randomUUID() }; const input = { quoteId: quote.value.data.quoteId };
     const first = await request(api, '/trips', input, headers); assert.equal(first.status, 201);
     const replay = await request(api, '/trips', input, headers); assert.equal(replay.headers.get('Idempotent-Replay'), 'true'); assert.deepEqual(replay.value.data, first.value.data);
+    assert.equal(first.value.data.fare.estimatedAmount, quote.value.data.fare.amount);
     return first.value.data;
   };
   const trip = await create(); assert.equal(trip.status, 'SEARCHING');
@@ -29,7 +30,7 @@ async function main() {
   }
   assert.equal(accepted.status, 202); let version = 2;
   for (const status of ['DRIVER_ARRIVED', 'IN_PROGRESS', 'COMPLETED']) {
-    const res = await request(api, `/trips/${trip.tripId}/status`, { status, version: version++ }, { ...driver, 'Idempotency-Key': randomUUID() }, 'PATCH'); assert.equal(res.status, 200); if (status === 'COMPLETED') assert.equal(res.value.data.fare.finalAmount, '45000');
+    const res = await request(api, `/trips/${trip.tripId}/status`, { status, version: version++ }, { ...driver, 'Idempotency-Key': randomUUID() }, 'PATCH'); assert.equal(res.status, 200); if (status === 'COMPLETED') assert.equal(res.value.data.fare.finalAmount, trip.fare.estimatedAmount);
   }
   assert.equal((await request(api, '/trips/active', null, rider)).value.data, null);
   const second = await create(); const headers = { ...rider, 'Idempotency-Key': randomUUID() }; const input = { reason: 'Smoke cancellation', version: 1 };

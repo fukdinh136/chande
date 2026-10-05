@@ -15,6 +15,7 @@
     "test:contract": "npm run test:build && node scripts/test.cjs contract",
     "test:e2e": "npm run test:build && node scripts/test.cjs e2e",
     "test:all": "npm run test:build && node scripts/test.cjs all",
+    "test:services": "npm --prefix ../routing-service run build && npm --prefix ../price-service run build && npm run test:build && node scripts/test.cjs cross-service",
     "start:dev": "tsx watch src/main.ts",
     "worker:dev": "tsx watch src/worker.ts",
     "start:prod": "node dist/main.js",

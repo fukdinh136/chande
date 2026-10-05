@@ -2,6 +2,8 @@
 
 Ngày bàn giao: 05/10/2026. Cơ sở: tài liệu nghiệp vụ, kiến trúc, API, routes và kế hoạch C00–C15; yêu cầu mới nhất cho phép triển khai liên tục, kiểm thử và push từng feature nhỏ.
 
+Cập nhật 06/10/2026: [tích hợp API Routing + Price](tich-hop-routing-price.md) đã triển khai và kiểm thử. Các kết quả dưới đây ghi nhận đợt Trip C00–C15 ban đầu; báo cáo mới mô tả thay đổi runtime, Compose và checks ba service.
+
 ## 1. Kết quả
 
 Đã triển khai backend riêng tại `service/trip-service` với NestJS/TypeScript, TypeORM/PostgreSQL, REST callback và transactional outbox. Domain/application độc lập với framework. API, worker, migration job, bộ mock, OpenAPI và Docker local chạy được; 88/88 kiểm thử đạt trên PostgreSQL thật. Từng feature được commit và push lên `origin/main` của [chande](https://github.com/fukdinh136/chande).

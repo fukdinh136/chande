@@ -13,6 +13,7 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 | Trip Service | [Routes](../service/trip-service/docs/routes.md) | Đường dẫn public/internal/outbound, quyền và use case |
 | Trip Service | [Deploy](../service/trip-service/docs/deploy.md) | Cấu hình, migration, phát hành, rollback và vận hành |
 | Trip Service | [Báo cáo triển khai](../service/trip-service/docs/bao-cao-trien-khai.md) | Những phần đã làm, commit, kiểm thử, Docker và giới hạn tích hợp |
+| Trip Service | [Tích hợp Routing + Price](../service/trip-service/docs/tich-hop-routing-price.md) | Luồng báo giá qua HTTP ba service, cấu hình local và kết quả kiểm thử |
 | Routing Service | [Mục lục thiết kế](../service/routing-service/README.md) | Thiết kế theo C3 và OSRM, trạng thái triển khai và file cấu hình local |
 | Routing Service | [Nghiệp vụ](../service/routing-service/docs/nghiep-vu.md) | Ranh giới, calculate route, ETA matrix, recalculate và user story |
 | Routing Service | [Kiến trúc và C3](../service/routing-service/docs/kien-truc.md) | Dispatcher, bounded queue, worker pool, limiter, OSRM adapter, Realtime Client và chiều trả kết quả |
@@ -24,6 +25,7 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 | Routing Service | [Kế hoạch phát triển](../service/routing-service/docs/ke-hoach-phat-trien.md) | F00–F11, dependency, acceptance, test và commit theo feature |
 | Routing Service | [Báo cáo triển khai](../service/routing-service/docs/bao-cao-trien-khai.md) | Feature/commit/checks và giới hạn tích hợp thật |
 | Price Service | [Thiết kế v1](../service/price-service/README.md) | Giá mở cửa CAR/BIKE, config sửa được, công thức và contract tương thích Trip |
+| Price Service | [API và deploy](../service/price-service/docs/api.md) | Runtime NestJS, token, request/response, lỗi, policy và Docker |
 
 ## Cách sử dụng
 

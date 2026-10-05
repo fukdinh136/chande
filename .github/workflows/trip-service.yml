@@ -1,9 +1,9 @@
 name: Trip Service
 on:
   push:
-    paths: ['service/trip-service/**', '.github/workflows/trip-service.yml']
+    paths: ['service/trip-service/**', 'service/routing-service/**', 'service/price-service/**', '.github/workflows/trip-service.yml']
   pull_request:
-    paths: ['service/trip-service/**', '.github/workflows/trip-service.yml']
+    paths: ['service/trip-service/**', 'service/routing-service/**', 'service/price-service/**', '.github/workflows/trip-service.yml']
 permissions:
   contents: read
 jobs:
@@ -28,6 +28,9 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:all
+      - run: npm --prefix ../routing-service ci --ignore-scripts
+      - run: npm --prefix ../price-service ci --ignore-scripts
+      - run: npm run test:services
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=moderate
       - run: docker build -t chande-trip:ci .

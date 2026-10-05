@@ -11,14 +11,14 @@ x-environment: &environment
   NODE_ENV: development
   INTEGRATION_MODE: mock
   DATABASE_URL: postgres://trip_local:trip_local@trip-db:5432/trip_local
-  SUPPORTED_VEHICLE_TYPES: MOCK_BIKE
+  SUPPORTED_VEHICLE_TYPES: MOCK_BIKE,CAR,BIKE
   AUTH_JWKS_URL: http://trip-mocks:3003/jwks
   AUTH_JWT_ISSUER: chande-local
   AUTH_JWT_AUDIENCE: trip-service
   CURSOR_SIGNING_KEY: local-only-cursor-key-change-in-production
   MATCHING_CALLBACK_TOKEN: local-callback
-  ROUTING_BASE_URL: http://trip-mocks:3003
-  PRICING_BASE_URL: http://trip-mocks:3003
+  ROUTING_BASE_URL: http://routing-api:3004
+  PRICING_BASE_URL: http://price-api:3005
   MATCHING_BASE_URL: http://trip-mocks:3003
   GATEWAY_EVENTS_BASE_URL: http://trip-mocks:3003
   NOTIFICATION_BASE_URL: http://trip-mocks:3003
@@ -29,6 +29,46 @@ x-environment: &environment
   NOTIFICATION_TOKEN: local-notification
   SWAGGER_ENABLED: 'true'
 services:
+  routing-api:
+    image: chande-routing:local
+    build: ../routing-service
+    init: true
+    read_only: true
+    mem_limit: 256m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 10s
+    environment:
+      NODE_ENV: development
+      APP_ENV: development
+      HOST: 0.0.0.0
+      PORT: '3004'
+      INTEGRATION_MODE: mock
+      REALTIME_INTEGRATION_MODE: mock
+      SUPPORTED_VEHICLE_TYPES: MOCK_BIKE,CAR,BIKE
+      VEHICLE_PROFILES_FILE: config/vehicle-profiles.mock.json
+      ROUTING_TRIP_TOKEN: local-routing
+      ROUTING_MATCHING_TOKEN: local-routing-matching
+      ROUTING_GATEWAY_TOKEN: local-routing-gateway
+    ports: ['127.0.0.1:3004:3004']
+  price-api:
+    image: chande-price:local
+    build: ../price-service
+    init: true
+    read_only: true
+    mem_limit: 256m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 10s
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: '3005'
+      PRICE_TRIP_TOKEN: local-pricing
+      SUPPORTED_VEHICLE_TYPES: MOCK_BIKE,CAR,BIKE
+      FARE_POLICY_FILE: config/fare-policy.mock.json
+      SWAGGER_ENABLED: 'true'
+    ports: ['127.0.0.1:3005:3005']
   trip-db:
     image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
     mem_limit: 512m
@@ -54,7 +94,7 @@ services:
     read_only: true
     tmpfs: [/tmp]
     ports: ['127.0.0.1:3001:3001']
-    depends_on: {trip-migrate: {condition: service_completed_successfully}, trip-mocks: {condition: service_healthy}}
+    depends_on: {trip-migrate: {condition: service_completed_successfully}, trip-mocks: {condition: service_healthy}, routing-api: {condition: service_healthy}, price-api: {condition: service_healthy}}
     healthcheck: {test: [CMD, node, -e, "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"], interval: 5s, timeout: 3s, retries: 20, start_period: 10s}
   trip-worker:
     <<: *app

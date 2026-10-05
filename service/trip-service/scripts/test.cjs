@@ -3,7 +3,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const mode = process.argv[2];
 const modes = ['unit', 'integration', 'contract', 'e2e'];
-if (mode !== 'all' && !modes.includes(mode)) throw new Error('Unknown test suite');
+if (mode !== 'all' && mode !== 'cross-service' && !modes.includes(mode)) throw new Error('Unknown test suite');
 function collect(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const file = path.join(dir, entry.name);

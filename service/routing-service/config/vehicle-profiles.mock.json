@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "vehicleTypes": {
+    "CAR": { "profile": "mock_car", "baseUrl": null },
+    "BIKE": { "profile": "mock_motorcycle", "baseUrl": null },
+    "MOCK_BIKE": { "profile": "mock_motorcycle", "baseUrl": null }
+  }
+}

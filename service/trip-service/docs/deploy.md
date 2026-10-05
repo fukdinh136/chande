@@ -1,6 +1,6 @@
 # Deploy và vận hành Trip Service
 
-Ngày cập nhật: 05/10/2026. Backend, image, Compose local/test/deploy, npm scripts và migration đã có. Docker local và smoke test đã chạy; Compose deploy đã kiểm tra cấu hình, chưa phát hành trên hosting thật.
+Ngày cập nhật: 06/10/2026. Backend, image, Compose local/test/deploy, npm scripts và migration đã có. Docker local gọi API Routing và Price; xem [báo cáo tích hợp](tich-hop-routing-price.md). Compose deploy đã kiểm tra cấu hình, chưa phát hành trên hosting thật.
 
 Tài liệu liên quan: [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Nghiệp vụ](nghiep-vu.md).
 
@@ -128,9 +128,11 @@ docker compose -f compose.local.yml ps
 npm.cmd run smoke:local
 ```
 
-Ports host chỉ mở trên `127.0.0.1`: API 3001, worker health 3002, mock 3003, DB dev 55433. Swagger: <http://localhost:3001/docs>. Migration exit 0 là bình thường; các process còn lại phải healthy. Dừng bằng `docker compose -f compose.local.yml down`; giữ volume nếu cần giữ dữ liệu.
+Ports host chỉ mở trên `127.0.0.1`: API 3001, worker health 3002, mock 3003, Routing 3004, Price 3005, DB dev 55433. Swagger: <http://localhost:3001/docs>. Migration exit 0 là bình thường; các process còn lại phải healthy. Dừng bằng `docker compose -f compose.local.yml down`; giữ volume nếu cần giữ dữ liệu.
 
-Mock có Routing/Pricing/Matching, event receiver và issuer/JWKS. Receipt/terminal marker lưu trong volume `mock-data`; không tự gán tài xế. Giá `45000` và `MOCK_BIKE` là dữ liệu thử. Khóa JWT thử đổi khi mock restart, cần lấy token mới.
+Compose trỏ `ROUTING_BASE_URL` tới `routing-api:3004` và `PRICING_BASE_URL` tới `price-api:3005`, với token khớp từng service. Routing chạy provider mock cho CAR/BIKE/MOCK_BIKE: route 4 km, 600 giây. Price dùng policy mẫu: CAR 42.000đ, BIKE/MOCK_BIKE 20.000đ cho route này. Đây là fixture phát triển; không phải dữ liệu OSRM hay giá kinh doanh được duyệt. Profile/policy MOCK_BIKE được khai báo riêng, không fallback từ mã xe khác.
+
+Mock 3003 giữ Matching, event receiver và issuer/JWKS; các route Routing/Pricing cũ của mock chỉ phục vụ tests riêng, không được Compose dùng để estimate. Receipt/terminal marker lưu trong volume `mock-data`; không tự gán tài xế. Khóa JWT thử đổi khi mock restart, cần lấy token mới.
 
 Nhận JWT thử:
 
@@ -151,6 +153,9 @@ $env:TEST_DATABASE_URL = 'postgres://trip_test:trip_test@127.0.0.1:55434/trip_te
 npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd run test:all
+npm.cmd --prefix ../routing-service ci --ignore-scripts
+npm.cmd --prefix ../price-service ci --ignore-scripts
+npm.cmd run test:services
 npm.cmd run build
 npm.cmd audit
 ```
@@ -162,8 +167,9 @@ Tests chỉ nhận DB tên kết thúc `_test` và truncate các bảng Trip tro
 ```powershell
 docker compose -f compose.local.yml stop trip-api trip-worker trip-mocks
 docker compose -f compose.local.yml up -d trip-db
+docker compose -f compose.local.yml up -d --wait routing-api price-api
 # Chỉ copy khi chưa có .env; nếu đã có thì sửa các biến cần thiết.
-Copy-Item -LiteralPath '.env.example' -Destination '.env'
+if (-not (Test-Path -LiteralPath '.env')) { Copy-Item -LiteralPath '.env.example' -Destination '.env' }
 npm.cmd run build
 npm.cmd run migration:run
 # Ba terminal riêng, cùng thư mục:

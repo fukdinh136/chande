@@ -42,3 +42,7 @@ Matrix dùng deadline chung gồm lookup và mọi batch, không sort/chọn dri
 - Một process/replica; cấu hình mặc định chưa được benchmark production.
 
 Các file `.env` và `config/vehicle-profiles.json` local giữ nguyên và được Git ignore. Nghiệp vụ và source Trip Service giữ nguyên.
+
+## Tích hợp Trip + Price — 06/10/2026
+
+Trip Compose đã gọi Routing API cùng Price API qua HTTP; xem [báo cáo tích hợp](../../trip-service/docs/tich-hop-routing-price.md). Image có thêm `config/vehicle-profiles.mock.json` để bật CAR/BIKE/MOCK_BIKE explicit trong local; file profile OSRM local giữ nguyên. BIKE trong fixture không xác nhận profile xe máy cho OSRM thật.
