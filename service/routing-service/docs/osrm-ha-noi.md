@@ -1,5 +1,11 @@
 # OSRM thật cho Hà Nội
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | routing-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày 06/10/2026. Người dùng chọn tự host OSRM bằng Docker cho Hà Nội. Routing vẫn dùng Node.js/TypeScript; OSRM là backend C++ riêng, gọi qua HTTP. Bật CAR trước, BIKE chưa có profile xe máy được xác nhận.
 
 ## Cấu hình đã triển khai

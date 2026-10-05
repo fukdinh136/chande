@@ -1,5 +1,11 @@
 # Kiến trúc Matching v1
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | matching-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 ```mermaid
 flowchart LR
   Trip --> Controller[Matching Controller]
@@ -26,7 +32,7 @@ Broker confirm xác nhận broker nhận message, không chứng minh Driver App
 Một process API, một process worker, một Realtime replica v1. Shutdown ngừng nhận job rồi chờ I/O có timeout; khởi động lại xử lý offer quá hạn và outbox chưa ACK.
 
 | Component | Input → output | Kiểm chứng và mã nguồn |
-|---|---|---|
+| --- | --- | --- |
 | API | Trip command/JWT decision → durable ACK/status | strict body, caller scope, ownership/idempotency; src/api/app.ts |
 | Domain | search/offer/clock → transition/ranking | deadline đúng biên, terminal không mở lại, sort ổn định; src/domain/models.ts |
 | MatchDriver | search → một offer/reservation | matrix driver→pickup, freshness/tried/busy, transaction cạnh tranh; application/match.ts |

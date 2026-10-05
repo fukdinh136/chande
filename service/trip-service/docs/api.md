@@ -1,5 +1,11 @@
 # API Trip Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | trip-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày cập nhật: 05/10/2026. Contract Trip: 1.0. R01–R08 đã triển khai, OpenAPI sinh từ controller và DTO tại `/openapi.json` khi bật Swagger. Contract service ngoài được kiểm chứng bằng mock, cần bên sở hữu xác nhận trước tích hợp thật.
 
 Nghiệp vụ chuẩn: [Nghiệp vụ](nghiep-vu.md). Danh mục đường dẫn/exposure: [Routes](routes.md). Transaction và adapter: [Kiến trúc](kien-truc.md). Base URL, credential và port: [Deploy](deploy.md).
@@ -27,7 +33,7 @@ Swagger UI/OpenAPI được tạo bằng [NestJS OpenAPI](https://docs.nestjs.co
 | Model | Trường và ràng buộc đề xuất |
 | --- | --- |
 | `Location` | `lat`: number [-90, 90]; `lng`: number [-180, 180]; `address`: string 1–500 ký tự nếu có. lat/lng bắt buộc, không tin address để thay tọa độ |
-| `VehicleType` | String 1–32 ký tự, mã được các service thống nhất; chưa định nghĩa enum xe. `VEHICLE_TYPE_CODE` trong ví dụ là placeholder cần thay |
+| `VehicleType` | Trip nhận string 1–32 được SUPPORTED_VEHICLE_TYPES cho phép; luồng mới BIKE/CAR_4/CAR_7. CAR/MOCK_BIKE chỉ ở cấu hình legacy/mock; placeholder trong ví dụ phải thay |
 | `RouteSummary` | `distanceMeters`, `durationSeconds`: integer không âm. V1 contract này chỉ có summary; geometry hiển thị bản đồ là phần mở rộng cần duyệt contract Routing |
 | `FareBreakdownLine` | `code`: string do Pricing định nghĩa; `amount`: chuỗi tiền không âm. Các dòng phải cộng đúng tổng giá v1; Trip kiểm tra tính hợp lệ, không tính công thức giá |
 | `QuoteFare` | `currency: "VND"`, `amount`, `breakdown: FareBreakdownLine[]` |
@@ -245,7 +251,7 @@ Lỗi: 400 body; 401 credential; 404 Trip không có; 409 event ID dùng lại k
 
 - Scope key người dùng là `(actorType, actorId, Idempotency-Key)` trên toàn bộ R02/R06/R07. Hash gồm method, route/target và body đã validate/normalize, bao gồm version. Không tái dùng key giữa các hành động.
 - Xác thực/role được kiểm tra trước receipt. Receipt chỉ đọc trong scope đúng actor; không dùng key để truy cập kết quả của người khác.
-- Receipt thành công lưu cùng transaction của tác dụng nghiệp vụ. Request lặp cùng nội dung replay cùng status code/data, thêm `Idempotency-Replayed: true`; meta/request ID của lần gọi mới được cập nhật.
+- Receipt thành công lưu cùng transaction của tác dụng nghiệp vụ. Request lặp cùng nội dung replay cùng status code/data, thêm `Idempotent-Replay: true`; meta/request ID của lần gọi mới được cập nhật.
 - Replay trả snapshot kết quả ban đầu, có thể cũ hơn trạng thái hiện tại. Client GET Trip để refresh; không áp dụng snapshot cũ lên UI đã thấy version mới hơn.
 - Hai request cùng key đang xử lý được serialize bởi unique receipt và transaction; chờ có giới hạn, hết chờ trả 503 có thể retry cùng key. Không tạo hai tác dụng.
 - Thất bại trước commit không tiêu thụ key; retry sau lỗi mạng/503 dùng cùng key/body. Với conflict cần sửa body/version, dùng key mới.
@@ -371,3 +377,12 @@ Payload v1 tối thiểu; client đọc chi tiết qua API được phân quyề
 - [ ] O03/O04 và event receiver chống lặp, lưu bền vững trước ACK, xử lý cancel/search sai thứ tự.
 - [ ] Không thêm deadline tìm xe, phí hủy hoặc tính lại giá vào DTO/handler.
 - [x] OpenAPI sinh từ controller và cùng DTO, có kiểm thử các routes và schema request/response.
+
+## 15. Internal lookups đã triển khai
+
+| API | Caller / credential | Input | 200 data |
+| --- | --- | --- | --- |
+| GET /internal/trips/:id/matching-state | Matching; MATCHING_CALLBACK_TOKEN | UUID Trip | `{tripId,status,driverId,version}`; null nếu không tồn tại |
+| POST /internal/trips/active-drivers/batch | Driver; DRIVER_LOOKUP_TOKEN riêng | `{driverIds:[UUID]}`; 1–100 unique, body strict | `{items:[{driverId,tripId:UUID hoặc null}]}` |
+
+Không proxy lookup ra Gateway; không dùng JWT người dùng thay service credential. Thiếu/sai credential 401, body/path sai 400, database lỗi 503. Matching coi missing state là đối soát chưa thành công, không suy Trip SEARCHING hoặc driver rảnh từ null. Batch availability không thay constraints active Trip hoặc reservation lúc gán.

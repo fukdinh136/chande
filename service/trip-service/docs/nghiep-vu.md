@@ -1,5 +1,11 @@
 # Nghiệp vụ Trip Service — giai đoạn 1
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | trip-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày lập/cập nhật: 05/10/2026. Quy tắc v1 đã được triển khai trong Trip; kiểm thử và giới hạn tích hợp ghi ở [Báo cáo triển khai](bao-cao-trien-khai.md). Nghiệm thu của người dùng và tích hợp service thật là bước review tiếp theo.
 
 Tài liệu mô tả nghiệp vụ Trip Service theo quyết định đã thống nhất. Quy tắc đã xác nhận tách khỏi mặc định kỹ thuật; việc Trip chạy với mock không xác nhận các service ngoài đã được triển khai.
@@ -361,10 +367,10 @@ Các khác biệt đã được giải quyết:
 | Phạm vi | Theo ERD giai đoạn 1 |
 | Backend | NestJS + TypeScript + PostgreSQL |
 | Persistence | TypeORM; entity database tách Trip Domain |
-| Tích hợp | REST callback + outbox; chưa bổ sung message broker |
-| Service ngoài | Chưa có API sẵn dùng; phát triển contract/mock trước |
+| Tích hợp | Trip dùng REST callback + outbox; Matching dùng RabbitMQ để giao offer qua Realtime |
+| Service ngoài | Routing/Price/Matching/Driver/Realtime đã có runtime; stack Matching local kiểm chứng luồng ô tô Hà Nội, Gateway/Notification sink còn mock |
 | Matching | Bất đồng bộ, có bước chấp nhận; không deadline kết thúc tìm xe |
-| GitHub | Duyệt thiết kế, duyệt kết quả, rồi commit và push thẳng `main` |
+| GitHub | Triển khai, kiểm thử, commit/push từng feature nhỏ lên `main`, báo cáo để review theo ủy quyền mới nhất |
 
 ### 12.2. Mặc định đề xuất cần kiểm tra khi duyệt component
 
@@ -374,7 +380,7 @@ Các điểm dưới đây hỗ trợ thiết kế, không được trình bày 
 | --- | --- | --- |
 | A-01 | VND, số tiền nguyên; mét; giây; timestamp UTC | Contract Routing/Pricing và persistence |
 | A-02 | Có thể dùng quote khi thời điểm xử lý tạo chuyến nhỏ hơn `expiresAt`; bằng hoặc sau mốc đó coi là hết hạn; dùng thời gian phía server | Estimate/Create, kiểm thử tại biên hết hạn |
-| A-03 | Danh mục loại xe lấy từ contract đã thống nhất; chưa tự đặt các mã xe khi chưa duyệt | Nền tảng, Routing/Pricing/Matching |
+| A-03 | Luồng mới dùng BIKE/CAR_4/CAR_7; CAR/MOCK_BIKE chỉ ở cấu hình legacy/mock rõ ràng | Nền tảng, Routing/Pricing/Matching |
 | A-04 | Lịch sử mặc định liệt kê chuyến kết thúc, mới nhất trước, dùng cursor và khóa phụ trip ID; kích thước trang chốt ở contract API | Get Trip/API Controller |
 | A-05 | `CREATED` và chuyển sang `SEARCHING` được lưu trong cùng nghiệp vụ tạo; không để khách giữ chuyến `CREATED` như đặt trước | Domain/Create/persistence |
 | A-06 | Có identity verifier qua port; adapter JWT cho người dùng và credential riêng cho Matching; môi trường local dùng khóa thử | Nền tảng/API Controller |

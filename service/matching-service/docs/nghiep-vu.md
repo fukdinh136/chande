@@ -1,5 +1,11 @@
 # Nghiệp vụ Matching v1
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | matching-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 ## Quyết định đã xác nhận
 
 - Routing lấy GPS qua Realtime, trả matrix trong bán kính 2 km. Matching gửi pickup và vehicleType, không gửi candidates.

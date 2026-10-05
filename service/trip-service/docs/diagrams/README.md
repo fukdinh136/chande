@@ -1,8 +1,16 @@
 # Bản vẽ C4 Trip Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | trip-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../../docs/quy-uoc-tai-lieu.md) |
+
 Chín file SVG được xuất từ các block Mermaid trong [c4.md](../c4.md), theo thứ tự trong tài liệu. Chỉnh sửa tại `c4.md`, sau đó xuất lại SVG; không sửa nội dung SVG bằng tay.
 
 Lần xuất ngày 05/10/2026 dùng Mermaid CLI 12.0.0 và Edge headless trên Windows. [Mermaid CLI](https://github.com/mermaid-js/mermaid-cli) hỗ trợ xuất SVG/PNG/PDF. Công cụ render không được thêm vào dependency runtime của Trip.
+
+SVG là snapshot của lần xuất đó; phần trạng thái tích hợp mới và internal lookups tra c4.md/API/routes hiện tại. Không coi ngày rà soát metadata là ngày SVG được render lại hoặc bằng chứng luồng production.
 
 ## Xuất lại
 

@@ -1,5 +1,11 @@
 # Kiến trúc Trip Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | trip-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày cập nhật: 05/10/2026. Kiến trúc triển khai v1; API/worker và Docker local đã chạy, contract ngoài dùng mock. Báo cáo và bằng chứng kiểm thử: [Báo cáo triển khai](bao-cao-trien-khai.md).
 
 Nguồn nghiệp vụ: [Nghiệp vụ Trip Service](nghiep-vu.md). Contract HTTP: [API](api.md), [Routes](routes.md). Vận hành: [Deploy](deploy.md).

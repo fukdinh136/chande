@@ -1,5 +1,11 @@
 # Realtime Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | realtime-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
+
 Service nhận GPS tài xế và cung cấp danh sách tài xế gần điểm đón cho Routing của Chande.
 
 Ngày đối chiếu mã nguồn: 06/10/2026. GPS/nearby/offer đã chạy với Redis, Driver/Routing/Matching thật trong Docker local Hà Nội. Thiết bị/background, ingress production và nhiều replica chưa nghiệm thu.
@@ -63,3 +69,5 @@ service/realtime-service/
 Key Driver legacy drivers:geo:* còn có thao tác cleanup tương thích; Realtime dùng namespace riêng realtime:{gps}:*. Không tự đổi consumer cũ hay dual-write. Chi tiết khác biệt và hợp đồng còn chờ ở [Kiến trúc](docs/kien-truc.md) và [API](docs/api.md).
 
 Hướng dẫn GPS CLI/Postman/app foreground ở [Deploy](docs/deploy.md). Stack offer, startup/shutdown và requeue ở [runbook Matching](../matching-service/docs/deploy.md); bằng chứng thực chạy ở [báo cáo Matching](../matching-service/docs/bao-cao-trien-khai.md). Lockfile, build/lint và consumer tests đã được kiểm tra trong môi trường Realtime riêng.
+
+Backend chung có Nginx ingress /socket.io cho namespace /realtime, cùng URL public với REST Gateway và /ws trip events. Docker/Kubernetes đã smoke GPS/offer qua ingress thật; [runbook backend](../../docs/deploy-backend.md). App offer UI/thiết bị và hosting production vẫn ngoài bằng chứng này.

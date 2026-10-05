@@ -1,14 +1,20 @@
 # user-service v2
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | user-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
+
 Quản lý tài khoản khách đặt xe (RIDER): đăng ký/đăng nhập, phiên (refresh token xoay vòng), hồ sơ, địa chỉ đã lưu,
-API nội bộ cho trip-service, JWKS. Đặc tả đầy đủ: [`docs/user-service-v2.md`](../docs/user-service-v2.md).
+API nội bộ cho trip-service, JWKS. Đặc tả đầy đủ: [User Service v2](docs/user-service-v2.md).
 
 Java 21 thuần: JDK `HttpServer` + virtual thread + JDBC. Không dùng web framework, không DI container.
 
 ## Cấu trúc
 
 | Module | Nội dung | Phụ thuộc |
-|---|---|---|
+| --- | --- | --- |
 | `user-core` | `domain` (quy tắc nghiệp vụ) + `application` (use case, port) | không có dependency ngoài |
 | `user-adapters` | `http` (Router, xác thực, JSON), `persistence` (JDBC, Flyway), `security` (BCrypt, RS256, JWKS) | `user-core` + thư viện |
 | `user-app` | `Main`, `AppConfig`; đóng gói fat jar | `user-adapters` |
@@ -48,7 +54,7 @@ java -jar user-app/target/user-service.jar
 Biến môi trường (thiếu hoặc sai thì service dừng ngay và liệt kê mọi lỗi):
 
 | Biến | Mặc định | Ghi chú |
-|---|---|---|
+| --- | --- | --- |
 | `PORT` | `3011` | |
 | `DB_URL` | `jdbc:postgresql://localhost:5432/user_service_db` | |
 | `DB_USERNAME`, `DB_PASSWORD` | — | bắt buộc (`DB_PASSWORD` được để rỗng) |
@@ -75,7 +81,7 @@ cuối bằng khoá đó (BR-33), rồi mới xoá.
 ## Các điểm mở (mục 14 của đặc tả) đã chọn khi code
 
 | # | Chọn |
-|---|---|
+| --- | --- |
 | 1. `aud` | Cấu hình qua `JWT_AUDIENCE`, mặc định không có |
 | 4. Dọn refresh token | Mỗi giờ xoá token có `expires_at` cũ hơn 1 ngày |
 | 5. Body quá lớn | 413 `PAYLOAD_TOO_LARGE` — "Dữ liệu gửi lên quá lớn" |

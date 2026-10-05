@@ -1,5 +1,11 @@
 # API Driver Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | driver-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Hợp đồng theo controller/DTO/use case hiện tại. Base URL local http://localhost:3003, không prefix /api/v1. [Routes](routes.md), [Nghiệp vụ](nghiep-vu.md), [Deploy](deploy.md).
 
 ## 1. Quy ước
@@ -26,6 +32,7 @@ OTP sai/hết hạn/reuse → 401 AUTHENTICATION_FAILED. Rate limit → 429 RATE
 ## 3. Profile
 
 GET /drivers/me trả:
+
 ```json
 {
   "driverId": "40000000-0000-4000-8000-000000000001",
@@ -59,6 +66,7 @@ POST active=true, không chọn xe. PATCH cần OFFLINE và không active Trip t
 PUT /drivers/me/selected-vehicle body `{vehicleId}`; chỉ owner/active, OFFLINE/no active Trip. GET /drivers/me/availability reconcile ý định PostgreSQL sang Redis. PUT /drivers/me/availability body `{desiredStatus:"ONLINE"|"OFFLINE"}`.
 
 Ba route trả data:
+
 ```json
 {
   "desiredStatus": "OFFLINE",
@@ -87,7 +95,7 @@ POST /internal/drivers/eligibility/batch; X-Service-Token bằng REALTIME_INBOUN
 }
 ```
 
-1–100 UUID unique, normalize lowercase, vehicleType optional. Data `{items:[{driverId,profileEligible,eligible,availabilityKnown,vehicleType,operationalStatus,reasons}]}`. Driver không tồn tại/legacy/OFFLINE là rejected có reasons; dependency lỗi toàn batch trả 503. ONLINE/hồ sơ/xe hợp lệ nhưng projection UNKNOWN trả availabilityKnown=false và eligible=false, Realtime không suy ra từ GPS.
+1–100 UUID unique, normalize lowercase, vehicleType optional. Data `{items:[{driverId,profileEligible,eligible,availabilityKnown,vehicleType,operationalStatus,reasons}]}`. Khi bật occupancy, Driver đọc active Trip/reservation trước khi coordinate từng driver và project Redis riêng. Không tồn tại/legacy/OFFLINE bị loại có reasons; dependency lỗi toàn batch 503. Không có nguồn xác minh thì UNKNOWN/eligible=false; không suy từ GPS.
 
 ## 8. Lỗi
 
@@ -108,7 +116,7 @@ Không trả query, OTP, token hoặc secret trong lỗi. Schema/startup failure
 
 Trip public routes thuộc Trip Service: GET /trips/active, /trips/history, /trips/:id; PATCH /trips/:id/status; POST /trips/:id/cancel. Dùng JWT DRIVER và version/Idempotency-Key theo [Trip API](../../trip-service/docs/api.md). Không API nội bộ tra driverId hoặc credential service thay user JWT.
 
-Trip status CREATED/SEARCHING/ASSIGNED/DRIVER_ARRIVED/IN_PROGRESS/COMPLETED/CANCELLED. Code Trip hiện dùng Idempotent-Replay, tài liệu Trip dùng Idempotency-Replayed; App TripClient đọc cả hai, vẫn giữ version mới hơn. Contract chung còn cần owner xác nhận; Driver không sửa Trip.
+Trip status CREATED/SEARCHING/ASSIGNED/DRIVER_ARRIVED/IN_PROGRESS/COMPLETED/CANCELLED. Replay header Trip hiện là Idempotent-Replay; App TripClient hỗ trợ thêm tên cũ Idempotency-Replayed và giữ version mới hơn.
 
 GPS: namespace /realtime, auth.token, event driver.location.update với latitude/longitude/accuracy/recordedAt; xem [Realtime API](../../realtime-service/docs/api.md). Không có socket offer/trip notification trong Driver.
 

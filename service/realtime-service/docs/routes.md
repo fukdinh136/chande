@@ -1,6 +1,12 @@
 # Routes Realtime Service
 
-Ngày đối chiếu: 06/10/2026. Route/event dưới đây đã có handler trong mã; chưa kiểm chứng chạy thật. [API](api.md), [Kiến trúc](kien-truc.md), [Nghiệp vụ](nghiep-vu.md), [Deploy](deploy.md).
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | realtime-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
+Ngày đối chiếu: 06/10/2026. GPS/nearby/offer đã kiểm chứng Docker local Hà Nội; thiết bị và ingress production chưa nghiệm thu. [API](api.md), [Kiến trúc](kien-truc.md), [Nghiệp vụ](nghiep-vu.md), [Deploy](deploy.md).
 
 ## 1. Exposure và prefix
 
@@ -75,6 +81,13 @@ Profile/vehicle update và Trip routes xem tài liệu tương ứng. GET /trips
 
 Năm key realtime:{gps}:geo/meta/expiry/order/order-expiry ở [Kiến trúc](kien-truc.md). Không expose Redis qua HTTP, không dùng lock Matching hoặc drivers:geo:* cho GPS mới.
 
-## 8. Chưa có route/event
+## 8. Offer events và Matching lookups
 
-Nguồn đối soát operational status/active Trip, registry credential, Gateway chuẩn, room/stream theo tripId cho US8 và chuyển consumer GEO cũ còn chờ phối hợp. Không đưa tên route dự đoán vào danh mục đã triển khai.
+| Hướng | Route/event | Auth / vai trò |
+| --- | --- | --- |
+| Rabbit → Realtime | DRIVER_TRIP_OFFER / DRIVER_TRIP_OFFER_UPDATED | Durable queue driver.offers; manual ACK, retry/DLQ |
+| Realtime → Matching | GET /internal/matching/offers/:offerId | MATCHING_REALTIME_TOKEN; state authoritative |
+| Realtime → Matching | GET /internal/matching/drivers/:driverId/offer | Cùng credential; reconnect chính driver đã xác thực |
+| Realtime → Driver App | driver.trip.offer / driver.trip.offer.updated | Room driver từ JWT; `{data:<offer>}` |
+
+Accept/decline thuộc REST Matching, không thêm socket command trong Realtime. Registry/rotation credential, ingress Gateway, trip room US8 và legacy GEO migration chưa nghiệm thu; producer occupancy Driver đã triển khai.

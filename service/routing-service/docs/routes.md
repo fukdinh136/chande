@@ -1,6 +1,12 @@
 # Routes Routing Service
 
-Ngày cập nhật: 06/10/2026. Bảng route đã triển khai. Request/response và lỗi: [API](api.md). Realtime HTTP integration thật còn chờ contract.
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | routing-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
+Ngày cập nhật: 06/10/2026. Bảng route đã triển khai. Request/response và lỗi: [API](api.md). HTTP Realtime integration đã chạy trong smoke Matching Hà Nội.
 
 ## Inbound
 
@@ -25,11 +31,11 @@ Gateway token không có quyền gọi matrix; Matching token không dùng để
 | --- | --- | --- |
 | Route hoặc recalculate | Worker → rate permit → External Map Client | OSRM GET `/route/v1/{profile}/{coordinates}` với summary/full options |
 | ETA matrix | Worker → rate permit request + elements → External Map Client | OSRM GET `/table/v1/{profile}/{coordinates}`; N sources, 1 destination; duration/distance |
-| Nearby driver locations cho ETA Matrix | Calculate ETA Matrix → RealtimeLocationPort → Realtime Client trong Routing | Realtime query center=pickup/radius 2000 m; method/path/auth chốt theo wire contract Realtime |
+| Nearby driver locations cho ETA Matrix | Calculate ETA Matrix → RealtimeLocationPort → HTTP Realtime Client | GET /internal/realtime/nearby-drivers; latitude/longitude/radiusMeters=2000/vehicleType; X-Service-Token |
 
 Không thêm endpoint tự do để caller gửi URL provider hoặc API key. Base URL/default và override theo profile thuộc config tin cậy, kiểm tra host allowlist; không theo redirect. HTTPS mặc định, private HTTP opt-in; proxy key chỉ qua HTTPS. Không log URL/raw coordinates/key. Xem [wire mapping](api.md) và [cấu hình](cau-hinh.md).
 
-Realtime Client lấy cấu hình/credential riêng; R03 gọi client trước map pipeline. Matching gửi điểm đón/profile và nhận driver locations + ETA; nghiệp vụ chọn/mời bên trong Matching thiết kế sau. Giữ `/routes/matrix`; không thêm nearby endpoint. Contract component: [Realtime Client](realtime-client.md).
+Realtime Client có cấu hình/credential riêng; R03 lookup trước map pipeline. Matching gửi pickup/profile và nhận locations + ETA, đã triển khai chọn/mời tuần tự. Giữ `/routes/matrix`, không thêm nearby endpoint. [Realtime Client](realtime-client.md).
 
 ## Ngoài v1
 

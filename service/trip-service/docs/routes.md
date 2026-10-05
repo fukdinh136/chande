@@ -1,6 +1,12 @@
 # Routes Trip Service
 
-Ngày cập nhật: 05/10/2026. R01–R08 và probes đã triển khai; Swagger bật được ở local. Outbound dùng HTTP adapter và mock đúng contract; Gateway/service thật chưa tích hợp.
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | trip-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
+Ngày cập nhật: 06/10/2026. Public routes, assignment, internal lookups và probes đã triển khai; Swagger bật được local. Routing/Price/Matching/Driver đã liên thông trong stack Hà Nội; Gateway/Notification sink và RIDER issuer của smoke vẫn mock.
 
 Chi tiết request/response và lỗi nằm trong [API](api.md). Trách nhiệm component nằm trong [Kiến trúc](kien-truc.md). Chính sách quyền/trạng thái nằm trong [Nghiệp vụ](nghiep-vu.md).
 
@@ -39,8 +45,10 @@ Trình tự xử lý: route → xác thực identity → validation DTO/path/que
 | R08 | POST | `/internal/trips/:id/assignment` | Matching | Private network + `X-Service-Token` của Matching | Receive Assignment / C10 |
 | R09 | GET | `/health/live` trên API:3001 | Runtime/probe | Mạng vận hành, không JWT người dùng | Health API |
 | R10 | GET | `/health/ready` trên API:3001 | Runtime/probe | Mạng vận hành, không JWT người dùng | DB + schema readiness |
-| R11 | GET | `/docs` trên API:3001 | Developer local/staging | Bật khi được cấu hình; production mặc định tắt | Swagger UI dự kiến |
-| R12 | GET | `/openapi.json` trên API:3001 | Developer/contract CI | Cùng chính sách R11 | OpenAPI sinh từ controller dự kiến |
+| R11 | GET | `/docs` trên API:3001 | Developer local/staging | Bật khi được cấu hình; production mặc định tắt | Swagger UI |
+| R12 | GET | `/openapi.json` trên API:3001 | Developer/contract CI | Cùng chính sách R11 | OpenAPI sinh từ controller |
+| R13 | GET | `/internal/trips/:id/matching-state` | Matching | MATCHING_CALLBACK_TOKEN; không proxy public | AssignmentController; 200 data state |
+| R14 | POST | `/internal/trips/active-drivers/batch` | Driver | DRIVER_LOOKUP_TOKEN riêng; không proxy public | DriverLookupController; 200 data items |
 | W01 | GET | `/health/live` trên worker:3002 | Runtime/probe | Private; không proxy Gateway | Worker liveness |
 | W02 | GET | `/health/ready` trên worker:3002 | Runtime/probe | Private; không proxy Gateway | DB/schema + dispatch loop readiness |
 
@@ -48,7 +56,7 @@ R08 dùng `eventId` trong body để chống callback lặp; không dùng `Idemp
 
 ## 4. Các route Trip gọi ra ngoài
 
-Các route dưới đây là contract đã dùng trong adapter của Trip. O01/O02 đã kiểm thử qua API Routing/Price trong repository; provider map còn mock. O03–O07 dùng mock local. Mỗi đích dùng base URL/credential riêng trong [Deploy](deploy.md); xem [tích hợp Routing + Price](tich-hop-routing-price.md).
+Các route dưới đây là contract đã dùng trong adapter của Trip. Stack Trip local vẫn dùng Matching mock; stack Matching local dùng Routing OSRM Hà Nội, Price và Matching thật cho O01–O04/O07. O05/O06 vẫn dùng mock sink trong smoke. Mỗi đích dùng base URL/credential riêng; xem [báo cáo Matching](../../matching-service/docs/bao-cao-trien-khai.md).
 
 | Mã | Đích | Method và route | Bên gửi | Vai trò | ACK thành công |
 | --- | --- | --- | --- | --- | --- |
@@ -76,7 +84,7 @@ Không có route ép trạng thái `ASSIGNED`, `SEARCHING` hoặc `CANCELLED` qu
 - [ ] API xác minh token và quyền sở hữu, không chỉ dựa vào Gateway.
 - [ ] Internal callback có credential riêng; public actor không dùng được.
 - [ ] Probe và Swagger đúng port/môi trường, không public ngoài ý muốn.
-- [x] O01/O02 có kiểm thử HTTP ba service; O03–O07 có adapter/mock, còn cần xác nhận với service thật.
+- [x] O01–O04/O07 đã chạy qua runtime thật trong smoke Matching; O05/O06 vẫn dùng mock sink.
 
 ## 7. Routes riêng của bộ mock local
 

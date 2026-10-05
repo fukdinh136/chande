@@ -1,5 +1,11 @@
 # Price Service v1 — mở cửa và cước theo quãng đường
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | price-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Cập nhật 06/10/2026: P00–P02 đã có runtime config/domain/use case và NestJS HTTP; [API](api.md) là contract triển khai. Docker và tests đã có; tích hợp Trip được kiểm tra ở suite cross-service của Trip. Các feature bên dưới giữ vai trò kế hoạch/tiêu chí đối chiếu.
 
 ## 1. Đã xác nhận và đề xuất
@@ -29,13 +35,15 @@ Tiền là số nguyên VND, lưu/serialize dưới dạng chuỗi thập phân 
 | Loại xe | Giá mở cửa | Mét bao gồm | Đơn giá/km vượt | Ví dụ 4 km |
 | --- | --- | --- | --- | --- |
 | CAR | 12.000đ | 1.000 m | 10.000đ | 42.000đ |
+| CAR_4 | 12.000đ | 1.000 m | 10.000đ | 42.000đ |
+| CAR_7 | 12.000đ | 1.000 m | 10.000đ | 42.000đ |
 | BIKE | 8.000đ | 1.000 m | 4.000đ | 20.000đ |
 
 Ba thuộc tính `openingFareVnd`, `includedDistanceMeters`, `pricePerKmVnd` nằm trong [config](../config/fare-policy.example.json), không hard-code trong công thức. Trong runtime dự kiến, `FarePolicy` nhận config qua constructor; hàm cập nhật sau này validate cấu hình mới rồi thay policy snapshot atomically. Request lấy một snapshot duy nhất cho cả phép tính; đổi biểu giá không làm đổi quote đã lưu ở Trip.
 
 ## 3. Contract tương thích Trip
 
-Trip đã có [PricingClient](../../trip-service/src/infrastructure/clients/pricing.ts) gọi `POST /internal/fares/estimate`, khác tên `/fare/calculate` trong C3. Đề xuất triển khai endpoint hiện có để giữ tích hợp đơn giản; không thêm alias khi chưa có consumer cần nó.
+Trip có [PricingClient](../../trip-service/src/infrastructure/clients/pricing.ts) gọi `POST /internal/fares/estimate`, đã triển khai và kiểm thử. Tên `/fare/calculate` trong C3 ban đầu không phải endpoint runtime; không thêm alias.
 
 ```json
 {

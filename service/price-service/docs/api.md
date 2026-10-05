@@ -1,5 +1,11 @@
 # API Price Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | price-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày 06/10/2026. POST `/internal/fares/estimate` đã triển khai, tương thích PricingClient của Trip. Local port 3005. Chỉ Trip dùng service token, endpoint private. Không thêm `/fare/calculate` alias.
 
 Headers: `X-Service-Token` khớp `PRICE_TRIP_TOKEN`; `X-Request-Id` UUID tùy chọn. Server sinh UUID khi thiếu, từ chối ID sai. JSON strict, body tối đa 64 KiB, Cache-Control no-store.
@@ -22,6 +28,7 @@ GET `/health/live`, `/health/ready` không gọi dependency. `/docs`, `/openapi.
 
 - `HOST`, `PORT=3005`, `PRICE_TRIP_TOKEN` hoặc `PRICE_TRIP_TOKEN_FILE` (không đặt cả hai).
 - `SUPPORTED_VEHICLE_TYPES=CAR,BIKE`, `FARE_POLICY_FILE=config/fare-policy.example.json`. Loader validate biểu giá trước startup; không hard-code vào hàm tính.
+- Default CAR/BIKE phục vụ cấu hình cũ; stack Matching override CAR_4,CAR_7. Policy example đã khai báo cả hai CAR mới cùng mức CAR mẫu; không fallback từ mã không được cho phép.
 - `SWAGGER_ENABLED=true|false`; production tắt docs và từ chối enabled MOCK_BIKE.
 - Docker build từ service root; Node 24 image pin digest, multi-stage, non-root, không bake env/secrets/local config. Production mount policy file và secret file rồi chọn đường dẫn trong container.
 - Local tích hợp dùng [Trip Compose](../../trip-service/compose.local.yml), policy mock có CAR/BIKE/MOCK_BIKE explicit. Không triển khai User/Driver/Matching trong package này.

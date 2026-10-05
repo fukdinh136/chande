@@ -1,5 +1,11 @@
 # Cấu hình Routing và OSRM
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | routing-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày cập nhật: 06/10/2026. Provider **OSRM đã được người dùng chọn**. Config loader đã triển khai ở [config.ts](../src/bootstrap/config.ts) và kiểm thử: Node.js 24 + TypeScript 5.9 + NestJS 11, Zod 4 và dotenv/`process.env`. Không ghi đè file local. Real Realtime dùng HTTP adapter đã đối chiếu runtime; credential outbound riêng.
 
 Người dùng đã chọn tự host Docker cho Hà Nội. [Runbook OSRM Hà Nội](osrm-ha-noi.md) có pipeline tải/cắt/preprocess, profile CAR, env example riêng và overlay Trip. `.env`/`vehicle-profiles.json` hiện có được giữ nguyên; cấu hình real dùng `vehicle-profiles.osrm.json` và `INTEGRATION_MODE=real` tường minh.

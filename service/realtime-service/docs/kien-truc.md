@@ -1,10 +1,16 @@
 # Kiến trúc Realtime Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | realtime-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày đối chiếu mã: 06/10/2026. C3 dưới đây mô tả implementation hiện tại, không xác nhận đã vận hành nhiều instance. [Nghiệp vụ](nghiep-vu.md), [API](api.md), [Routes](routes.md), [Deploy](deploy.md).
 
 ## 1. Phạm vi và cách đọc
 
-Realtime nhận GPS tài xế và cung cấp nearby cho Routing. Driver cấp identity/eligibility, Redis giữ GPS của Realtime. Không có PostgreSQL, Trip client, Matching client, broker hoặc Gateway demo dependency trong Realtime.
+Realtime nhận GPS, cung cấp nearby cho Routing và giao offer qua Socket.IO. Driver cấp identity/eligibility; Redis giữ GPS/version/tombstone. Không có PostgreSQL hoặc Trip client; OfferConsumer dùng RabbitMQ và Matching HTTP state lookup. Gateway WebSocket thuần là kênh khác.
 
 Mũi tên liền thể hiện lời gọi lúc chạy; mũi tên nét đứt từ adapter đến port thể hiện triển khai interface. Bootstrap nối dependency, không phải một bước nghiệp vụ bắt buộc sau Infrastructure. Application/Domain dùng TypeScript thuần, không import NestJS, ioredis, jose hay HTTP client.
 
@@ -245,12 +251,12 @@ Read lần hai tránh trả tọa độ đã hết hạn/ra ngoài radius trong 
 
 Batch trả profileEligible, eligible, availabilityKnown, vehicleType, operationalStatus và reasons. Hồ sơ/xe không hợp lệ hoặc OFFLINE/legacy: loại. Hợp lệ nhưng projection không chứng minh ONLINE và AVAILABLE/BUSY/OFFLINE: availabilityKnown=false. Chỉ profile hợp lệ + projection ONLINE + AVAILABLE mới eligible.
 
-Nguồn cập nhật/freshness operational projection và đối soát active Trip chưa được xác nhận. Redis AVAILABLE có thể stale; batch không chứng minh Trip hiện rảnh. Trip chỉ hỗ trợ GET /trips/active theo JWT người dùng, không lookup driverId bằng credential service. Realtime không bịa API đó. Chưa có kiểm reservation trong FindNearby.
+Driver batch đối soát active Trip và reservation Matching bằng hai internal lookup credentials, rồi project Redis do Driver sở hữu. Realtime không gọi Trip hoặc đọc key Matching/Driver. Snapshot có thể stale sau lần đọc; reservation DB Matching và constraints Trip bảo vệ lúc gán.
 
 Các contract cần chốt:
 
-- Driver: producer AVAILABLE/BUSY/OFFLINE, freshness/resync, bộ mã xe và credential/JWKS rotation.
-- Routing: query/response/error code, giới hạn 50, radius tối đa 2 km, chuyển đổi lat/lng của Trip sang latitude/longitude của Realtime.
+- Driver: producer/đối soát và bộ mã xe đã triển khai; rotation production còn cần vận hành.
+- Routing: query/response mapping, cap 50, radius 2000 m và lat/lng ↔ latitude/longitude đã smoke; sizing production còn cần đo.
 - Gateway chính thức: proxy Socket.IO namespace/auth/origin, TLS/private routes; không đổi actor hoặc làm nguồn eligibility.
 - Consumer cũ: Driver docs mô tả Gateway ghi drivers:geo:{vehicle_type}. V1 này sở hữu realtime:{gps}:*; chưa dual-write/di chuyển consumer cũ.
 - US8: phân quyền theo assignment và trip room/history là thiết kế tương lai, chưa có endpoint/event trong v1.
@@ -262,3 +268,18 @@ HTTP ErrorFilter map RealtimeError ra envelope/status; HTTP 503 có Retry-After:
 RedisConnection dùng timeout hữu hạn, offline queue false; lỗi kết nối lúc module init được catch để service có thể listen và ready báo not_ready. Cleanup lỗi không kill process, read vẫn áp dụng freshness. Ready chỉ PING, không kiểm JWKS, Driver batch, ACL cho EVAL/GEO hoặc Trip.
 
 Không có durable inbox/outbox GPS, replay lịch sử, metrics endpoint hay production ingress trong code. Không coi timer cleanup, same-slot keys hoặc static review là kết quả test nhiều instance. [Deploy](deploy.md) ghi các thao tác thủ công và điều kiện nghiệm thu.
+
+## 10. C3 bổ sung — offer delivery
+
+```mermaid
+flowchart LR
+  Matching[Matching outbox publisher] --> Rabbit[Durable RabbitMQ queue]
+  Rabbit --> Consumer[OfferConsumer: manual ACK/retry/DLQ]
+  Consumer --> Lookup[Matching authoritative offer lookup]
+  Consumer --> Cache[Redis version/tombstone]
+  Consumer --> Gateway[LocationGateway: room from JWT]
+  Gateway --> Driver[Driver App: offer/updated]
+  Driver --> REST[Matching REST: accept/decline]
+```
+
+Consumer lifecycle mở/đóng connection, reconnect có backoff. Broker confirm không chứng minh app nhận; state/hạn/decision thuộc Matching. Cache/reconnect không gia hạn deadline. Code: src/infrastructure/offers/consumer.ts; [Matching C3](../../matching-service/docs/kien-truc.md).

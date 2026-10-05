@@ -1,5 +1,11 @@
 # Chạy và vận hành Driver
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | driver-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Hướng dẫn chạy trực tiếp từ repository; không cần Gateway demo. [API](api.md), [Routes](routes.md), [Kiến trúc](kien-truc.md). Các bước runtime và kiểm thử storage cần môi trường riêng; không tạo schema phỏng đoán từ ERD.
 
 ## 1. Điều kiện

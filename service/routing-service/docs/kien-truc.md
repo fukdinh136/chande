@@ -1,5 +1,11 @@
 # Kiến trúc Routing Service và component C3
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | routing-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày cập nhật: 06/10/2026. Runtime đã triển khai theo các lớp bên dưới; OSRM adapter được test bằng fake HTTP, Realtime có port/mock và HTTP adapter thật đã tích hợp. Stack: **Node.js 24 + TypeScript 5.9 + NestJS 11 + Express**, Zod 4, `fetch`/`AbortController`; domain/application độc lập với NestJS. Kết quả thực tế trong [báo cáo](bao-cao-trien-khai.md).
 
 ## 1. Ranh giới runtime

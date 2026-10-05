@@ -1,9 +1,15 @@
 # API và routes
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | matching-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Response `{data,meta:{requestId}}`; lỗi `{error:{code,message},meta:{requestId}}`. X-Request-Id UUID được giữ qua service. Body strict, giới hạn 64 KiB. Service credential riêng cho Trip, Driver và Realtime; không proxy internal qua Gateway.
 
 | Method/path | Auth | Status/data |
-|---|---|---|
+| --- | --- | --- |
 | POST /internal/matching/requests | Trip X-Service-Token | 202 `{commandId,accepted:true}` sau transaction |
 | POST /internal/matching/requests/:tripId/cancel | Trip token | 202 `{commandId,accepted:true}` |
 | POST /internal/events/trips | Trip token | 202 event receipt |

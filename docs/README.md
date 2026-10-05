@@ -1,5 +1,11 @@
 # Tài liệu dự án Chande
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | Toàn hệ thống |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
+
 Thư mục này lưu mục lục và tài liệu chung của dự án. Tài liệu nghiệp vụ riêng được lưu trong thư mục `docs` của từng service để làm cơ sở thiết kế, triển khai và nghiệm thu.
 
 ## Mục lục
@@ -25,10 +31,23 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 | Routing Service | [Realtime Client](../service/routing-service/docs/realtime-client.md) | ETA Matrix lấy vị trí driver trong bán kính 2 km qua client Routing để tính ETA trả Matching |
 | Routing Service | [Kế hoạch phát triển](../service/routing-service/docs/ke-hoach-phat-trien.md) | F00–F11, dependency, acceptance, test và commit theo feature |
 | Routing Service | [Báo cáo triển khai](../service/routing-service/docs/bao-cao-trien-khai.md) | Feature/commit/checks và giới hạn tích hợp thật |
-| Price Service | [Thiết kế v1](../service/price-service/README.md) | Giá mở cửa CAR/BIKE, config sửa được, công thức và contract tương thích Trip |
+| Price Service | [Thiết kế v1](../service/price-service/README.md) | Giá mẫu BIKE/CAR_4/CAR_7 và CAR legacy, công thức/config và contract Trip |
 | Price Service | [API và deploy](../service/price-service/docs/api.md) | Runtime NestJS, token, request/response, lỗi, policy và Docker |
 | Matching Service | [Mục lục](../service/matching-service/README.md) | Nghiệp vụ, C3, API/routes, deploy và kế hoạch mời tài xế tuần tự |
 | Matching Service | [Báo cáo triển khai](../service/matching-service/docs/bao-cao-trien-khai.md) | Feature/commit, kiểm thử, Docker và smoke CAR_4/CAR_7 Hà Nội |
+| Driver Service | [Mục lục](../service/driver-service/README.md) | Identity, hồ sơ/xe, availability, occupancy lookups, API/routes/deploy |
+| Realtime Service | [Mục lục](../service/realtime-service/README.md) | GPS, nearby, offer consumer, Socket.IO và ownership Redis |
+| User Service | [Mục lục](../service/user-service/README.md) | Java 21, User v2, auth/profile/address và body trần |
+| API Gateway | [Mục lục](../service/api-gateway/README.md) | Java/Spring, proxy/security, trip events, giới hạn các route giữ chỗ |
+
+## Chuẩn và validation chung
+
+- [Quy ước format](quy-uoc-tai-lieu.md): UTF-8, metadata, headings/bảng/code/link và nguồn số liệu.
+- [Hợp đồng liên service](hop-dong-lien-service.md): defaults/overrides, đơn vị, danh mục xe, giá, auth/routes và các khoảng trống tích hợp.
+- [Báo cáo validation](bao-cao-validation.md): commands, kết quả hiện tại, phạm vi thật/mock và lỗi tài liệu đã sửa.
+- [Deploy backend](deploy-backend.md): Docker/Kubernetes local, ingress, secrets/PVC, startup/restart và smoke.
+- [Báo cáo tích hợp backend](bao-cao-tich-hop-backend.md): Gateway kết nối backend thật, deployment và kết quả hai môi trường.
+- Kiểm tra tự động tại root: `node scripts/validate-docs.cjs`.
 
 ## Cách sử dụng
 

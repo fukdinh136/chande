@@ -1,5 +1,11 @@
 # Báo cáo triển khai
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | matching-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 ## M00
 
 Đã lưu quyết định người dùng, C3 điều chỉnh, API/routes, deploy và thứ tự feature. Đối chiếu checkout main có Driver/Realtime. Ghi nhận cần producer availability, adapter Routing→Realtime, Rabbit consumer và audience Matching; Trip callback thực tế 202.

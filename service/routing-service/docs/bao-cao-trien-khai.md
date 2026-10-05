@@ -1,5 +1,11 @@
 # Báo cáo triển khai Routing Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | routing-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày: 06/10/2026. Cập nhật theo từng feature; bảng F00–F10 bên dưới ghi kết quả fixture/mock tại thời điểm triển khai. Kết quả OSRM Hà Nội và Realtime thật được bổ sung ở các mục cuối.
 
 | Feature | Kết quả | Kiểm thử | Commit |

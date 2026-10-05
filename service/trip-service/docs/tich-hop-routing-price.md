@@ -1,5 +1,11 @@
 # Báo cáo tích hợp Trip → Routing → Price
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | trip-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày 06/10/2026. Tích hợp API của hai service trong repository bằng HTTP. Trip giữ riêng domain, database, quote và vòng đời chuyến; Routing và Price chạy process riêng.
 
 Cập nhật tiếp theo: [OSRM CAR Hà Nội tự host Docker](../../routing-service/docs/osrm-ha-noi.md). Các kết quả dưới đây ghi nhận tích hợp ba service với map mock ban đầu; overlay OSRM có runbook/checks riêng.
@@ -48,7 +54,7 @@ Các `.env`/profile local hiện có không bị ghi đè. Nếu chạy source v
 
 Giá mẫu có thể sửa trong policy file: CAR mở cửa 12.000đ bao gồm 1.000 m, vượt tính 10.000đ/km; BIKE 8.000đ và 4.000đ/km. Price tính phần vượt theo mét, làm tròn lên 1 VND bằng BigInt. `durationSeconds` được nhận để tương thích Trip; chưa có phụ phí thời gian. Đây là mức mẫu được người dùng cho phép đặt, chưa phải biểu giá kinh doanh.
 
-`fare-policy.example.json` giữ CAR/BIKE; `fare-policy.mock.json` khai báo thêm MOCK_BIKE explicit. Policy được validate và tạo snapshot khi startup; sửa config rồi restart để áp dụng cho estimate mới, quote cũ không đổi. Routing dùng `vehicle-profiles.mock.json` riêng cho ba mã xe; không thay file cấu hình OSRM local.
+`fare-policy.example.json` có CAR/BIKE/CAR_4/CAR_7; hai CAR mới cùng mức CAR mẫu. `fare-policy.mock.json` có thêm MOCK_BIKE explicit. Policy được validate và tạo snapshot khi startup; sửa config rồi restart áp dụng estimate mới, quote cũ không đổi. Routing profiles khai báo explicit; cấu hình OSRM local không bị ghi đè.
 
 ## Kiểm thử và vận hành đã thực hiện
 
@@ -81,7 +87,7 @@ Local: Trip 3001, worker probe 3002, mock 3003, Routing 3004, Price 3005, Postgr
 ## Giới hạn còn lại
 
 - Routing API/queue/limiter chạy thật, nhưng map provider vẫn mock (4 km, 600 giây). OSRM adapter đã có; cần endpoint/dataset và profile BIKE đã kiểm chứng để tích hợp real.
-- Realtime matrix HTTP adapter chưa có contract wire xác nhận; phần này không nằm trong luồng quote và không được đánh dấu hoàn tất.
+- Realtime matrix HTTP adapter đã triển khai và chạy trong stack Matching; luồng quote không gọi lookup GPS.
 - Matching, Gateway, Notification và JWT issuer local vẫn mock; không merge User/Driver/Gateway trong đợt này.
 - Chưa deploy hosting, chưa benchmark production hoặc xác nhận biểu giá kinh doanh.
 

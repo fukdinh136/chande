@@ -1,10 +1,16 @@
 # Nghiệp vụ Realtime Service — giai đoạn 1
 
-Ngày đối chiếu: 06/10/2026. V1 đã có mã cho GPS và nearby; chưa nghiệm thu runtime. [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Deploy](deploy.md).
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | realtime-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
+Ngày đối chiếu: 06/10/2026. GPS/nearby/offer đã chạy qua Docker local Hà Nội; thiết bị/background và production chưa nghiệm thu. [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Deploy](deploy.md).
 
 ## 1. Nguồn và mức độ xác nhận
 
-- Phạm vi V1 gồm GPS Driver và nearby cho Routing. Route, ngưỡng và lỗi lấy từ implementation hiện tại.
+- Phạm vi V1 gồm GPS Driver, nearby cho Routing và giao offer Matching qua RabbitMQ/Socket.IO. Route, ngưỡng và lỗi lấy từ implementation hiện tại.
 - Cách tổ chức tài liệu theo [Driver](../../driver-service/README.md) và bộ docs của Driver. [Nghiệp vụ Trip](../../trip-service/docs/nghiep-vu.md) mục 10 là nguồn ánh xạ user story; chưa có nguồn user story độc lập mới hơn để xác nhận toàn bộ hệ thống.
 - “Đã triển khai” nghĩa là có mã với hành vi tương ứng. Không đồng nghĩa đã chạy được với Redis, issuer, Routing/Driver thật hoặc app trên thiết bị. Các tiêu chí nghiệm thu ở cuối là việc cần kiểm thử, chưa đánh dấu pass.
 
@@ -12,11 +18,11 @@ Ngày đối chiếu: 06/10/2026. V1 đã có mã cho GPS và nearby; chưa nghi
 
 ### Trong Realtime v1
 
-Nhận GPS của chủ thể DRIVER đã xác thực; trả ACK; lưu vị trí mới nhất, thời gian đo/nhận và watermark thứ tự; dọn vị trí cũ; trả danh sách gần cho Routing qua HTTP nội bộ, kiểm tra độ mới và eligibility Driver theo lô.
+Nhận GPS của chủ thể DRIVER đã xác thực; trả ACK; lưu vị trí/thời gian và watermark; dọn vị trí cũ; trả nearby cho Routing, kiểm freshness/eligibility Driver theo lô. Giao offer/cập nhật vào room driver đã xác thực; reconnect lấy trạng thái Matching, không kéo dài hạn offer.
 
 ### Ngoài Realtime v1
 
-OTP/refresh/logout, đăng ký tài xế, hồ sơ/xe, ghi ONLINE/OFFLINE, assignment và vòng đời Trip, Matching/offer/accept/decline/reservation, bản đồ/route/ETA, chat/push, GPS history và tracking theo tripId. Không có room chuyến, event receiver Trip hoặc API public để Rider xem các tài xế quanh mình.
+OTP/refresh/logout, hồ sơ/xe/ONLINE, assignment/vòng đời Trip, thuật toán Matching và quyết định accept/decline/reservation, route/ETA, chat/push, GPS history/tracking theo tripId. Realtime giao offer nhưng không sở hữu quyết định offer. Không có room chuyến, Trip event receiver hoặc public nearby cho Rider.
 
 ## 3. Ranh giới và nguồn dữ liệu chuẩn
 
@@ -25,7 +31,7 @@ OTP/refresh/logout, đăng ký tài xế, hồ sơ/xe, ghi ONLINE/OFFLINE, assig
 | Driver App | Quyền vị trí, đo GPS, foreground/focus, phiên người dùng | Gửi GPS với Driver JWT; hiển thị ACK/lỗi |
 | Realtime | Vị trí mới nhất, thời gian đo/nhận, GEO, expiry, watermark | Lưu Redis riêng; nhận GPS và trả nearby |
 | Driver | Identity, ý định PostgreSQL ONLINE/OFFLINE, xe chọn/active, policy eligibility | Cấp JWT/JWKS; trả batch eligibility qua credential riêng |
-| Routing | Điểm đón và nhu cầu loại xe, xử lý danh sách vị trí | Là caller của nearby; chưa có consumer thật được kiểm chứng |
+| Routing | Điểm đón và loại xe; tính ETA từ danh sách GPS | Caller HTTP nearby đã kiểm chứng trong smoke Matching |
 | Matching | Mời/accept/decline và reservation | Kiểm tra lại trước chọn/gán; nearby không thực hiện trách nhiệm này |
 | Trip | Active Trip, assignment, version và lịch sử trạng thái | Realtime không gọi Trip hoặc đọc trip_db |
 | Gateway chính thức | Exposure/TLS/proxy khi nhóm triển khai | Contract chuyển tiếp Socket.IO còn chờ; Gateway demo không phải dependency |
@@ -85,9 +91,9 @@ Foreground GPS có mã; chưa chạy trên emulator/thiết bị. Không có bac
 
 Batch hiện đã có trong Driver, khác endpoint Matching từng tài xế chỉ trả profileEligible. availabilityKnown=true có thể đi cùng profileEligible=false: đã có lý do chắc chắn để loại tài xế, không có nghĩa đã đối soát active Trip.
 
-ONLINE + xe/hồ sơ hợp lệ nhưng projection absent/lệch/UNKNOWN trả availabilityKnown=false. Realtime không tự quảng bá AVAILABLE từ GPS. Driver batch không có quyền gọi GET /trips/active thay một tài xế bằng service credential; Trip không cung cấp lookup nội bộ theo driverId trong contract hiện tại.
+ONLINE + xe/hồ sơ hợp lệ nhưng không xác minh được occupancy trả UNKNOWN/lỗi. Realtime không tự quảng bá AVAILABLE từ GPS. Driver batch gọi lookup active Trip và reservation Matching bằng credential riêng, không dùng service credential thay JWT cho GET /trips/active.
 
-**Còn chờ phối hợp:** nguồn có thẩm quyền cập nhật AVAILABLE/BUSY, freshness của projection và đối soát với active Trip. AVAILABLE từ cache hiện tại vẫn có thể cũ. Nearby không kiểm reservation và không tạo lease; Matching/Trip phải kiểm lại khi reservation/assignment. Không suy ra kết thúc chuyến từ TTL lock. PostgreSQL, Redis và HTTP không có transaction chung.
+Driver sở hữu producer AVAILABLE/BUSY/OFFLINE và đối soát active Trip/reservation. Snapshot có thể cũ sau lần đọc; Matching/Trip kiểm lại khi reservation/assignment. Không suy ra kết thúc chuyến từ TTL lock. PostgreSQL, Redis và HTTP không có transaction chung.
 
 Watermark mặc định giữ 24 giờ sau lượt ghi, dọn riêng khỏi metadata 30 giây. Redis mất dữ liệu thì watermark cũng có thể mất; không có lịch sử GPS bền để khôi phục thứ tự trước đó. ACK không bảo đảm exactly-once qua restart/failover. Đồng hồ thiết bị/process/Redis cần đồng bộ; app lấy thời gian đo của OS, không thay bằng thời gian retry.
 
@@ -133,4 +139,4 @@ Driver chỉ gửi vị trí của mình; không có API đọc vị trí theo d
 | RAC-09 | Tắt GPS/background/rời màn hình/logout/thu hồi quyền | Không tiếp tục gửi từ vòng cũ; cleanup listener/timer/socket |
 | RAC-10 | Reconnect/token expiry/refresh đồng thời | Lấy JWT qua single-flight; đo mới, không replay backlog |
 
-Các RAC là tiêu chí kiểm thử thủ công, chưa có bằng chứng nghiệm thu runtime. Xem thao tác ở [Deploy](deploy.md).
+RAC là tiêu chí đối chiếu, không đánh dấu tất cả pass từ một smoke. GPS/nearby/offer/reconnect đã chạy thật trong [báo cáo Matching](../../matching-service/docs/bao-cao-trien-khai.md); thiết bị/background còn cần nghiệm thu.

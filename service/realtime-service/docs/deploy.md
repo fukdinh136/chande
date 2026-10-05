@@ -1,6 +1,14 @@
 # Deploy và vận hành Realtime Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | realtime-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Hướng dẫn chạy trên môi trường riêng. Các bước runtime bên dưới là quy trình vận hành và tiêu chí kiểm chứng, không phải kết quả kiểm thử đã chạy. [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Nghiệp vụ](nghiep-vu.md).
+
+Kết quả GPS/nearby/offer/reconnect thật: [báo cáo Matching](../../matching-service/docs/bao-cao-trien-khai.md). Offer cần RABBITMQ_URL, MATCHING_BASE_URL, MATCHING_REALTIME_TOKEN; startup/shutdown/retry/DLQ theo [runbook Matching](../../matching-service/docs/deploy.md). Không ghi đè .env hoặc volume existing.
 
 ## 1. Topology và điều kiện local
 
@@ -14,7 +22,7 @@ Hướng dẫn chạy trên môi trường riêng. Các bước runtime bên dư
 
 Node >=24 <25 theo package. Runbook local dùng Redis 7.4; chưa test ma trận phiên bản. Realtime không cần PostgreSQL, migration, Gateway demo hoặc Trip mock. Driver cần schema/tài khoản test hợp lệ được cấp; không tạo schema phỏng đoán hoặc reseed DB chung.
 
-Realtime chưa có Dockerfile/Compose/lockfile/production ingress. Trip mock theo tài liệu Trip mặc định port 3003, xung đột Driver 3003; người vận hành phải dùng port/config thích hợp. Không sửa Trip hoặc dùng JWT Trip mock thay JWT Driver.
+Realtime có Dockerfile/lockfile; [Matching compose](../../matching-service/compose.local.yml) chạy Redis 8, host Realtime 3009. Redis 7.4 trong runbook dưới là ví dụ riêng, không phải phiên bản smoke Matching. Chưa có production ingress. Realtime/Routing cùng default 3004, Driver/Trip mock cùng default 3003; phải override khi chạy chung.
 
 ## 2. Scripts hiện có
 
@@ -96,10 +104,10 @@ Set-Location service/realtime-service
 node --version
 ```
 
-Lần đầu chưa có lockfile nên dùng install, sau đó review và đưa lockfile đã xác minh vào Git:
+Lockfile đã có và được kiểm chứng; dùng install có chủ đích chỉ khi thay dependency, còn checkout dùng ci:
 
 ```powershell
-npm.cmd install
+npm.cmd ci
 ```
 
 Chỉ copy sample nếu chưa có private .env:
@@ -254,7 +262,7 @@ Thay UUID mẫu bằng tài khoản test đang gửi GPS. Credential bằng REAL
 | Redis/Driver lỗi | Outage mô phỏng được phép ở môi trường riêng | ready/ACK/nearby lỗi rõ, không [] giả |
 | Cleanup race | Nhiều client gửi quanh expiry trên Redis riêng | Mẫu mới hợp lệ không bị cleanup cũ xóa; cần kiểm chứng runtime |
 
-Empty nearby, disconnect hoặc expiry GPS không kết thúc Trip/reservation. Các ca là tiêu chí nghiệm thu; chưa có kết quả runtime được xác nhận.
+Empty nearby, disconnect hoặc expiry GPS không kết thúc Trip/reservation. Các ca là tiêu chí đối chiếu; kết quả runtime GPS/nearby/offer/reconnect đã có trong báo cáo Matching, không đồng nghĩa mọi ca thiết bị/background đã nghiệm thu.
 
 ## 11. App foreground và Expo Go
 

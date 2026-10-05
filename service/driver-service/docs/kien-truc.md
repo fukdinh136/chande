@@ -1,10 +1,16 @@
 # Kiến trúc Driver Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | driver-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 C3 theo layer và implementation hiện tại. [API](api.md), [Nghiệp vụ](nghiep-vu.md), [Deploy](deploy.md).
 
 ## 1. Container và ranh giới
 
-Driver sử dụng PostgreSQL Driver, Redis Driver, OTP adapter và HTTP Trip Active. Realtime sử dụng JWKS/batch eligibility từ Driver, giữ GPS ở namespace Redis riêng. App Driver trong app/ gọi trực tiếp Driver/Trip/Realtime theo cấu hình. Gateway chính thức là dependency ingress tương lai, không phải nguồn Trip/Driver.
+Driver dùng PostgreSQL/Redis riêng, OTP adapter, HTTP Trip Active và HttpOccupancy lookup Trip/Matching khi cấu hình. Realtime dùng JWKS/batch eligibility Driver, giữ GPS Redis riêng. App gọi direct; Gateway proxy REST đã có source, chưa nghiệm thu ingress chung của stack smoke.
 
 Driver không truy cập trip_db, không tạo Trip/Matching thay thế, không sở hữu reservation lock Matching.
 
@@ -35,6 +41,7 @@ flowchart TB
       RSA["RSA tokens and OTP adapters"]
       RedisAdapter["Redis state adapter"]
       TripClient["HTTP Trip active client"]
+      Occupancy["HttpOccupancy: Trip active / Matching reservation"]
     end
     Bootstrap["Config and dependency injection"]
   end
@@ -61,9 +68,12 @@ flowchart TB
   RSA -.-> Ports
   RedisAdapter -.-> Ports
   TripClient -.-> Ports
+  Occupancy -.-> Ports
   Persistence --> PG
   RedisAdapter --> Cache
   TripClient --> Trip
+  Occupancy --> Trip
+  Occupancy --> Matching
   Bootstrap --> Presentation
   Bootstrap --> Infrastructure
 ```
@@ -174,18 +184,18 @@ sequenceDiagram
 | --- | --- | --- |
 | driver:{id}:availability STRING | Driver từ PG | Projection ONLINE/OFFLINE, không phải nguồn ý định |
 | driver:{id}:state.vehicle_id HASH | Driver select/clear | Không có cột selected_vehicle_id; mất cache phải chọn lại |
-| state.status | Driver vô hiệu hóa trạng thái cũ/ghi OFFLINE, bảo toàn BUSY | AVAILABLE/BUSY cần producer chính thức đối soát Trip; thiếu field trả UNKNOWN |
+| state.status | Driver project occupancy sau lookup Trip/Matching | AVAILABLE/BUSY/OFFLINE; lookup lỗi UNKNOWN, không suy rảnh từ GPS |
 | state.last_seen/vehicle_type | Driver xóa khi OFFLINE | Driver không tạo GPS/presence |
 | drivers:locations:last_seen, drivers:geo:{type} | Driver chỉ ZREM khi clear/OFFLINE | Key legacy giữ cleanup tương thích; không còn Gateway demo producer |
-| driver:{id}:lock | Matching | Driver không tạo/xóa/chiếm lock |
+| driver:{id}:lock | Key legacy, không dùng trong Matching v1 hiện tại | Matching giữ reservation ở PostgreSQL riêng; Driver không tạo/xóa/chiếm key này |
 | realtime:{gps}:* | Realtime | Namespace riêng; xem tài liệu Realtime, Driver không ghi |
 
-HASH state không TTL toàn key để tránh làm mất BUSY/selection do GPS expiry. ONLINE không ghi AVAILABLE. Không dual-write GEO legacy và Realtime. Redis Cluster cần đánh giá lại multi-key Lua Driver vì key legacy không cùng hash tag; chưa nghiệm thu cluster.
+HASH state không TTL toàn key để tránh mất BUSY/selection do GPS expiry. ONLINE không tự chứng minh AVAILABLE; occupancy lookup mới project trạng thái khi đủ điều kiện. Không dual-write GEO legacy và Realtime. Redis Cluster chưa nghiệm thu multi-key Lua legacy.
 
 ## 7. Contract cần phối hợp
 
-Trip nhận JWT DRIVER do issuer Driver cấp qua JWKS; URL direct không prefix mặc định. Không có lookup driverId bằng service credential. App TripClient tương thích cả Idempotent-Replay trong code Trip và Idempotency-Replayed trong tài liệu Trip, vẫn kiểm version; chưa chốt tên header chung.
+Trip nhận JWT DRIVER qua verifier/issuer riêng; direct URL không prefix. Driver HttpOccupancy gọi batch active-driver Trip và reservation Matching bằng credential riêng. Trip replay header hiện là Idempotent-Replay; app có compatibility parser cho tên cũ nhưng không coi hai tên cùng là contract hiện tại.
 
 Realtime batch dùng credential riêng, khác Matching token. GPS ACK chỉ xác nhận thao tác Redis, không chứng minh đủ điều kiện nhận cuốc hoặc persistence qua failover.
 
-Gateway chính thức cần proxy path/envelope/status/headers, chuyển tiếp Authorization và Idempotency-Key, hạn chế internal endpoints, namespace Socket.IO/CORS, nguồn vận hành AVAILABLE/BUSY và resync active Trip. Không cần sao chép Gateway demo; durable event delivery chưa thuộc implementation Driver/Realtime hiện tại.
+Gateway cần proxy path/status/headers, Authorization/Idempotency-Key và hạn chế internal endpoints. Matching reservation và Realtime Rabbit offer delivery đã triển khai; nguồn AVAILABLE/BUSY thuộc Driver occupancy. Socket.IO ingress, app offer UI và production còn cần feature riêng.

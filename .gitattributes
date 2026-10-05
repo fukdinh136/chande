@@ -1,0 +1,4 @@
+# Keep service documentation portable and consistent on Windows/Linux.
+README.md text eol=lf
+docs/**/*.md text eol=lf
+service/**/*.md text eol=lf

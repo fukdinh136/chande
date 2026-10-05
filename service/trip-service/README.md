@@ -1,5 +1,11 @@
 # Trip Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | trip-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
+
 Service quản lý nghiệp vụ chuyến đi của Chande, từ báo giá và đặt xe đến nhận chuyến, cập nhật tiến trình, hoàn thành hoặc hủy.
 
 ## Tài liệu

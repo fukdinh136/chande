@@ -1,15 +1,21 @@
-# User Service v2 — đặc tả để viết lại bằng Java thuần
+# User Service v2 — đặc tả và triển khai Java thuần
+
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | user-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 > Cập nhật 06/10/2026.
 > Nguồn: code v1 trên nhánh `user-service` (commit `056bd00`) và api-gateway đang làm trên nhánh `api-gateway`.
-> Mục đích: viết lại user-service **không dùng web framework**, tách riêng tầng nghiệp vụ.
+> Runtime v2 đã triển khai bằng Java 21, không web framework; nghiệp vụ/core tách riêng. Mô tả v1 và các quyết định dưới đây giữ provenance; kết quả validation hiện tại ở tài liệu chung.
 
 ---
 
 ## 0. Các quyết định đã chốt
 
 | # | Quyết định | Hệ quả |
-|---|---|---|
+| --- | --- | --- |
 | Q1 | Giữ nghiệp vụ v1 | Đăng ký không OTP, không có quên mật khẩu, không Idempotency-Key, không outbox/sự kiện, hồ sơ không có `version` |
 | Q2 | Giữ chức năng địa chỉ đã lưu | Contract 0.1 không có phần này, chỉ v1 có |
 | Q3 | Chạy được sau api-gateway mới | Path tại service bỏ `/api/v1`; `/auth/logout` không cần JWT; access token ký **RS256**, công khai khoá qua **JWKS** |
@@ -26,14 +32,14 @@
 User Service quản lý tài khoản **khách đặt xe** (role `RIDER`). Tài xế do Driver Service quản lý riêng, dùng issuer JWT khác.
 
 | Nhóm | Chức năng |
-|---|---|
+| --- | --- |
 | Tài khoản và phiên | Đăng ký bằng SĐT + mật khẩu; đăng nhập; làm mới token (xoay vòng, phát hiện token bị dùng lại); đăng xuất một thiết bị; đăng xuất mọi thiết bị |
 | Hồ sơ | Xem hồ sơ; sửa họ tên và ảnh đại diện; đổi mật khẩu |
 | Địa chỉ đã lưu | Tối đa 10 địa chỉ; luôn có đúng 1 địa chỉ mặc định khi danh sách không rỗng; thêm, sửa, xoá, đặt mặc định |
 | Nội bộ | Service khác (trip-service) tra thông tin cơ bản của một user bằng khoá nội bộ |
 | Hạ tầng | Công khai khoá ký JWT (JWKS); health check |
 
-```
+```text
 Mobile app ──HTTPS──> api-gateway :8080 ──(bỏ /api/v1)──> user-service :3011 ──JDBC──> PostgreSQL user_service_db
                         │ CORS, X-Request-Id, rate limit đăng ký/đăng nhập theo IP,
                         │ kiểm JWT (RS256 qua JWKS) và role RIDER cho /users/** và /auth/logout-all,
@@ -46,6 +52,7 @@ trip-service ──mạng nội bộ──> user-service :3011  GET /internal/us
 **Gateway đã làm, service không cần làm:** CORS, sinh/chuyển tiếp `X-Request-Id`, rate limit, kiểm tra kích thước body ở biên.
 
 **Service vẫn phải tự làm:**
+
 - Kiểm JWT ở mọi endpoint RIDER. Không tin gateway, vì service có thể bị gọi thẳng trong mạng nội bộ.
 - Kiểm khoá nội bộ cho `/internal/**`.
 - Toàn bộ validation.
@@ -105,7 +112,7 @@ trip-service ──mạng nội bộ──> user-service :3011  GET /internal/us
 ## 3. Danh mục API
 
 | ID | Method | Path tại service | Truy cập | Thành công | Tương ứng v1 |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | A1 | POST | `/auth/register` | PUBLIC | 201 | `POST /api/v1/users/auth/register` |
 | A2 | POST | `/auth/login` | PUBLIC | 200 | `POST /api/v1/users/auth/login` |
 | A3 | POST | `/auth/refresh` | PUBLIC | 200 | `POST /api/v1/users/auth/refresh` |
@@ -133,7 +140,7 @@ trip-service ──mạng nội bộ──> user-service :3011  GET /internal/us
 
 ### 4.0 Các kiểu response dùng chung
 
-```jsonc
+```text
 // TokenResponse — A2, A3
 { "accessToken": "<JWT>", "refreshToken": "<43 ký tự base64url>", "tokenType": "Bearer", "expiresIn": 900 }
 
@@ -154,6 +161,7 @@ trip-service ──mạng nội bộ──> user-service :3011  GET /internal/us
 `expiresIn` là số giây sống của access token: 15 phút = 900.
 
 **Quy ước validation dùng trong các bảng bên dưới:**
+
 - "Bắt buộc" nghĩa là khác `null` **và** không rỗng sau `String.trim()`. `trim()` cắt các ký tự ≤ U+0020, giống `@NotBlank` của v1.
 - Độ dài tính bằng `String.length()` trên giá trị **gốc**, chưa trim.
 - Regex dùng `Pattern.matcher(s).matches()` (khớp toàn chuỗi). Trường `null` thì bỏ qua kiểm độ dài và regex.
@@ -169,7 +177,7 @@ trip-service ──mạng nội bộ──> user-service :3011  GET /internal/us
 ```
 
 | Trường | Quy tắc | Message khi vi phạm |
-|---|---|---|
+| --- | --- | --- |
 | `phoneNumber` | bắt buộc | Số điện thoại không được để trống |
 | | ≤ 20 ký tự | Số điện thoại quá dài |
 | `password` | bắt buộc | Mật khẩu không được để trống |
@@ -197,7 +205,7 @@ trip-service ──mạng nội bộ──> user-service :3011  GET /internal/us
 **Request** `{ "phoneNumber": "0912345678", "password": "matkhau123" }`
 
 | Trường | Quy tắc | Message |
-|---|---|---|
+| --- | --- | --- |
 | `phoneNumber` | bắt buộc | Số điện thoại không được để trống |
 | | ≤ 20 ký tự | Số điện thoại quá dài |
 | `password` | bắt buộc | Mật khẩu không được để trống |
@@ -218,7 +226,7 @@ trip-service ──mạng nội bộ──> user-service :3011  GET /internal/us
 **Request** `{ "refreshToken": "<raw>" }`
 
 | Trường | Quy tắc | Message |
-|---|---|---|
+| --- | --- | --- |
 | `refreshToken` | bắt buộc | Refresh token không được để trống |
 | | ≤ 200 ký tự | Refresh token không hợp lệ |
 
@@ -273,7 +281,7 @@ v1 không kiểm `status` ở endpoint này: user bị khoá vẫn xem được 
 ```
 
 | Trường | Quy tắc (khi khác null) | Message |
-|---|---|---|
+| --- | --- | --- |
 | `fullName` | ≤ 100 ký tự | Họ tên tối đa 100 ký tự |
 | | khớp `.*\S.*` | Họ tên không được để trống |
 | `avatarUrl` | ≤ 500 ký tự | URL ảnh tối đa 500 ký tự |
@@ -292,7 +300,7 @@ v1 không kiểm `status` ở endpoint này: user bị khoá vẫn xem được 
 **Request** `{ "oldPassword": "matkhau123", "newPassword": "matkhaumoi456" }`
 
 | Trường | Quy tắc | Message |
-|---|---|---|
+| --- | --- | --- |
 | `oldPassword` | bắt buộc | Vui lòng nhập mật khẩu hiện tại |
 | | ≤ 72 ký tự | Mật khẩu tối đa 72 ký tự |
 | `newPassword` | bắt buộc | Vui lòng nhập mật khẩu mới |
@@ -323,7 +331,7 @@ v1 không kiểm `status` ở endpoint này: user bị khoá vẫn xem được 
 ```
 
 | Trường | Quy tắc | Message |
-|---|---|---|
+| --- | --- | --- |
 | `label` | tuỳ chọn; ≤ 50 ký tự | Tên gợi nhớ tối đa 50 ký tự |
 | `addressText` | bắt buộc | Địa chỉ không được để trống |
 | | ≤ 500 ký tự | Địa chỉ tối đa 500 ký tự |
@@ -334,6 +342,7 @@ v1 không kiểm `status` ở endpoint này: user bị khoá vẫn xem được 
 | `makeDefault` | tuỳ chọn, boolean | — |
 
 **Chuẩn hoá trước khi lưu (BR-21):**
+
 - `label`: null hoặc rỗng sau trim thì lưu `null`; ngược lại lưu bản đã trim.
 - `addressText`: lưu bản đã trim.
 - `lat`, `lng`: `setScale(8, HALF_UP)`. Kiểm khoảng giá trị **trước** khi làm tròn.
@@ -342,24 +351,29 @@ v1 không kiểm `status` ở endpoint này: user bị khoá vẫn xem được 
 Địa chỉ của **user khác** được xử lý như không tồn tại: 404 `ADDRESS_NOT_FOUND`, không trả 403, để không lộ việc địa chỉ đó có tồn tại.
 
 #### D1 — `GET /users/me/addresses`
+
 Trả **200** mảng `Address`, sắp xếp `is_default DESC, created_at DESC` (mặc định lên đầu, sau đó mới nhất trước). Danh sách rỗng trả `[]`.
 
 #### D2 — `POST /users/me/addresses`
+
 1. `count` = số địa chỉ hiện có. `count ≥ 10` thì 400 `ADDRESS_LIMIT_REACHED`.
 2. `makeDefault = (count == 0) || request.makeDefault == true`. Địa chỉ đầu tiên luôn là mặc định.
 3. Nếu `makeDefault`: bỏ cờ mặc định của mọi địa chỉ khác **trước**, rồi mới INSERT. Thứ tự này cần thiết để không vi phạm unique index một-mặc-định.
 4. INSERT, trả **201** `Address`. Không có header `Location`.
 
 #### D3 — `PUT /users/me/addresses/{addressId}`
+
 - Thay **toàn bộ** `label`, `addressText`, `lat`, `lng`. Bỏ `label` thì label bị xoá về `null`.
 - `makeDefault == true`: bỏ mặc định các địa chỉ khác, đặt địa chỉ này làm mặc định.
 - `makeDefault` là `false` hoặc `null`: **giữ nguyên** cờ mặc định hiện tại. Không bỏ được cờ mặc định qua API này.
 - Không tìm thấy thì 404 `ADDRESS_NOT_FOUND`. Trả **200** `Address`.
 
 #### D4 — `PUT /users/me/addresses/{addressId}/default`
+
 Không có body. Bỏ mặc định các địa chỉ khác, đặt địa chỉ này làm mặc định. Không tìm thấy thì 404. Trả **200** `Address`.
 
 #### D5 — `DELETE /users/me/addresses/{addressId}`
+
 Không tìm thấy thì 404. Xoá địa chỉ. Nếu địa chỉ vừa xoá là mặc định thì địa chỉ **mới nhất** còn lại (theo `created_at DESC`) tự thành mặc định. Trả **204**.
 
 ---
@@ -391,6 +405,7 @@ Trả 200 `{"status":"UP"}` khi `SELECT 1` tới DB thành công, ngược lại
 Đánh số để test có thể tham chiếu.
 
 **Tài khoản**
+
 - **BR-01 Chuẩn hoá SĐT Việt Nam**
   1. Xoá các ký tự khoảng trắng ASCII, `.`, `-`, `(`, `)`.
   2. Đầu `0` thì thay bằng `+84`; đầu `84` thì thêm `+`; đầu `+84` thì giữ nguyên; còn lại là lỗi.
@@ -409,6 +424,7 @@ Trả 200 `{"status":"UP"}` khi `SELECT 1` tới DB thành công, ngược lại
 - **BR-07** API đăng nhập không được để lộ SĐT nào đã đăng ký: dùng chung lỗi 401 và chạy BCrypt với hash giả khi không tìm thấy user. Riêng API đăng ký **có** báo 409 khi SĐT đã tồn tại, đây là hành vi của v1.
 
 **Phiên và token**
+
 - **BR-10 Cấp cặp token**
   - Access JWT: RS256, sống 15 phút (mục 7).
   - Refresh token: 32 byte ngẫu nhiên từ `SecureRandom`, mã hoá base64url không padding (43 ký tự).
@@ -420,9 +436,11 @@ Trả 200 `{"status":"UP"}` khi `SELECT 1` tới DB thành công, ngược lại
 - **BR-15** Hết hạn khi `expires_at < now` (so sánh chặt).
 
 **Hồ sơ**
+
 - **BR-20** Chỉ sửa được `fullName` và `avatarUrl`. Không sửa SĐT, trạng thái, `id`, `createdAt` qua API.
 
 **Địa chỉ**
+
 - **BR-21** Chuẩn hoá trường như mô tả ở mục 4 (D\*).
 - **BR-22** Mỗi user có tối đa **10** địa chỉ.
 - **BR-23** Mỗi user có **tối đa 1** địa chỉ mặc định (partial unique index trong DB). Khi danh sách không rỗng, các thao tác của API luôn giữ **đúng 1** mặc định:
@@ -431,6 +449,7 @@ Trả 200 `{"status":"UP"}` khi `SELECT 1` tới DB thành công, ngược lại
 - **BR-24** User chỉ thấy và thao tác được địa chỉ của chính mình. Địa chỉ của người khác được coi như không tồn tại.
 
 **JWT và khoá**
+
 - **BR-30** Access token chỉ được ký bằng khoá RSA hiện hành, `alg = RS256`, có `kid`.
 - **BR-31** Khi verify phải từ chối: `alg` khác `RS256` (kể cả `none` và `HS256`), `kid` lạ, sai chữ ký, sai `iss`, thiếu hoặc quá hạn `exp` (cho lệch đồng hồ 60 giây như v1), `sub` không phải UUID, `role` khác `RIDER`.
 - **BR-32** `iss` phải **trùng tuyệt đối** với `RIDER_JWT_ISSUER` cấu hình ở gateway.
@@ -441,7 +460,7 @@ Trả 200 `{"status":"UP"}` khi `SELECT 1` tới DB thành công, ngược lại
 ## 6. Mã lỗi
 
 | Code | HTTP | Message | Phát sinh ở |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `VALIDATION_ERROR` | 400 | Dữ liệu không hợp lệ | Sai trường, JSON hỏng, thiếu body, path param sai |
 | `INVALID_PHONE_NUMBER` | 400 | Số điện thoại không hợp lệ | A1, A2 |
 | `ADDRESS_LIMIT_REACHED` | 400 | Bạn chỉ được lưu tối đa 10 địa chỉ | D2 |
@@ -490,7 +509,7 @@ Gateway chấp nhận `typ` là `JWT` hoặc `at+jwt`.
 ```
 
 | Claim | Ý nghĩa |
-|---|---|
+| --- | --- |
 | `iss` | Lấy từ cấu hình `JWT_ISSUER`; phải trùng `RIDER_JWT_ISSUER` của gateway |
 | `sub` | `users.id` |
 | `role` | Luôn là `RIDER` |
@@ -549,12 +568,13 @@ user_addresses (
 **Đổi lỗi DB thành mã lỗi API** (PostgreSQL SQLState và tên constraint):
 
 | SQLState | Constraint | Mã lỗi API |
-|---|---|---|
+| --- | --- | --- |
 | 23505 | `uk_users_phone_number` | `PHONE_ALREADY_EXISTS` |
 | 23505 | `ux_user_addresses_one_default` | `DATA_CONFLICT` |
 | 23503 (FK), 23505/23514 khác | — | `DATA_CONFLICT` |
 
 **Lưu ý khi tự viết tầng lưu trữ:**
+
 - v2 tự sinh `id` (UUID v4) và `created_at`/`updated_at` từ `Clock` rồi INSERT tường minh, không dựa vào DEFAULT. Thời gian cắt về **micro giây** (`truncatedTo(ChronoUnit.MICROS)`) để giá trị trả về khớp với giá trị lưu trong DB.
 - `status` lưu dạng chuỗi tên enum.
 - `lat`/`lng` đọc và ghi bằng `BigDecimal`.
@@ -566,7 +586,7 @@ user_addresses (
 Service đọc toàn bộ cấu hình lúc khởi động. Thiếu hoặc sai giá trị thì **dừng ngay**, giống `@Validated` của v1.
 
 | Biến | Mặc định | Ghi chú |
-|---|---|---|
+| --- | --- | --- |
 | `PORT` | `3011` | Gateway mặc định gọi `http://localhost:3011`; v1 chạy 8081 |
 | `DB_URL` | `jdbc:postgresql://localhost:5432/user_service_db` | |
 | `DB_USERNAME`, `DB_PASSWORD` | — | v1 đang hard-code `postgres`/`123456` trong yaml; v2 chuyển sang biến môi trường |
@@ -591,7 +611,7 @@ Phía gateway: đặt `USER_SERVICE_URLS`, `RIDER_JWT_ISSUER` (= `JWT_ISSUER`) v
 
 ### 10.1 Nguyên tắc phụ thuộc
 
-```
+```text
 bootstrap ──> adapter ──> application ──> domain
 ```
 
@@ -603,14 +623,14 @@ bootstrap ──> adapter ──> application ──> domain
 Để **trình biên dịch tự chặn** phụ thuộc sai chiều, nên tách Maven multi-module:
 
 | Module | Gồm | Phụ thuộc |
-|---|---|---|
+| --- | --- | --- |
 | `user-core` | domain + application | **không có** dependency ngoài (test: JUnit) |
 | `user-adapters` | http, persistence, security | `user-core` + thư viện |
 | `user-app` | bootstrap, tạo fat jar | `user-adapters` |
 
 ### 10.2 Cấu trúc package
 
-```
+```text
 com.chande.userservice
 ├── domain
 │   ├── common      ErrorCode, DomainException, ValidationException, FieldErrors
@@ -800,7 +820,7 @@ Use case trả `record` view (`UserView`, `AddressView`…) thay vì entity, đ�
 **Phạm vi transaction và khoá:**
 
 | Use case | Transaction | Khoá / chống tranh chấp | Khác v1 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | register | Kiểm tồn tại và BCrypt **ngoài** tx; tx chỉ có INSERT | unique `uk_users_phone_number` | v1 giữ connection trong lúc BCrypt |
 | login | Đọc user và BCrypt ngoài tx; tx INSERT refresh token | — | như trên |
 | refresh | 1 tx, **commit cả khi trả lỗi** reuse/blocked (10.6) | `FOR UPDATE` dòng token | — |
@@ -814,6 +834,7 @@ Luôn gọi `clearDefault` **trước** khi đặt địa chỉ mới làm mặc
 ### 10.6 Transaction với JDBC và "trả lỗi nhưng vẫn commit"
 
 `JdbcTransactionRunner` giữ `Connection` hiện tại trong `ThreadLocal`; mỗi request chạy trên một virtual thread riêng nên cách này an toàn. Repository lấy connection qua `ConnectionProvider` do chính runner cài đặt:
+
 - Đang trong tx thì dùng connection của tx.
 - Ngoài tx thì mượn một connection auto-commit rồi trả lại ngay.
 
@@ -907,6 +928,7 @@ HttpResult create(HttpRequest req) {
 ```
 
 `Router.handle(HttpExchange)` làm theo thứ tự ở mục 2.2 và bọc mọi thứ trong `try/catch`. Mọi exception đều đi qua **một** `ErrorMapper`:
+
 - `ValidationException`: 400, kèm `fieldErrors`.
 - `DomainException`: tra bảng `ErrorCode → HTTP status` (bảng nằm ở adapter, không nằm ở domain).
 - `HttpError` (404/405/415/401/403): lỗi giao thức do adapter tự ném.
@@ -914,6 +936,7 @@ HttpResult create(HttpRequest req) {
 - Còn lại: log error kèm stack trace, trả 500.
 
 **Những điểm dễ sai với JDK HttpServer:**
+
 - `sendResponseHeaders(status, length)`: `length = -1` nghĩa là **không có body** (dùng cho 204); `0` nghĩa là chunked. Với JSON, ghi đúng số byte.
 - Luôn đóng exchange trong `finally`.
 - Đọc body bằng `readNBytes(MAX_BODY_BYTES + 1)`; vượt ngưỡng thì từ chối (mã lỗi xem mục 14).
@@ -922,6 +945,7 @@ HttpResult create(HttpRequest req) {
 - BCrypt tốn CPU. Với virtual thread không giới hạn, nên chặn số BCrypt chạy đồng thời bằng một `Semaphore` (khoảng số core). Gateway đã rate limit login/register, nhưng P3 và các lời gọi nội bộ thì không.
 
 **JSON:** dùng Jackson databind (là thư viện, không phải framework):
+
 - `FAIL_ON_UNKNOWN_PROPERTIES = false` (bỏ qua trường lạ).
 - Tắt ép kiểu vô hướng (chuỗi sang số, số sang chuỗi…).
 - `Instant` ghi dạng ISO; `BigDecimal` ghi dạng plain.
@@ -930,7 +954,7 @@ HttpResult create(HttpRequest req) {
 ### 10.8 Lưu trữ (JDBC)
 
 | Phương thức port | SQL |
-|---|---|
+| --- | --- |
 | `existsByPhone` | `SELECT EXISTS(SELECT 1 FROM users WHERE phone_number = ?)` |
 | `findByPhone` / `findById` | `SELECT id, phone_number, password_hash, full_name, avatar_url, status, created_at, updated_at FROM users WHERE … = ?` |
 | `insert(User)` | `INSERT INTO users (id, phone_number, password_hash, full_name, avatar_url, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)` |
@@ -1006,7 +1030,7 @@ public static void main(String[] args) throws Exception {
 ### 10.12 Thư viện đề xuất
 
 | Việc | Thư viện | Bắt buộc? |
-|---|---|---|
+| --- | --- | --- |
 | Driver DB | `org.postgresql:postgresql` (bản mới, đã bỏ `synchronized` nên hợp với virtual thread) | có |
 | Connection pool | `com.zaxxer:HikariCP` (≥ 5.1) | nên có |
 | Migration | `org.flywaydb:flyway-core` + `flyway-database-postgresql` | nên có (giữ lịch sử v1) |
@@ -1022,7 +1046,7 @@ public static void main(String[] args) throws Exception {
 ## 11. Kiểm thử
 
 | Tầng | Cách test | Ghi chú |
-|---|---|---|
+| --- | --- | --- |
 | domain | Unit test thuần | `PhoneNumber` (bảng ví dụ BR-01), `FieldErrors`, `RefreshToken`, `AddressRules` |
 | application | Unit test với **fake in-memory** cho mọi port | `TransactionRunner` giả gọi thẳng `work.get()`. Chuyển gần như toàn bộ test service của v1 sang đây, không cần Mockito |
 | persistence | Testcontainers PostgreSQL, chạy migration thật | `FOR UPDATE` thật sự chặn request thứ hai; partial unique index; đổi constraint sang mã lỗi; độ chính xác micro giây |
@@ -1030,6 +1054,7 @@ public static void main(String[] args) throws Exception {
 | end-to-end | Postman collection `Chande-user-service` | Phải **sửa path** (bỏ `/users` trong `/api/v1/users/auth/...`, hoặc gọi qua gateway) và sửa bước "Đổi mật khẩu" (giờ phải đăng nhập lại) |
 
 Các ca từ test v1 cần giữ:
+
 - **Đăng ký:** chuẩn hoá SĐT và băm mật khẩu; SĐT trùng thì 409 mà **không băm**; SĐT sai bị chặn **trước khi chạm DB**; hai request trùng cùng lúc thì 409.
 - **Đăng nhập:**
   - DB chỉ lưu hash của refresh token.
@@ -1052,7 +1077,7 @@ Các ca từ test v1 cần giữ:
 ## 12. Khác biệt v1 → v2
 
 | Hạng mục | v1 | v2 |
-|---|---|---|
+| --- | --- | --- |
 | Nền tảng | Spring Boot 4.1.1 (WebMVC, Security, Data JPA, Validation, Actuator) | JDK HttpServer + JDBC, nối tay |
 | Cổng | 8081 | 3011 |
 | Path auth | `/api/v1/users/auth/*` | `/auth/*` |
@@ -1070,6 +1095,7 @@ Các ca từ test v1 cần giữ:
 | Thông tin DB | Hard-code trong yaml | Biến môi trường |
 
 **Các bước chuyển:**
+
 1. Chạy v2 ở cổng 3011, dùng chung DB với v1 (migration không đổi).
 2. Sinh cặp khoá RSA; đặt `JWT_ISSUER` trùng `RIDER_JWT_ISSUER` của gateway.
 3. Trỏ `USER_SERVICE_URLS` và `RIDER_JWKS_URI` của gateway sang v2.

@@ -1,5 +1,11 @@
 # Nghiệp vụ Driver
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | driver-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Tài liệu mô tả hành vi trong mã hiện tại. “Có implementation” không đồng nghĩa đã kiểm chứng với database, service thật hoặc thiết bị. [API](api.md), [Kiến trúc](kien-truc.md), [Routes](routes.md), [Deploy](deploy.md).
 
 ## 1. Phạm vi và chủ sở hữu
@@ -29,7 +35,7 @@ Không mở đăng ký Driver mới, payment, rating, admin, chat, khiếu nại
 
 Hồ sơ gồm fullName, avatarUrl, licenseNumber, phoneNumber và desiredStatus. Chỉ fullName/avatarUrl/licenseNumber được cập nhật. Không đổi phone/ID. Hồ sơ đủ tên, điện thoại, giấy phép trước ONLINE.
 
-Giấy phép thay đổi, xe cập nhật và xe chọn yêu cầu Driver OFFLINE và không có active Trip tại lần đọc bằng JWT người dùng. Sửa tên/avatar không cần kiểm Trip. Đăng ký xe mới không tự chọn xe và không thay xe chuyến đang chạy.
+Giấy phép thay đổi, xe cập nhật và xe chọn yêu cầu Driver OFFLINE, không active Trip qua JWT; khi bật occupancy còn kiểm active Trip/reservation qua internal lookup. Sửa tên/avatar không cần kiểm Trip. Xe mới không tự được chọn hoặc thay snapshot chuyến đang chạy.
 
 Xe phải thuộc actor JWT, active, thuộc loại được cấu hình; mặc định BIKE/CAR_4/CAR_7. Truy cập xe người khác trả 404. Input vừa giới hạn cột: licenseNumber 20, plate 15, brandModel 100, color 30; không truncate. Unique plate/license phụ thuộc constraint PostgreSQL có sẵn; không tạo constraint bằng code.
 
@@ -49,7 +55,7 @@ ONLINE yêu cầu hồ sơ đủ và xe chọn hợp lệ. DB commit thành côn
 
 OFFLINE vẫn lưu được khi Redis/Trip lỗi; không gọi cancel, không kết thúc chuyến. Redis giữ BUSY. Không dùng disconnect, GPS stale hoặc reservation TTL để kết luận hết chuyến.
 
-Cache mất: GET availability đọc ý định PG, reconcile projection, không tự tạo selection hoặc AVAILABLE. Đổi ý định ONLINE vô hiệu hóa trạng thái cũ nếu chưa BUSY; AVAILABLE cần nguồn xác minh xe/presence/Trip. Nguồn đó chưa được nối đầy đủ sau khi bỏ Gateway demo; Realtime chỉ nhận GPS, không ghi AVAILABLE.
+Cache mất: GET availability đọc ý định PG, không tự tạo selection. Khi cấu hình occupancy, Driver đối soát active Trip/reservation, hồ sơ/xe và intent để project AVAILABLE/BUSY/OFFLINE; dependency lỗi UNKNOWN/PENDING. Không cấu hình nguồn đối soát thì không suy rảnh từ GPS; Realtime không ghi AVAILABLE vào Redis Driver.
 
 Selection hiện chỉ lưu Redis, mất cache có thể phải chọn lại. Đổi selection chỉ khi OFFLINE/no active Trip tại thời điểm đọc; không có lease chung ngăn assignment xảy ra ngay sau đó.
 

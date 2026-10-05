@@ -1,5 +1,11 @@
 # Báo cáo triển khai Trip Service v1
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | trip-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày bàn giao: 05/10/2026. Cơ sở: tài liệu nghiệp vụ, kiến trúc, API, routes và kế hoạch C00–C15; yêu cầu mới nhất cho phép triển khai liên tục, kiểm thử và push từng feature nhỏ.
 
 Cập nhật 06/10/2026: [tích hợp API Routing + Price](tich-hop-routing-price.md) đã triển khai và kiểm thử. Các kết quả dưới đây ghi nhận đợt Trip C00–C15 ban đầu; báo cáo mới mô tả thay đổi runtime, Compose và checks ba service.

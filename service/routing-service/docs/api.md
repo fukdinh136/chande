@@ -1,5 +1,11 @@
 # Thiết kế API Routing Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | routing-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày cập nhật: 06/10/2026. R01–R04 đã triển khai và kiểm thử qua NestJS HTTP; R01 được kiểm tra bằng Trip client/use case thật. R02–R04 vẫn cần consumer validate nghiệp vụ tích hợp. REST JSON cho phase 1; chưa có gRPC. Realtime HTTP adapter đã nối nearby API hiện có và nghiệm thu ETA qua OSRM Hà Nội.
 
 ## 1. Quy ước chung

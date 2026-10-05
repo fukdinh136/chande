@@ -1,6 +1,12 @@
 # Deploy
 
-Matching API mặc định 3007. Local tích hợp dùng Driver 3008, Realtime 3009 để tránh Trip mock 3003 và Routing 3004. Một worker, hai job async đồng thời; polling 5 giây, expiry scan 1 giây; retry 1–30 giây có jitter.
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | matching-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
+Matching API mặc định 3007. Local tích hợp dùng Driver 3008, Realtime 3009 để tránh Trip mock 3003 và Routing 3004. Một worker, hai job async đồng thời; polling 5 giây, expiry scan 1 giây; retry nominal 1–30 giây với jitter hệ số 0.8–1.0 (delay thực có thể từ 800 ms).
 
 Copy .env.example ra .env và điền credential riêng; không commit env/key. Node 24: npm ci, npm run build, npm run migration:run, npm run start:prod; worker chạy npm run worker:prod. Migration là lệnh riêng trước API/worker, không synchronize schema.
 
@@ -47,4 +53,4 @@ OpenAPI: http://127.0.0.1:3007/openapi.json, Swagger: /docs (bật SWAGGER_ENABL
 
 ## Gateway
 
-Gateway proxy public `/api/v1/matching/offers/**` sang Matching `/matching/offers/**`, giữ JWT/Idempotency-Key/X-Request-Id và chỉ cho DRIVER. Matching vẫn verify issuer/JWKS/audience. Không proxy `/internal/matching/**` hoặc thêm token nội bộ từ client. Các phép smoke trong báo cáo gọi REST Matching trực tiếp; luồng Gateway chưa được coi là đã nghiệm thu.
+Gateway đã proxy `/api/v1/matching/offers/**` sang Matching `/matching/offers/**`, giữ JWT/Idempotency-Key/X-Request-Id và chỉ cho DRIVER. Matching vẫn verify issuer/JWKS/audience. Backend mới đã smoke qua Gateway/User thật trên Docker/Kubernetes; [runbook](../../../docs/deploy-backend.md). Smoke trong Matching local cũ vẫn gọi REST trực tiếp. Internal routes không public.

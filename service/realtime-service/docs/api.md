@@ -1,6 +1,12 @@
 # API Realtime Service
 
-Ngày đối chiếu: 06/10/2026. Contract dưới đây lấy từ source hiện tại; chưa xác minh runtime trên các dependency thật. [Nghiệp vụ](nghiep-vu.md), [Kiến trúc](kien-truc.md), [Routes](routes.md), [Deploy](deploy.md).
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | realtime-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
+Ngày đối chiếu: 06/10/2026. GPS/nearby/offer đã liên thông dependency thật trong smoke Matching Hà Nội. [Nghiệp vụ](nghiep-vu.md), [Kiến trúc](kien-truc.md), [Routes](routes.md), [Deploy](deploy.md).
 
 ## 1. Quy ước và identity
 
@@ -243,15 +249,21 @@ GET AUTH_JWKS_URL, sample /.well-known/jwks.json tại Driver, không service to
 
 Realtime không làm issuer/JWKS server hoặc refresh endpoint riêng. JWKS cache/cooldown thuộc jose; code cấu hình cooldown 5.000 ms và timeout riêng. Driver local không keyFile sinh key/kid mới mỗi process; restart có thể làm token cũ không còn được key hiện tại xác minh.
 
-## 8. Contract đề xuất còn chờ phối hợp
+## 8. Contract liên service và giới hạn
 
 | Điểm | Đã có | Chưa được xác nhận / triển khai |
 | --- | --- | --- |
-| Driver eligibility | Batch HTTP và credential riêng có code | Producer/freshness AVAILABLE/BUSY, active Trip reconciliation và SLA |
-| Routing nearby | Server GET đã có | Caller Routing thật, mapping query/envelope/error, cấp/rotate credential |
-| Mã xe | Realtime BIKE/CAR_4/CAR_7 | Danh mục thống nhất với Trip/Routing; Trip mock có MOCK_BIKE, không thay bằng cách đoán |
+| Driver eligibility | Batch HTTP đối soát active Trip/reservation; credential riêng | Snapshot không phải reservation; SLA/credential rotation production chưa nghiệm thu |
+| Routing nearby | Server GET và client HTTP Routing đã liên thông | Mapping/freshness/vehicleType đã kiểm; ingress production chưa nghiệm thu |
+| Mã xe | Luồng mới BIKE/CAR_4/CAR_7 | CAR/MOCK_BIKE là legacy/mock riêng, không nhận trong Realtime |
 | Redis ownership | Realtime realtime:{gps}:* | Chuyển consumer từ drivers:geo:* theo thiết kế Driver cũ; không có dual-write |
 | Gateway chuẩn | Base URL trực tiếp hoạt động theo thiết kế code | TLS/proxy namespace/path/origin/exposure; chưa có ingress trong service |
 | US8 | Thu nhận GPS là nền tảng | API/room theo tripId, rider authorization và Trip event receiver chưa có |
 
-Không có API nội bộ Trip tra theo driverId, không có service credential thay JWT cho GET /trips/active. Không ghi một đề xuất như route đang hoạt động. Snapshot eligible có thể stale sau lần đọc; Matching/Trip phải kiểm lại lúc phân công.
+Trip có POST /internal/trips/active-drivers/batch cho Driver bằng credential riêng; GET /trips/active vẫn dùng JWT người dùng. Snapshot eligible có thể stale sau lần đọc; Matching/Trip kiểm lại lúc phân công.
+
+## 9. Giao offer qua RabbitMQ và Socket.IO
+
+Khi cấu hình RABBITMQ_URL, MATCHING_BASE_URL và MATCHING_REALTIME_TOKEN, OfferConsumer nhận DRIVER_TRIP_OFFER / DRIVER_TRIP_OFFER_UPDATED từ durable queue driver.offers. Consumer lấy state authoritative từ Matching, giữ version/tombstone Redis rồi emit `driver.trip.offer` hoặc `driver.trip.offer.updated` với `{data:<offer>}` vào room `driver:<sub>` từ JWT; không nhận room do app tự khai.
+
+Reconnect lấy offer của chính driver; không reset expiresAt 20 giây. Duplicate/đảo thứ tự/terminal được lọc; retry queues, confirms/manual ACK và DLQ giữ event ID. App accept/decline qua REST Matching. Xem [API Matching](../../matching-service/docs/api.md) và [báo cáo kiểm chứng](../../matching-service/docs/bao-cao-trien-khai.md).

@@ -1,5 +1,11 @@
 # Driver Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | driver-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
+
 Backend Driver của Chande: đăng nhập OTP cho tài xế đã tồn tại, phiên JWT/refresh, hồ sơ, phương tiện, chọn xe, ý định nhận cuốc và eligibility cho các service nội bộ.
 
 Backend chính thức nằm tại `service/driver-service/`. Frontend Driver trong [app/src/features/driver](../../app/src/features/driver/). Driver gọi Trip trực tiếp; GPS đi qua [Realtime Service](../realtime-service/README.md). Không cần Gateway demo.
@@ -22,7 +28,7 @@ Có mã cho OTP local/provider adapter, JWT RS256/JWKS, refresh rotation, hồ s
 
 Các repository PostgreSQL và adapter Redis/Trip là adapter thật. OTP mock chỉ dùng local, lưu challenge/rate limit trong bộ nhớ và mất khi restart; production từ chối mock. HTTP OTP provider có contract riêng cần xác nhận. Không có Trip/Matching mock service trong backend Driver.
 
-Chưa có DDL Driver có thẩm quyền trong repository; mapping không thay thế DDL. Integration PostgreSQL/Redis, liên thông Trip/issuer thật, nhiều instance và app trên thiết bị cần kiểm chứng ở môi trường riêng. Test HTTP dùng port bộ nhớ không chứng minh những tích hợp đó. Realtime còn cần nguồn đối soát AVAILABLE/BUSY với Trip; ONLINE không tự bảo đảm nhận được cuốc. Matching/offer và thông báo chuyến realtime chưa được nối trong app.
+DDL Driver có thẩm quyền production chưa nằm trong repository; mapping/fixture không thay DDL. PostgreSQL/Redis tests chạy trên fixture cô lập; Driver issuer/Trip/availability đã liên thông smoke Matching Hà Nội. Occupancy đối soát active Trip/reservation để project AVAILABLE/BUSY; ONLINE không tự bảo đảm nhận cuốc. Nhiều replica, production và app offer UI/thiết bị chưa nghiệm thu. [Báo cáo validation](../../docs/bao-cao-validation.md).
 
 ## Cấu trúc
 

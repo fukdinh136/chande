@@ -1,6 +1,14 @@
 # Deploy và vận hành Trip Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | trip-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày cập nhật: 06/10/2026. Backend, image, Compose local/test/deploy, npm scripts và migration đã có. Docker local gọi API Routing và Price; xem [báo cáo tích hợp](tich-hop-routing-price.md). Compose deploy đã kiểm tra cấu hình, chưa phát hành trên hosting thật.
+
+Stack backend mới đã chạy trên Docker/Kubernetes local, User issuer và Gateway event receiver thật; [runbook chung](../../../docs/deploy-backend.md). Các Compose Trip riêng bên dưới vẫn giữ mocks. Không đồng nhất deployment Docker Desktop với hosting Internet/production.
 
 Tài liệu liên quan: [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Nghiệp vụ](nghiep-vu.md).
 
@@ -81,6 +89,8 @@ Các artifact đã tồn tại. `.github/workflows/trip-service.yml` chạy lint
 | `AUTH_JWKS_URL` | JWKS của issuer thử | JWKS HTTPS đáng tin | API |
 | `AUTH_JWT_ISSUER` | Issuer thử | Issuer của contract identity | API |
 | `AUTH_JWT_AUDIENCE` | trip-service | trip-service, phải khớp issuer cấp token | API |
+| `DRIVER_AUTH_JWKS_URL` / `DRIVER_AUTH_JWT_ISSUER` | Optional; cấu hình cả cặp cho Driver issuer thật | Trust riêng role DRIVER; RIDER vẫn theo AUTH_JWKS_URL/issuer | API identity |
+| `DRIVER_LOOKUP_TOKEN` hoặc `_FILE` | Optional; khớp TRIP_LOOKUP_TOKEN ở Driver | Credential riêng active-driver batch, không proxy public | API R14 |
 | `CURSOR_SIGNING_KEY_FILE` | Secret thử | Secret riêng ký cursor history | API |
 | `SUPPORTED_VEHICLE_TYPES` | Các mã đã thống nhất với mock | Các mã contract service thật, không tự đặt mã mới | API/client |
 | `ROUTING_BASE_URL` / `PRICING_BASE_URL` | Mock base URL | Private URL/HTTPS service thật | API |

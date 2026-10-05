@@ -1,5 +1,11 @@
 # Deploy Routing Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | routing-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 OSRM tự host Hà Nội đã có cấu hình riêng: [runbook](osrm-ha-noi.md). Backend CAR, graph MLD và overlay Trip được chạy local; các phần hosting/HA, Realtime wire và profile xe máy trong kế hoạch production vẫn cần hoàn thiện.
 
 Ngày cập nhật: 06/10/2026. App/lockfile/Dockerfile và Compose mock đã tạo; Docker smoke trên Linux đạt. HTTP Realtime adapter và OSRM ô tô Hà Nội đã chạy trong [stack Matching local](../../matching-service/docs/deploy.md). Dataset/profile ô tô được ghi ở [OSRM Hà Nội](osrm-ha-noi.md). Profile BIKE, production sizing và hosting chưa nghiệm thu.

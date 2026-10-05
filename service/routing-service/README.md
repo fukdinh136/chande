@@ -1,5 +1,11 @@
 # Routing Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | routing-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày cập nhật: 06/10/2026. Đã có runtime TypeScript/NestJS, bốn API, OSRM adapter và pipeline queue/pool/limiter. ETA Matrix lấy snapshot qua HTTP Realtime Client thật; CAR_4/CAR_7 đã chạy với OSRM Hà Nội trong stack Matching. Xem [báo cáo triển khai](docs/bao-cao-trien-khai.md) cho checks/commit và giới hạn tích hợp.
 
 Đã bổ sung cấu hình tự host OSRM cho Hà Nội bằng Docker, CAR với dataset/profile thật và overlay tích hợp Trip. Xem [OSRM Hà Nội](docs/osrm-ha-noi.md); từ Trip root chạy `npm run local:osrm`, `npm run smoke:osrm`. BIKE và Realtime thật còn chờ profile/contract.

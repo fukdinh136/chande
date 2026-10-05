@@ -1,6 +1,12 @@
 # Price Service — thiết kế v1 đơn giản
 
-Ngày 06/10/2026: đã triển khai API tính giá mở cửa, policy/config riêng CAR/BIKE, kiểm thử và Docker. Tiền VND dùng BigInt và serialize chuỗi. Trip gọi API qua HTTP, không gộp runtime hai service.
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | price-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
+
+Ngày 06/10/2026: đã triển khai API tính giá mở cửa, policy/config riêng BIKE/CAR_4/CAR_7 và CAR legacy, kiểm thử và Docker. Tiền VND dùng BigInt và serialize chuỗi. Trip gọi API qua HTTP, không gộp runtime hai service.
 
 - [Thiết kế và nghiệp vụ](docs/thiet-ke-v1.md)
 - [Cấu hình biểu giá mẫu](config/fare-policy.example.json): CAR 12.000đ/1 km đầu + 10.000đ/km vượt; BIKE 8.000đ/1 km đầu + 4.000đ/km vượt. Đây là fixture phát triển, không phải giá kinh doanh được duyệt.

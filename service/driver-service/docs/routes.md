@@ -1,5 +1,11 @@
 # Routes Driver Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | driver-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Driver trực tiếp không có global prefix. Path Gateway chính thức phải được xác nhận trước khi bật gateway mode trong app. [API](api.md), [Deploy](deploy.md).
 
 ## Routes hiện có
@@ -31,15 +37,17 @@ Controller/guard/DTO/filter ở src/presentation/http/. Không route đăng ký,
 
 | Caller | Destination | Route/credential | Implementation / giới hạn |
 | --- | --- | --- | --- |
-| Driver EditPolicy | Trip | GET /trips/active; JWT request người dùng | HttpTripActive; chưa có lookup nội bộ driverId |
+| Driver EditPolicy | Trip | GET /trips/active; JWT người dùng | HttpTripActive; thêm HttpOccupancy khi cấu hình |
 | Driver HttpOtp | OTP provider | POST /challenges, /challenges/consume; private Bearer | Contract local cần xác nhận, không phải API Trip |
 | Realtime | Driver | POST /internal/drivers/eligibility/batch; Realtime credential | Không dùng Matching token hoặc user JWT |
+| Driver occupancy | Trip | POST /internal/trips/active-drivers/batch; TRIP_LOOKUP_TOKEN | Internal active-driver lookup; fail closed |
+| Driver occupancy | Matching | POST /internal/matching/reservations/batch; MATCHING_LOOKUP_TOKEN | Reservation lookup; không đọc Redis Matching |
 | Realtime | Driver | GET /.well-known/jwks.json | Xác minh JWT Socket.IO |
 | App Driver | Trip | GET /trips/active, /trips/history, /trips/:id | TripClient, JWT DRIVER, trust được xác nhận |
 | App Driver | Trip | PATCH /trips/:id/status, POST /trips/:id/cancel | version + Idempotency-Key |
 | App Driver | Realtime | Socket.IO /realtime, driver.location.update | Driver JWT; foreground GPS |
 
-Nearby thuộc Realtime GET /internal/realtime/nearby-drivers, dành cho Routing bằng credential riêng. Matching offer/accept/decline chưa có route đã chốt trong Driver/app. Trip route không được mount trong Driver để thay thế service Trip.
+Nearby thuộc Realtime GET /internal/realtime/nearby-drivers cho Routing. Offer/accept/decline đã có REST trong Matching, không mount tại Driver; app offer UI chưa tích hợp. Trip route cũng không mount trong Driver.
 
 ## Ingress chính thức
 

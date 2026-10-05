@@ -1,5 +1,11 @@
 # Kế hoạch phát triển Routing Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | routing-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày cập nhật: 06/10/2026. F00–F09 và F11 đã triển khai, gồm HTTP Realtime adapter thật. F10 có Docker/CI/local Compose, smoke mock và OSRM Hà Nội real qua stack Matching CAR_4/CAR_7. Benchmark production và profile BIKE còn chờ. [Báo cáo triển khai](bao-cao-trien-khai.md) ghi checks/commit và giới hạn; bảng dưới đây giữ kế hoạch/acceptance gốc để đối chiếu.
 
 ## 1. Đã xác nhận và đề xuất cần validate

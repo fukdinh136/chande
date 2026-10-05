@@ -1,5 +1,11 @@
 # Nghiệp vụ Routing Service
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | routing-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 Ngày cập nhật: 06/10/2026. Runtime mock và OSRM adapter đã triển khai/kiểm thử; xem [báo cáo](bao-cao-trien-khai.md). [Kế hoạch](ke-hoach-phat-trien.md) phân biệt contract hiện có và chính sách cần consumer review. Real Realtime/OSRM dataset chưa nghiệm thu.
 
 ## 1. Phạm vi và ranh giới

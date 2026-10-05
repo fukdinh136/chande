@@ -1,7 +1,13 @@
 # Kế hoạch phát triển
 
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | matching-service |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
+
 | Feature | Nội dung | Kiểm chứng |
-|---|---|---|
+| --- | --- | --- |
 | M00 | Tài liệu nghiệp vụ/C3/API/deploy | Ranh giới và contract hiện tại |
 | M01 | Package strict/config/auth/domain/ports | Thời gian, quyền, ranking, transitions |
 | M02 | PostgreSQL/migration/constraints/receipts/outbox/lease | Race, terminal trước search, restart |
