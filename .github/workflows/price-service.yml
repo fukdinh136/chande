@@ -1,0 +1,23 @@
+name: Price Service
+on:
+  push:
+    paths: ['service/price-service/**', '.github/workflows/price-service.yml']
+  pull_request:
+    paths: ['service/price-service/**', '.github/workflows/price-service.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run: {working-directory: service/price-service}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24.15.0', cache: npm, cache-dependency-path: service/price-service/package-lock.json}
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:all
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=moderate
+      - run: docker build -t chande-price:ci .

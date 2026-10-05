@@ -1,5 +1,7 @@
 # Price Service v1 — mở cửa và cước theo quãng đường
 
+Cập nhật 06/10/2026: P00–P02 đã có runtime config/domain/use case và NestJS HTTP; [API](api.md) là contract triển khai. Docker và tests đã có; tích hợp Trip được kiểm tra ở suite cross-service của Trip. Các feature bên dưới giữ vai trò kế hoạch/tiêu chí đối chiếu.
+
 ## 1. Đã xác nhận và đề xuất
 
 Người dùng muốn tính đơn giản nhất, kiểu giá mở cửa taxi, có CAR và BIKE, nhận kết quả tuyến để tính tiền. C3 cung cấp gồm Price Controller → Calculate Fare → Fare Policy, nhận Distance từ Trip. Người dùng cũng nhắc ETA; cần phân biệt:

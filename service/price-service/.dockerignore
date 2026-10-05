@@ -1,0 +1,12 @@
+node_modules
+.npm-cache
+.env
+.env.*
+config/fare-policy.json
+secrets
+dist
+.test-dist
+test
+docs
+coverage
+*.log

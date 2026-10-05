@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1, "currency": "VND", "billingBasis": "distance",
+  "vehicleTypes": {
+    "CAR": { "openingFareVnd": "12000", "includedDistanceMeters": 1000, "pricePerKmVnd": "10000" },
+    "BIKE": { "openingFareVnd": "8000", "includedDistanceMeters": 1000, "pricePerKmVnd": "4000" },
+    "MOCK_BIKE": { "openingFareVnd": "8000", "includedDistanceMeters": 1000, "pricePerKmVnd": "4000" }
+  }
+}
