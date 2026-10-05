@@ -33,7 +33,7 @@ async function fixture(work: (f: Fixture) => Promise<void>) {
     const config = loadConfig({ DATABASE_URL: store.db.options.type === 'postgres' ? String(store.db.options.url) : '', SUPPORTED_VEHICLE_TYPES: 'MOCK_BIKE', AUTH_JWKS_URL: `${url}/jwks`, AUTH_JWT_ISSUER: 'test-issuer', AUTH_JWT_AUDIENCE: 'trip-test', CURSOR_SIGNING_KEY: 'test-cursor-signing-key', MATCHING_CALLBACK_TOKEN: 'test-callback', ROUTING_BASE_URL: url, PRICING_BASE_URL: url, ROUTING_TOKEN: 'test-service', PRICING_TOKEN: 'test-service', SWAGGER_ENABLED: 'true' });
     Object.assign(config, { matchingUrl: url, gatewayUrl: url, notificationUrl: url, matchingToken: 'test-service', gatewayToken: 'test-service', notificationToken: 'test-service' });
     const context = new TripContext(config, store, { now: () => clock, id: randomUUID }); const app = await createApi(context); await app.listen(0, '127.0.0.1');
-    const sign = (principal: Principal = rider, claims: Record<string, unknown> = {}) => new jose.SignJWT({ role: principal.role, ...claims }).setProtectedHeader({ alg: 'RS256', kid: 'test' }).setSubject(principal.sub).setIssuer('test-issuer').setAudience('trip-test').setExpirationTime('10m').sign(privateKey);
+    const sign = (principal: Principal = rider, claims: Record<string, unknown> = {}) => new jose.SignJWT({ role: principal.role, ...claims }).setProtectedHeader({ alg: 'RS256', kid: 'test' }).setSubject(principal.sub).setIssuer('test-issuer').setAudience(typeof claims.aud === 'string' ? claims.aud : 'trip-test').setExpirationTime(typeof claims.exp === 'number' ? claims.exp : '10m').sign(privateKey);
     async function setup() {
       const base = await app.getUrl();
       const request = async (path: string, options: { method?: string; body?: unknown; principal?: Principal; token?: string; headers?: Record<string, string> } = {}) => {
@@ -77,8 +77,15 @@ test('HTTP rejects expired quotes, cancels once and rejects late assignment', as
 test('HTTP protects identity, validates strict DTO and publishes request/response OpenAPI', async () => fixture(async f => {
   assert.equal((await f.request('/trips/active', { token: 'invalid' })).status, 401);
   assert.equal((await f.request('/trips/active', { token: await f.sign(rider, { role: 'ADMIN' }) })).status, 401);
+  const jose = await import('jose'); const keys = await jose.generateKeyPair('RS256');
+  const forged = await new jose.SignJWT({ role: 'RIDER' }).setProtectedHeader({ alg: 'RS256', kid: 'test' }).setSubject(rider.sub).setIssuer('test-issuer').setAudience('trip-test').setExpirationTime('10m').sign(keys.privateKey);
+  assert.equal((await f.request('/trips/active', { token: forged })).status, 401);
+  assert.equal((await f.request('/trips/active', { token: await f.sign(rider, { exp: 1 }) })).status, 401);
+  assert.equal((await f.request('/trips/active', { token: await f.sign(rider, { aud: 'wrong-audience' }) })).status, 401);
   assert.equal((await f.request('/trips/active', { headers: { 'X-Request-Id': 'wrong' } })).status, 400);
   const q = await f.estimate();
+  assert.equal((await f.request('/trips/estimate', { principal: driver, body: { pickup: q.pickup, destination: q.destination, vehicleType: q.vehicleType } })).status, 403);
+  assert.equal((await f.request('/trips', { body: { quoteId: q.quoteId } })).status, 400);
   assert.equal((await f.request('/trips', { body: { quoteId: q.quoteId, riderId: randomUUID() }, headers: { 'Idempotency-Key': randomUUID() } })).status, 400);
   assert.equal((await f.request('/trips/history?limit=101')).status, 400);
   assert.equal((await f.assign(randomUUID(), assignment(), 'wrong')).status, 401);

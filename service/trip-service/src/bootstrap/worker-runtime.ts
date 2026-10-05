@@ -16,6 +16,6 @@ export async function startWorker(dispatcher: OutboxDispatcher, store: Store, co
     })().catch(() => { res.writeHead(503); res.end('{"status":"unavailable"}'); });
   });
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(config.workerPort, host, () => { server.removeListener('error', reject); resolve(); }); });
-  schedule();
+  schedule(); await current;
   return { server, stop: async () => { if (stopping) return; stopping = true; if (timer) clearTimeout(timer); await current; server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); } };
 }

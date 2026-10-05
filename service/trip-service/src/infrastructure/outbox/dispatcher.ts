@@ -43,6 +43,7 @@ export class OutboxDispatcher {
             const reason = error instanceof TransportError ? error.reason : 'DISPATCH_ERROR';
             const delay = Math.min(this.config.retryMax, this.config.retryBase * 2 ** Math.min(delivery.attempts - 1, 20)) * (0.8 + Math.random() * 0.2);
             await this.repository.finish(delivery.id, owner, retryable ? 'pending' : 'blocked', reason, Math.ceil(delay));
+            console.warn(JSON.stringify({ event: 'outbox_delivery_failed', deliveryId: delivery.id, tripId: delivery.tripId, destination: delivery.destination, reason, retryable, attempts: delivery.attempts }));
           }
           this.lastProgress = Date.now();
         }

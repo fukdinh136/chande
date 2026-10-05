@@ -15,8 +15,10 @@ export async function createApi(context: TripContext) {
   const app = await NestFactory.create<NestExpressApplication>(ApiModule, { logger: ['error', 'warn'], bodyParser: false });
   app.disable('x-powered-by');
   app.use((req: TripRequest, res: import('express').Response, next: import('express').NextFunction) => {
+    const started = Date.now();
     const incoming = req.header('X-Request-Id'); req.requestId = incoming && z.uuid().safeParse(incoming).success ? incoming.toLowerCase() : randomUUID();
     res.setHeader('X-Request-Id', req.requestId); res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.once('finish', () => { const tripId = req.params.id; console.info(JSON.stringify({ event: 'http_request', requestId: req.requestId, method: req.method, route: (req.route as { path?: string } | undefined)?.path ?? 'unmatched', ...(z.uuid().safeParse(tripId).success ? { tripId } : {}), status: res.statusCode, durationMs: Date.now() - started })); });
     if (incoming && !z.uuid().safeParse(incoming).success) { res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'INVALID_REQUEST', details: [] }, meta: { requestId: req.requestId } }); return; }
     next();
   });
