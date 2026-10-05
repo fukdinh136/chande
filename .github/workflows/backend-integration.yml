@@ -1,0 +1,29 @@
+name: Backend Integration
+on:
+  push:
+    paths: ['service/api-gateway/**', 'service/user-service/**', 'deploy/**', 'docs/**', 'scripts/validate-docs.cjs', '.github/workflows/backend-integration.yml']
+  pull_request:
+    paths: ['service/api-gateway/**', 'service/user-service/**', 'deploy/**', 'docs/**', 'scripts/validate-docs.cjs', '.github/workflows/backend-integration.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:8-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+        ports: ['6379:6379']
+        options: --health-cmd 'redis-cli ping' --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21', cache: maven}
+      - uses: actions/setup-node@v4
+        with: {node-version: '24.15.0'}
+      - run: chmod +x service/api-gateway/mvnw service/user-service/mvnw
+      - run: ./mvnw -B verify
+        working-directory: service/api-gateway
+      - run: ./mvnw -B verify
+        working-directory: service/user-service
+      - run: node --test deploy/stack.test.cjs && node scripts/validate-docs.cjs
+      - run: docker build --target runtime-prebuilt -t chande-backend-gateway:ci service/api-gateway
+      - run: docker build --target runtime-prebuilt -t chande-backend-user:ci service/user-service

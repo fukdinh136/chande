@@ -1,0 +1,8 @@
+.git
+.env*
+*.pem
+*.key
+keys
+docs
+**/target/**
+!user-app/target/user-service.jar

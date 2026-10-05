@@ -26,6 +26,9 @@ web-build/
 # Logs
 *.log
 
+# Generated backend credentials, manifests and local signing material
+/deploy/.local/
+
 # Operating system files
 .DS_Store
 Thumbs.db

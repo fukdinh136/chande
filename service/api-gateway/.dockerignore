@@ -1,0 +1,8 @@
+.git
+.env*
+*.pem
+*.key
+keys
+docs
+**/target/**
+!target/api-gateway-0.0.1-SNAPSHOT.jar
