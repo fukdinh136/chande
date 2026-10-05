@@ -22,6 +22,8 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 | Routing Service | [Deploy](../service/routing-service/docs/deploy.md) | Kế hoạch local/production, dataset OSRM, probes, lifecycle và rollback |
 | Routing Service | [Realtime Client](../service/routing-service/docs/realtime-client.md) | ETA Matrix lấy vị trí driver trong bán kính 2 km qua client Routing để tính ETA trả Matching |
 | Routing Service | [Kế hoạch phát triển](../service/routing-service/docs/ke-hoach-phat-trien.md) | F00–F11, dependency, acceptance, test và commit theo feature |
+| Routing Service | [Báo cáo triển khai](../service/routing-service/docs/bao-cao-trien-khai.md) | Feature/commit/checks và giới hạn tích hợp thật |
+| Price Service | [Thiết kế v1](../service/price-service/README.md) | Giá mở cửa CAR/BIKE, config sửa được, công thức và contract tương thích Trip |
 
 ## Cách sử dụng
 
