@@ -1,0 +1,105 @@
+spring:
+  application:
+    name: api-gateway
+  threads:
+    virtual:
+      # Mỗi request chạy trên một virtual thread: hàng nghìn request đang chờ service trả lời
+      # không làm cạn thread pool của Tomcat
+      enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+      connect-timeout: 2s
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+  tomcat:
+    accept-count: 500
+    connection-timeout: 10s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # Load balancer nên kiểm tra /actuator/health/readiness: chỉ phụ thuộc gateway,
+      # không DOWN theo Redis (REST vẫn chạy được khi Redis lỗi)
+      probes:
+        enabled: true
+
+logging:
+  pattern:
+    level: "%5p [%X{requestId:-}]"
+
+gateway:
+  routing:
+    max-request-body-size: 256KB
+    connect-timeout: 2s
+    # Tổng thời gian cho một lần gọi service, tính cả đọc body phản hồi. Quá hạn → 504 (hoặc 503 nếu đang đọc dở body)
+    read-timeout: 15s
+    failover:
+      max-attempts: 3
+      unavailable-cooldown: 10s
+    # Mỗi service: danh sách instance (phân tách bằng dấu phẩy) và các đường dẫn sau /api/v1.
+    # Ví dụ chạy 2 bản Trip: TRIP_SERVICE_URLS=http://trip-1:3001,http://trip-2:3001
+    services:
+      # "Customer Service" trên sơ đồ C2, tài liệu "API User Service" (cổng 3011)
+      user-service:
+        instances: ${USER_SERVICE_URLS:http://localhost:3011}
+        paths: /auth/**, /users/**
+        max-concurrent-requests: 256
+      driver-service:
+        instances: ${DRIVER_SERVICE_URLS:http://localhost:3003}
+        paths: /driver-auth/**, /drivers/**
+        max-concurrent-requests: 256
+      trip-service:
+        instances: ${TRIP_SERVICE_URLS:http://localhost:3001}
+        paths: /trips/**
+        max-concurrent-requests: 256
+      # Giữ chỗ: Routing service (Python) chưa có tài liệu API, cổng/đường dẫn là tạm
+      routing-service:
+        instances: ${ROUTING_SERVICE_URLS:http://localhost:8000}
+        paths: /routing/**
+        max-concurrent-requests: 128
+  internal:
+    # Cổng cho /internal/** (Trip gửi sự kiện chuyến). Chỉ mở trong mạng nội bộ.
+    port: ${INTERNAL_PORT:8090}
+    callers:
+      trip-service: ${TRIP_SERVICE_TOKEN:dev-trip-service-token-change-me-0123456789}
+  realtime:
+    auth-timeout: 10s
+    idle-timeout: 60s
+    max-sessions-per-user: 5
+    location-min-interval: 1s
+    event-retention: 7d
+
+jwt:
+  clock-skew: 30s
+  issuers:
+    # Token khách do User Service phát (RS256, typ at+jwt)
+    - issuer: ${RIDER_JWT_ISSUER:https://identity.example.invalid/rider}
+      jwk-set-uri: ${RIDER_JWKS_URI:http://localhost:3011/.well-known/jwks.json}
+      roles: RIDER
+    # Token tài xế do Driver Service phát. Issuer chưa được nhóm chốt: đặt qua biến môi trường.
+    # Nếu nhóm dùng một Auth issuer chung, gộp thành một mục với roles: RIDER, DRIVER
+    - issuer: ${DRIVER_JWT_ISSUER:https://identity.example.invalid/driver}
+      jwk-set-uri: ${DRIVER_JWKS_URI:http://localhost:3003/.well-known/jwks.json}
+      roles: DRIVER
+
+cors:
+  allowed-origins:
+    - http://localhost:5500
+    - http://127.0.0.1:5500
+
+rate-limit:
+  auth:
+    max-attempts: ${AUTH_MAX_ATTEMPTS:5}
+    window: 1m
