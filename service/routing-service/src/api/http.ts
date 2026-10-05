@@ -7,7 +7,7 @@ import { Catch, Controller, Get, Post, HttpCode, Inject, Module, Req, Res, HttpE
 import { ApiBody, ApiSecurity, ApiTags, DocumentBuilder, SwaggerModule, type SchemaObject } from '@nestjs/swagger';
 import { RoutingRuntime } from '../bootstrap/runtime';
 import { RoutingError } from '../domain/errors';
-import { estimateSchema, routeRequestSchema, matrixRequestSchema } from '../domain/requests';
+import { estimateSchema, routeRequestSchema, matrixRequestSchema, recalculateSchema } from '../domain/requests';
 import type { Context } from '../application/ports/clients';
 interface RoutingRequest extends Request { routing: { requestId: string; started: number } }
 function bodySchema(schema: z.ZodType): SchemaObject { const json = z.toJSONSchema(schema, { io: 'input' }); delete json.$schema; return json as unknown as SchemaObject; }
@@ -62,6 +62,10 @@ class RoutingController {
   @Post('routes/matrix') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(matrixRequestSchema) })
   matrix(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
     return this.execute(req, res, 'matching', ctx => this.runtime.matrix.execute(req.body, ctx));
+  }
+  @Post('routes/recalculate') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(recalculateSchema) })
+  recalculate(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
+    return this.execute(req, res, 'gateway', ctx => this.runtime.recalculate.execute(req.body, ctx));
   }
   @Get('health/live') live() { return { status: 'ok' }; }
   @Get('health/ready') ready() {

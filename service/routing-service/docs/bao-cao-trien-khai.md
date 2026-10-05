@@ -15,6 +15,7 @@ Ngày: 06/10/2026. Cập nhật theo từng feature; kết quả kiểm thử d�
 | F07 | Cross-service test dùng `RoutingClient` và `EstimateTrip` thật qua Routing HTTP | 2 cross-service tests; failure/timeout không gọi Pricing hoặc lưu quote | Xem lịch sử `test(routing): verify Trip estimate compatibility` |
 | F11 (phần port/mock) | Realtime Client validate snapshot, timeout/cancel/response cap; mock vị trí quanh pickup | 3 unit tests; HTTP adapter thật chờ contract | Xem lịch sử `feat(routing): add realtime driver location client` |
 | F08 | ETA Matrix gọi Realtime, batch driver→pickup, giữ metadata; scope Matching | 4 orchestration + 1 HTTP tests; 39 tests tổng | Xem lịch sử `feat(routing): calculate candidate ETA matrices` |
+| F09 | Recalculate dùng chung route logic, origin=currentLocation, scope Gateway | 1 HTTP test; 40 tests tổng | Xem lịch sử `feat(routing): recalculate from current location` |
 
 Queue đầy trả `ROUTING_BUSY` ngay, nằm trong admission budget; không tạo hàng đợi chờ admission ngoài capacity. Queue age vẫn bị giới hạn riêng. Limiter chạy trong worker, mọi retry cần permit mới.
 
