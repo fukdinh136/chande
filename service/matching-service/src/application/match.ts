@@ -5,6 +5,7 @@ import { rank, held, type Offer } from '../domain/models';
 export class MatchDriver {
   constructor(private readonly repo: Repository, private readonly clients: Clients, private readonly pollMs = 5000) {}
   async execute(tripId: string) {
+    const started = Date.now();
     const search = await this.repo.getSearch(tripId); if (!search || search.status !== 'SEARCHING' || !search.command) return;
     if (search.offerId) {
       await this.repo.transaction(async tx => {
@@ -18,6 +19,7 @@ export class MatchDriver {
     const candidates = await this.clients.matrix(search.command), tried = await this.repo.tried(tripId);
     const reservations = await this.repo.reservations(candidates.map(c => c.driverId));
     for (const c of rank(candidates, tried, new Set(reservations.filter(r => r.tripId !== null).map(r => r.driverId)), Date.now())) {
+      if (Date.now() - started > 30000) throw new Error('MATCHING_JOB_DEADLINE');
       const eligible = await this.clients.driver(c.driverId, search.command.vehicleType);
       if (!eligible.profileEligible || eligible.desiredStatus !== 'ONLINE' || !eligible.vehicleId || !eligible.driverSnapshot || !eligible.vehicleSnapshot || eligible.vehicleSnapshot.vehicleType !== search.command.vehicleType) continue;
       const created = await this.repo.transaction(async tx => {

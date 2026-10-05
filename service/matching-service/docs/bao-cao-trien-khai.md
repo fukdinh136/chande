@@ -19,3 +19,7 @@ Local: Trip unit 55, Routing unit 30, Driver unit/contract/e2e 25, Price unit 5 
 ## M04
 
 Đã triển khai HTTP clients có deadline/response cap, ranking, search polling, offer 20 giây, reservation cạnh tranh và expiry. PostgreSQL test xác nhận hai chuyến chỉ một chuyến giữ được driver; chuyến còn lại vẫn SEARCHING, driver hết hạn không bị mời lại. Lỗi truy vấn join ambiguous phát hiện trong test đã sửa bằng alias.
+
+## M05
+
+REST nội bộ và driver, strict schemas, credential scopes, durable decision receipts và assignment reconciliation đã triển khai. Callback giữ snapshot/eventId; network mất ACK sau Trip commit được xác nhận bằng matching-state, không gửi assignment mới. Local PostgreSQL/HTTP tests: replay accept, key conflict, decline sau accept, ownership, scope token và cancel sau assignment không mở lại reservation. Worker có lease renewal, backoff và job giới hạn thời gian.
