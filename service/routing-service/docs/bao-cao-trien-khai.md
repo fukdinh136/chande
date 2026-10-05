@@ -37,6 +37,8 @@ Matrix dùng deadline chung gồm lookup và mọi batch, không sort/chọn dri
 
 ## Đầu vào tích hợp còn thiếu
 
+Cập nhật 06/10/2026: [OSRM CAR Hà Nội tự host](osrm-ha-noi.md) đã chạy thật qua Route/Table, API Routing và quote/journey Trip. Bộ Routing hiện đạt 43 tests. Giới hạn OSRM bên dưới là tình trạng trước đợt cấu hình Hà Nội; profile xe máy, dataset cập nhật/hosting và Realtime wire vẫn còn.
+
 - Realtime: method/path, authentication và response thật. Chưa tự đặt contract wire; chỉ triển khai port/mock trước.
 - OSRM: endpoint, dataset/version/algorithm và profile xe máy đã kiểm chứng. `BIKE` chưa bật; không thay bằng profile ô tô.
 - Một process/replica; cấu hình mặc định chưa được benchmark production.

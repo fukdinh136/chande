@@ -2,6 +2,8 @@
 
 Ngày cập nhật: 06/10/2026. Đã có runtime TypeScript/NestJS, bốn API, OSRM adapter và pipeline queue/pool/limiter. ETA Matrix lấy snapshot qua Realtime Client; port/mock đã chạy, HTTP adapter Realtime thật chờ contract. Xem [báo cáo triển khai](docs/bao-cao-trien-khai.md) cho checks/commit và giới hạn tích hợp.
 
+Đã bổ sung cấu hình tự host OSRM cho Hà Nội bằng Docker, CAR với dataset/profile thật và overlay tích hợp Trip. Xem [OSRM Hà Nội](docs/osrm-ha-noi.md); từ Trip root chạy `npm run local:osrm`, `npm run smoke:osrm`. BIKE và Realtime thật còn chờ profile/contract.
+
 Routing tính tuyến đường, khoảng cách/thời gian và tính lại tuyến. Calculate ETA Matrix nhận điểm đón/profile xe từ Matching, gọi Realtime Client lấy vị trí driver trong bán kính 2 km, tính ETA qua OSRM và trả kết quả theo driverId. Trip sở hữu chuyến/giá đã chốt; lựa chọn/mời tài xế bên trong Matching được thiết kế sau. Thiết kế dựa trên C3 người dùng cung cấp, user story, contract Trip và bổ sung luồng Realtime → ETA do người dùng xác nhận.
 
 ## Stack đã chọn

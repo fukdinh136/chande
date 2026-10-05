@@ -2,6 +2,8 @@
 
 Ngày 06/10/2026. Tích hợp API của hai service trong repository bằng HTTP. Trip giữ riêng domain, database, quote và vòng đời chuyến; Routing và Price chạy process riêng.
 
+Cập nhật tiếp theo: [OSRM CAR Hà Nội tự host Docker](../../routing-service/docs/osrm-ha-noi.md). Các kết quả dưới đây ghi nhận tích hợp ba service với map mock ban đầu; overlay OSRM có runbook/checks riêng.
+
 ## Kết quả và phạm vi
 
 Routing đã có API tương thích RoutingClient của Trip. Price trước đợt này chỉ có thiết kế/config, nên bổ sung runtime Node.js 24 + TypeScript 5.9 + NestJS 11/Zod 4, kiểm thử, Docker và CI. Không thay đổi chính sách active, quote 5 phút, hủy hoặc Matching bất đồng bộ của Trip.

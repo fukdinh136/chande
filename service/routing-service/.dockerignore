@@ -1,4 +1,5 @@
 node_modules
+osrm/data/
 .npm-cache
 .env
 .env.*

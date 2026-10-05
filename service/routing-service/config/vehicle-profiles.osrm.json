@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "vehicleTypes": {
+    "CAR": {"profile": "driving", "baseUrl": null},
+    "BIKE": {"profile": null, "baseUrl": null}
+  }
+}

@@ -15,6 +15,9 @@
     "test:all": "npm run test:build && node scripts/test.cjs all",
     "test:trip": "npm --prefix ../trip-service run build && npm run test:build && node scripts/test.cjs cross-service",
     "smoke:docker": "node scripts/docker-smoke.cjs",
+    "osrm:prepare": "node scripts/prepare-osrm.cjs",
+    "osrm:up": "docker compose -f osrm/compose.yml up -d --build --wait",
+    "smoke:osrm": "node scripts/osrm-smoke.cjs",
     "docs:check": "node scripts/check-docs.cjs",
     "start:dev": "tsx watch src/main.ts",
     "start:prod": "node dist/main.js"

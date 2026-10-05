@@ -16,6 +16,8 @@
     "test:e2e": "npm run test:build && node scripts/test.cjs e2e",
     "test:all": "npm run test:build && node scripts/test.cjs all",
     "test:services": "npm --prefix ../routing-service run build && npm --prefix ../price-service run build && npm run test:build && node scripts/test.cjs cross-service",
+    "local:osrm": "npm --prefix ../routing-service run osrm:prepare && npm --prefix ../routing-service run osrm:up && docker compose -f compose.local.yml -f compose.osrm.yml up -d --build --wait",
+    "smoke:osrm": "npm --prefix ../routing-service run smoke:osrm && node scripts/smoke-osrm.cjs",
     "start:dev": "tsx watch src/main.ts",
     "worker:dev": "tsx watch src/worker.ts",
     "start:prod": "node dist/main.js",

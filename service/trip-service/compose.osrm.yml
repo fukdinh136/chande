@@ -1,0 +1,21 @@
+# Overlay on compose.local.yml; start the separate Hanoi OSRM stack first.
+services:
+  routing-api:
+    environment:
+      INTEGRATION_MODE: real
+      EXTERNAL_MAP_PROVIDER: osrm
+      EXTERNAL_MAP_BASE_URL: http://osrm:5000
+      EXTERNAL_MAP_ALLOWED_HOSTS: osrm
+      EXTERNAL_MAP_ALLOW_HTTP: 'true'
+      EXTERNAL_MAP_AUTH_MODE: none
+      SUPPORTED_VEHICLE_TYPES: CAR
+      VEHICLE_PROFILES_FILE: config/vehicle-profiles.osrm.json
+    networks: [default, osrm]
+  trip-api:
+    environment:
+      SUPPORTED_VEHICLE_TYPES: CAR
+  trip-worker:
+    environment:
+      SUPPORTED_VEHICLE_TYPES: CAR
+networks:
+  osrm: {external: true, name: chande-osrm}

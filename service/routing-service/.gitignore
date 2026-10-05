@@ -1,6 +1,8 @@
 .env
 .env.*
 !.env.example
+!.env.osrm.example
+osrm/data/
 secrets/
 config/vehicle-profiles.json
 node_modules/

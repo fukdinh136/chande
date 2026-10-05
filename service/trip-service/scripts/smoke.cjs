@@ -2,6 +2,10 @@ const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const api = process.env.SMOKE_API_URL || 'http://127.0.0.1:3001';
 const mocks = process.env.SMOKE_MOCK_URL || 'http://127.0.0.1:3003';
+const vehicleType = process.env.SMOKE_VEHICLE_TYPE || 'MOCK_BIKE';
+const route = process.env.SMOKE_REGION === 'hanoi'
+  ? { pickup: { lat: 21.0285, lng: 105.8542 }, destination: { lat: 21.0272, lng: 105.8355 } }
+  : { pickup: { lat: 10.77, lng: 106.7 }, destination: { lat: 10.78, lng: 106.69 } };
 async function request(base, path, body, headers = {}, method) {
   const res = await fetch(base + path, { method: method || (body ? 'POST' : 'GET'), headers: { 'content-type': 'application/json', ...headers }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(10000) });
   const value = await res.json(); return { status: res.status, value, headers: res.headers };
@@ -13,7 +17,7 @@ async function main() {
   const token = async (sub, role) => { const res = await request(mocks, '/mock/token', { sub, role }); assert.equal(res.status, 200); return { Authorization: `Bearer ${res.value.data.accessToken}` }; };
   const rider = await token(riderId, 'RIDER'); const driver = await token(driverId, 'DRIVER');
   const create = async () => {
-    const quote = await request(api, '/trips/estimate', { pickup: { lat: 10.77, lng: 106.7 }, destination: { lat: 10.78, lng: 106.69 }, vehicleType: 'MOCK_BIKE' }, rider); assert.equal(quote.status, 200);
+    const quote = await request(api, '/trips/estimate', { ...route, vehicleType }, rider); assert.equal(quote.status, 200);
     const headers = { ...rider, 'Idempotency-Key': randomUUID() }; const input = { quoteId: quote.value.data.quoteId };
     const first = await request(api, '/trips', input, headers); assert.equal(first.status, 201);
     const replay = await request(api, '/trips', input, headers); assert.equal(replay.headers.get('Idempotent-Replay'), 'true'); assert.deepEqual(replay.value.data, first.value.data);
@@ -21,7 +25,7 @@ async function main() {
     return first.value.data;
   };
   const trip = await create(); assert.equal(trip.status, 'SEARCHING');
-  const assignment = { tripId: trip.tripId, eventId: randomUUID(), driverId, vehicleId: randomUUID(), driverSnapshot: { fullName: 'Smoke Driver', avatarUrl: null }, vehicleSnapshot: { vehicleType: 'MOCK_BIKE', licensePlate: 'SMOKE', brand: null, color: null } };
+  const assignment = { tripId: trip.tripId, eventId: randomUUID(), driverId, vehicleId: randomUUID(), driverSnapshot: { fullName: 'Smoke Driver', avatarUrl: null }, vehicleSnapshot: { vehicleType, licensePlate: 'SMOKE', brand: null, color: null } };
   let accepted;
   for (let attempt = 0; attempt < 100; attempt++) {
     accepted = await request(mocks, '/mock/accept', assignment);

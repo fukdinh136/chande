@@ -1,0 +1,8 @@
+{
+  "image": "ghcr.io/project-osrm/osrm-backend:v26.10.0-debian@sha256:55dbfd47d984c2cacd64e32901b4321c86b5ec761438e69aa053dc78698a786f",
+  "sourceUrl": "https://download.geofabrik.de/asia/vietnam-latest.osm.pbf",
+  "checksumUrl": "https://download.geofabrik.de/asia/vietnam-latest.osm.pbf.md5",
+  "bbox": [105.3, 20.6, 106.2, 21.4],
+  "profile": "/opt/car.lua",
+  "algorithm": "mld"
+}

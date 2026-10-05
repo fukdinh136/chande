@@ -14,6 +14,7 @@ Service quản lý nghiệp vụ chuyến đi của Chande, từ báo giá và �
 | [Deploy](docs/deploy.md) | Runtime API/worker/DB, cấu hình, migration, phát hành, rollback và monitoring |
 | [Báo cáo triển khai](docs/bao-cao-trien-khai.md) | Component, commit, kiểm thử, kết quả Docker và phần cần tích hợp thật |
 | [Tích hợp Routing + Price](docs/tich-hop-routing-price.md) | Luồng HTTP ba service, cấu hình local, giá mẫu và kiểm thử tích hợp |
+| [OSRM Hà Nội](../routing-service/docs/osrm-ha-noi.md) | Backend CAR tự host Docker và cách chạy Trip với route/ETA thật |
 
 [Mục lục tài liệu dự án](../../docs/README.md).
 
@@ -23,7 +24,7 @@ Service quản lý nghiệp vụ chuyến đi của Chande, từ báo giá và �
 
 Stack đã thống nhất: NestJS, TypeScript, TypeORM và PostgreSQL. Routing, Pricing và Matching được tích hợp qua contract; REST callback và outbox phục vụ luồng bất đồng bộ.
 
-Trip đã gọi API của Routing và Price qua HTTP trong Compose local và kiểm thử ba service. Routing vẫn dùng map provider mock; Price tính từ biểu giá mẫu có thể cấu hình. Matching, Gateway, Notification và JWT issuer local dùng mock. OSRM thật và phát hành lên hosting là bước tiếp theo.
+Trip đã gọi API của Routing và Price qua HTTP trong Compose local và kiểm thử ba service. Compose mặc định dùng map mock; `npm run local:osrm` bật OSRM thật cho CAR tại Hà Nội. Price tính từ biểu giá mẫu có thể cấu hình. Matching, Gateway, Notification và JWT issuer local dùng mock; hosting và các tích hợp còn lại là bước tiếp theo.
 
 ## Chạy local
 

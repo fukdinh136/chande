@@ -28,3 +28,5 @@ jobs:
       - run: npm audit --omit=dev --audit-level=moderate
       - run: docker build -t chande-routing:local .
       - run: npm run smoke:docker
+      - run: docker compose -f osrm/compose.yml config --quiet
+      - run: docker build --target runtime -t chande-osrm:ci osrm

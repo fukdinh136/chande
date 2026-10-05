@@ -117,6 +117,8 @@ Secrets đề xuất cấp qua secret manager hoặc [Docker Compose secrets](ht
 
 ## 5. Chạy local và kiểm thử
 
+Để dùng tuyến/ETA thật tại Hà Nội cho CAR, từ Trip root chạy `npm.cmd run local:osrm`, rồi `npm.cmd run smoke:osrm`. Cấu hình gồm Compose local cộng `compose.osrm.yml` và backend riêng; xem [OSRM Hà Nội](../../routing-service/docs/osrm-ha-noi.md). Các hướng dẫn dưới đây dùng Compose map mock mặc định.
+
 Điều kiện: Docker Desktop với Linux containers, Node.js 24 và npm. Chạy từ `service/trip-service` trên PowerShell. Compose đợi DB healthy, chạy migration rồi khởi động API/worker/mock.
 
 ### Chạy toàn bộ bằng Docker

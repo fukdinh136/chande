@@ -5,6 +5,14 @@ const mockProfiles = JSON.stringify({ schemaVersion: 1, vehicleTypes: { MOCK_BIK
 const loadConfig: typeof readConfig = (env, options) => readConfig(env, { read: () => mockProfiles, ...options });
 export const testEnv = { APP_ENV: 'test', ROUTING_TRIP_TOKEN: 'test-trip-token', ROUTING_MATCHING_TOKEN: 'test-matching-token', ROUTING_GATEWAY_TOKEN: 'test-gateway-token' };
 const profiles = JSON.stringify({ schemaVersion: 1, vehicleTypes: { CAR: { profile: 'driving', baseUrl: null } } });
+
+test('Hanoi deployment profile enables real CAR only and refuses BIKE without a verified profile', () => {
+  const env = { ...testEnv, INTEGRATION_MODE: 'real', EXTERNAL_MAP_BASE_URL: 'http://osrm:5000', EXTERNAL_MAP_ALLOWED_HOSTS: 'osrm', EXTERNAL_MAP_ALLOW_HTTP: 'true', SUPPORTED_VEHICLE_TYPES: 'CAR', VEHICLE_PROFILES_FILE: 'config/vehicle-profiles.osrm.json' };
+  const config = readConfig(env);
+  assert.equal(config.profiles.CAR?.profile, 'driving'); assert.equal(config.map.mode, 'real'); assert.equal(config.realtime.mode, 'mock');
+  assert.throws(() => readConfig({ ...env, SUPPORTED_VEHICLE_TYPES: 'CAR,BIKE' }), /VEHICLE_PROFILES_FILE/);
+  assert.throws(() => readConfig({ ...env, EXTERNAL_MAP_ALLOW_HTTP: 'false' }), /EXTERNAL_MAP_BASE_URL/);
+});
 test('mock defaults preserve bounded queue, radius and separate integrations', () => {
   const c = loadConfig(testEnv); assert.equal(c.map.mode, 'mock'); assert.equal(c.realtime.mode, 'mock');
   assert.equal(c.realtime.radius, 2000); assert.equal(c.limits.workers, 2); assert.equal(c.limits.deadline, 4000);

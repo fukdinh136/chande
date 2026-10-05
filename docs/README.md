@@ -21,6 +21,7 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 | Routing Service | [Routes](../service/routing-service/docs/routes.md) | Inbound/outbound, caller scopes và private exposure |
 | Routing Service | [Cấu hình](../service/routing-service/docs/cau-hinh.md) | Endpoint OSRM, proxy key tùy chọn, vehicle profiles và secrets |
 | Routing Service | [Deploy](../service/routing-service/docs/deploy.md) | Kế hoạch local/production, dataset OSRM, probes, lifecycle và rollback |
+| Routing Service | [OSRM Hà Nội](../service/routing-service/docs/osrm-ha-noi.md) | Backend CAR tự host Docker, cắt dataset, cấu hình Trip và kiểm thử Route/Table thật |
 | Routing Service | [Realtime Client](../service/routing-service/docs/realtime-client.md) | ETA Matrix lấy vị trí driver trong bán kính 2 km qua client Routing để tính ETA trả Matching |
 | Routing Service | [Kế hoạch phát triển](../service/routing-service/docs/ke-hoach-phat-trien.md) | F00–F11, dependency, acceptance, test và commit theo feature |
 | Routing Service | [Báo cáo triển khai](../service/routing-service/docs/bao-cao-trien-khai.md) | Feature/commit/checks và giới hạn tích hợp thật |
