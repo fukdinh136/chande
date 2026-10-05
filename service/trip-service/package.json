@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint src test scripts",
-    "test:build": "tsc -p tsconfig.test.json",
+    "test:build": "node scripts/clean-test.cjs && tsc -p tsconfig.test.json",
     "test": "npm run test:build && node scripts/test.cjs unit",
     "test:integration": "npm run test:build && node scripts/test.cjs integration",
     "test:contract": "npm run test:build && node scripts/test.cjs contract",
@@ -19,7 +19,11 @@
     "worker:dev": "tsx watch src/worker.ts",
     "start:prod": "node dist/main.js",
     "worker:prod": "node dist/worker.js",
-    "migration:run": "node node_modules/typeorm/cli.js migration:run -d dist/infrastructure/persistence/data-source.js",
+    "outbox:requeue": "node dist/requeue.js",
+    "mock:dev": "tsx watch src/mock.ts",
+    "mock:prod": "node dist/mock.js",
+    "smoke:local": "node scripts/smoke.cjs",
+    "migration:run": "node dist/migrate.js",
     "migration:show": "node node_modules/typeorm/cli.js migration:show -d dist/infrastructure/persistence/data-source.js"
   },
   "dependencies": {
@@ -34,6 +38,11 @@
     "rxjs": "^7.8.2",
     "typeorm": "^0.3.31",
     "zod": "^4.6.5"
+  },
+  "overrides": {
+    "@nestjs/swagger": {
+      "js-yaml": "5.4.2"
+    }
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

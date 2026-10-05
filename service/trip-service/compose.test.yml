@@ -1,0 +1,8 @@
+name: chande-trip-tests
+services:
+  trip-test-db:
+    image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    environment: {POSTGRES_USER: trip_test, POSTGRES_PASSWORD: trip_test, POSTGRES_DB: trip_test}
+    ports: ['127.0.0.1:55434:5432']
+    tmpfs: [/var/lib/postgresql]
+    healthcheck: {test: [CMD-SHELL, 'pg_isready -U trip_test -d trip_test'], interval: 3s, timeout: 3s, retries: 20}

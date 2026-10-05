@@ -1,10 +1,10 @@
 # Deploy và vận hành Trip Service
 
-Ngày cập nhật: 05/10/2026. Trạng thái: runbook thiết kế đề xuất; chưa có backend, Dockerfile, Compose, npm script hoặc migration để thực thi các bước này.
+Ngày cập nhật: 05/10/2026. Backend, image, Compose local/test/deploy, npm scripts và migration đã có. Docker local và smoke test đã chạy; Compose deploy đã kiểm tra cấu hình, chưa phát hành trên hosting thật.
 
 Tài liệu liên quan: [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Nghiệp vụ](nghiep-vu.md).
 
-Chưa chọn nhà cung cấp hosting, domain, registry hay tài khoản deploy. Baseline đề xuất cho v1 là Docker Compose trên Linux cho staging/môi trường một host; production cần duyệt hosting, TLS, backup và vận hành trước khi dùng. Đợt tài liệu này không cài dependency, tạo hạ tầng hoặc thực hiện deployment.
+Chưa chọn hosting, domain, registry hay tài khoản deploy. Baseline là Docker Compose trên Linux cho staging/môi trường một host; production cần hoàn thiện TLS, backup, monitoring và service ngoài. Báo cáo ghi rõ phần đã kiểm chứng tại máy local.
 
 ## 1. Topology và giới hạn baseline
 
@@ -32,26 +32,27 @@ API/worker dùng cùng image immutable, nhưng command và health probe khác nh
 
 Compose một host không cung cấp HA; host hoặc DB ngừng sẽ gián đoạn. Không mô tả baseline này như zero-downtime hoặc hệ thống production đã có sẵn.
 
-## 2. Runtime và artifact phải hoàn thành
+## 2. Runtime và artifact hiện có
 
-- Đề xuất Node.js 24 LTS; kiểm tra version/patch tương thích khi triển khai C00 và pin image digest, không dùng `latest`. Node 24 thuộc nhánh LTS theo [Node.js releases](https://nodejs.org/en/about/previous-releases), đối chiếu ngày 05/10/2026.
-- Đề xuất PostgreSQL 18; pin patch/digest và kiểm thử driver/TypeORM trước deploy. Không chốt version NestJS/TypeORM bằng tài liệu khi package chưa tồn tại: C00 phải khóa version tương thích trong lockfile.
-- Build image theo [Docker multi-stage build](https://docs.docker.com/build/building/multi-stage/): stage build compile/test, runtime chỉ giữ output/dependency cần thiết và chạy bằng user không phải root.
+- Node.js 24.15.0; Dockerfile pin image `bookworm-slim` bằng digest. Dependency khóa trong `package-lock.json`: NestJS 11, TypeScript 5.9, TypeORM 0.3, PostgreSQL driver 8.
+- PostgreSQL 18 pin digest trong Compose/CI, integration test dùng DB thật. Thư mục volume PostgreSQL 18 là `/var/lib/postgresql`.
+- Image dùng [Docker multi-stage build](https://docs.docker.com/build/building/multi-stage/): stage build compile và prune dev dependency; tests chạy ở CI trước build. Runtime chạy user `node`, chỉ giữ output/dependency sản xuất.
 - Runtime image có TypeORM CLI và migration đã compile để job migrate dùng cùng release. Không đưa source secret, `.env`, test database hoặc `node_modules` từ máy dev vào image.
 
-| Artifact đề xuất | Yêu cầu trước khi runbook dùng được |
+| Artifact | Trách nhiệm |
 | --- | --- |
 | `package.json`, `package-lock.json` | Npm scripts ở bảng dưới, runtime version và dependency được khóa |
 | `Dockerfile`, `.dockerignore` | Image chứa `dist/main.js`, `dist/worker.js`, compiled DataSource/migrations và CLI |
 | `.env.example`, `.gitignore` của service | Chỉ mẫu config; loại secret/runtime env khỏi Git |
 | `compose.local.yml` | DB, mock services và port local; không dùng cho production |
+| `compose.test.yml` | DB test tạm ở port 55434, tách DB dev |
 | `compose.deploy.yml` | Đúng tên service/topology ở mục 1; health dependency, secrets, volume, image digest |
 | DataSource/migrations | `synchronize=false`; schema phù hợp app, migration chỉ chạy bằng job |
 | Health endpoints | Theo API/Routes, API và worker được kiểm tra độc lập |
 
-Tất cả artifact trên **chưa tồn tại**. Tên và command là contract triển khai dự kiến, không phải hướng dẫn chạy ngay trong trạng thái repo hiện tại.
+Các artifact đã tồn tại. `.github/workflows/trip-service.yml` chạy lint/typecheck/tests/build/audit và Docker build; kết quả CI xem trên GitHub. `.gitattributes` giữ shell script LF khi checkout Windows.
 
-### Npm script contract dự kiến
+### Npm scripts
 
 | Script | Nhiệm vụ |
 | --- | --- |
@@ -61,10 +62,13 @@ Tất cả artifact trên **chưa tồn tại**. Tên và command là contract t
 | `start:dev` / `worker:dev` | API/worker local với watch |
 | `start:prod` / `worker:prod` | `node dist/main.js` / `node dist/worker.js` |
 | `migration:show` / `migration:run` | CLI TypeORM dùng compiled DataSource, chạy sau build |
+| `mock:dev` / `mock:prod` | Chạy mock development; `mock:prod` là chạy JS đã build, vẫn bị chặn khi NODE_ENV=production |
+| `smoke:local` | JWT → estimate → create/replay → nhận → hoàn thành → chuyến mới → hủy/replay |
+| `outbox:requeue -- <deliveryId>` | Đưa delivery blocked về pending sau khi đã sửa credential/contract |
 
-DataSource dự kiến tại `dist/infrastructure/persistence/data-source.js`; không tự chạy migration trong mỗi replica. Duyệt và xác minh cú pháp CLI theo version TypeORM thực tế lúc tạo package/migration.
+`migration:run` chạy `dist/migrate.js`, có advisory lock theo database và transaction cho toàn bộ migration; job đồng thời bị từ chối. `migration:show` dùng CLI với compiled DataSource. API/worker không tự migrate; `synchronize=false`.
 
-## 3. Cấu hình môi trường đề xuất
+## 3. Cấu hình môi trường
 
 | Biến | Local/test | Staging/production | Bên sử dụng |
 | --- | --- | --- | --- |
@@ -111,27 +115,64 @@ Secrets đề xuất cấp qua secret manager hoặc [Docker Compose secrets](ht
 - Chỉ một job migrate tại một thời điểm; dùng lock orchestration/database để hai đợt phát hành không cùng migrate.
 - Dùng thay đổi schema có tính tương thích: thêm trước, chuyển app, bỏ cột/tên cũ ở release sau. Không dựa vào `synchronize` hoặc tự rebuild database.
 
-## 5. Chạy local sau khi C00/C03 sẵn sàng
+## 5. Chạy local và kiểm thử
 
-Điều kiện: package/scripts, `compose.local.yml`, config mock, migrations và health endpoints đã triển khai. Integration test dùng DB riêng, không dùng DB dev có dữ liệu người dùng.
+Điều kiện: Docker Desktop với Linux containers, Node.js 24 và npm. Chạy từ `service/trip-service` trên PowerShell. Compose đợi DB healthy, chạy migration rồi khởi động API/worker/mock.
 
-Các lệnh dưới chạy từ `service/trip-service` trên PowerShell; chưa thực thi trong đợt viết tài liệu:
+### Chạy toàn bộ bằng Docker
 
 ```powershell
 npm.cmd ci
-docker compose -f compose.local.yml up -d
-npm.cmd run build
-npm.cmd run migration:run
-npm.cmd run start:dev
+docker compose -f compose.local.yml up -d --build
+docker compose -f compose.local.yml ps
+npm.cmd run smoke:local
 ```
 
-Mở terminal thứ hai, cùng thư mục/config:
+Ports host chỉ mở trên `127.0.0.1`: API 3001, worker health 3002, mock 3003, DB dev 55433. Swagger: <http://localhost:3001/docs>. Migration exit 0 là bình thường; các process còn lại phải healthy. Dừng bằng `docker compose -f compose.local.yml down`; giữ volume nếu cần giữ dữ liệu.
+
+Mock có Routing/Pricing/Matching, event receiver và issuer/JWKS. Receipt/terminal marker lưu trong volume `mock-data`; không tự gán tài xế. Giá `45000` và `MOCK_BIKE` là dữ liệu thử. Khóa JWT thử đổi khi mock restart, cần lấy token mới.
+
+Nhận JWT thử:
 
 ```powershell
+$principal = @{ sub = '30000000-0000-4000-8000-000000000001'; role = 'RIDER' }
+$tokenResponse = Invoke-RestMethod -Method Post -Uri 'http://localhost:3003/mock/token' -ContentType 'application/json' -Body ($principal | ConvertTo-Json)
+$headers = @{ Authorization = "Bearer $($tokenResponse.data.accessToken)" }
+# Dùng $headers gọi R01/R02. Lấy token DRIVER với UUID tài xế riêng.
+```
+
+Sau Create, đợi worker gửi search; gọi `/mock/accept` với `{tripId, eventId, driverId, vehicleId, driverSnapshot, vehicleSnapshot}` đúng model API. Mock gọi callback Trip với credential local; retry cùng eventId nếu lỗi tạm thời. `smoke:local` thực hiện tự động với UUID mới và kết thúc các chuyến thử.
+
+### Kiểm thử với DB riêng
+
+```powershell
+docker compose -f compose.test.yml up -d --wait
+$env:TEST_DATABASE_URL = 'postgres://trip_test:trip_test@127.0.0.1:55434/trip_test'
+npm.cmd run lint
+npm.cmd run typecheck
+npm.cmd run test:all
+npm.cmd run build
+npm.cmd audit
+```
+
+Tests chỉ nhận DB tên kết thúc `_test` và truncate các bảng Trip trong DB đó. DB dev `trip_local` không được dùng cho tests. Không đặt TEST_DATABASE_URL thì mặc định dùng `trip_test` tại port 55432. Unit/contract chạy riêng được; integration/e2e cần DB thật. Test runner chạy tuần tự để không tranh chấp lúc làm sạch bảng.
+
+### Chạy source với watch
+
+```powershell
+docker compose -f compose.local.yml stop trip-api trip-worker trip-mocks
+docker compose -f compose.local.yml up -d trip-db
+# Chỉ copy khi chưa có .env; nếu đã có thì sửa các biến cần thiết.
+Copy-Item -LiteralPath '.env.example' -Destination '.env'
+npm.cmd run build
+npm.cmd run migration:run
+# Ba terminal riêng, cùng thư mục:
+npm.cmd run mock:dev
+npm.cmd run start:dev
 npm.cmd run worker:dev
 ```
 
-Mock phải có Routing, Pricing, Matching, Gateway event receiver, Notification và issuer/JWKS thử. Matching mock phải giữ tìm xe không deadline, có tài xế chấp nhận, chống lặp và xử lý hủy trước search; không trả tài xế ngay để bỏ qua luồng async.
+Mỗi lệnh watch chiếm một terminal. Chạy mock trên host dùng callback `http://127.0.0.1:3001`; nếu dùng mock Docker với API trên host, cần đổi MOCK_TRIP_API_URL sang `http://host.docker.internal:3001` qua Compose override rồi recreate mock. Không chạy hai process cùng port.
 
 Chạy health API/worker, rồi estimate → create → callback nhận → cập nhật → hoàn thành. Test nhánh hủy dùng chuyến/quote mới. Không dùng cùng idempotency key cho các hành động khác nhau.
 
@@ -143,7 +184,7 @@ Chạy health API/worker, rồi estimate → create → callback nhận → cậ
 2. Integration với PostgreSQL thật; contract với mock; e2e gồm API, worker và lỗi/race quan trọng.
 3. Build image chứa app/migration; chạy image trong staging để kiểm tra entry point/probe/schema.
 4. Tag theo commit SHA và lưu digest, migration list, config version, kết quả test.
-5. Publish registry đã được chọn. Commit/push component theo quy trình người dùng duyệt; không coi push Git là đã deploy.
+5. Publish registry sau khi chọn đích phát hành. Feature đã commit/push theo ủy quyền triển khai mới nhất; push Git không đồng nghĩa deploy hosting.
 
 ### Trình tự trên host Linux
 
@@ -157,7 +198,11 @@ docker compose --env-file deployment.env -f compose.deploy.yml up -d --no-deps t
 docker compose --env-file deployment.env -f compose.deploy.yml ps
 ```
 
-Đợi DB healthy và backup hoàn tất trước migrate. Dừng nếu một bước thất bại; không chạy tiếp API/worker khi migration lỗi. `trip-migrate` không có restart policy, runtime services có restart policy và shutdown grace đề xuất 30 giây.
+Đợi DB healthy và backup hoàn tất trước migrate. Dừng nếu một bước thất bại; không chạy API/worker khi migration lỗi. Migration không có restart policy; runtime có restart policy và shutdown grace 45 giây.
+
+`deploy/init-roles.sh` chỉ chạy khi volume DB mới: tạo schema `trip`, role `trip_migrator` có quyền DDL và `trip_runtime` có SELECT/INSERT/UPDATE, sequence usage; runtime không có DDL/DELETE. Hai role đặt search_path `trip,public`. Các file secret cần đúng tên trong Compose; URL migration/runtime phải khớp role/password/database `trip`, password trong URL cần percent-encode. Với DB managed hoặc volume có sẵn, DBA tạo role/schema/default privilege tương đương trước migrate; init script không chạy lại để sửa role hiện có.
+
+`deployment.env.example` chỉ có placeholder. Thay TRIP_IMAGE bằng digest đã publish, URLs và vehicle codes bằng contract thật; giữ secrets ngoài Git. Compose deploy không publish DB/API/worker ra host, chỉ nối backend network có sẵn.
 
 Với release thay đổi lớn: ngừng nhận request mới/drain API và dừng claim delivery mới trước khi migrate theo maintenance window đã xác định. Graceful shutdown hoàn tất transaction đang xử lý, đóng DB pool; delivery chưa ghi ACK sẽ được reclaim bằng lease và chống lặp. Compose baseline không tự bảo đảm rolling deploy.
 
@@ -205,6 +250,13 @@ Không dùng xóa volume hoặc dựng DB trống như rollback. Worker cũ ph�
 | Nhiều version conflict | Client refresh/version, race và key reuse | Không bỏ kiểm tra version |
 
 Log gồm request/trip/event/command ID và destination, không có JWT/service token/connection string hoặc snapshot hồ sơ đầy đủ. Alert tuổi outbox, worker heartbeat và SEARCHING lâu để điều tra, không gắn alert với chuyển trạng thái tự động.
+
+Hiện có JSON log cho HTTP (request ID, route pattern, trip ID hợp lệ, status, duration) và lỗi delivery (delivery/trip/destination/reason/attempts), cùng probes. Exporter metrics, dashboard và alert chưa được cài; cần nối giám sát của môi trường thật. Requeue sau khi sửa lỗi:
+
+```powershell
+npm.cmd run outbox:requeue -- 123
+# 123 là outbox_deliveries.id đang blocked; dùng DATABASE_URL của môi trường đúng.
+```
 
 ## 10. Checklist trước triển khai thật
 

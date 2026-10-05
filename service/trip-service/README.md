@@ -8,20 +8,48 @@ Service quản lý nghiệp vụ chuyến đi của Chande, từ báo giá và �
 | --- | --- |
 | [Nghiệp vụ](docs/nghiep-vu.md) | Phạm vi v1, quy tắc đã chốt, vòng đời, user story và tiêu chí nghiệm thu |
 | [Kiến trúc](docs/kien-truc.md) | Ranh giới service, lớp/port/adapter, dữ liệu, transaction và outbox |
+| [Sơ đồ C4](docs/c4.md) | C1–C4 theo code hiện tại: API/worker, domain, transaction, idempotency và outbox |
 | [API](docs/api.md) | Model, request/response, identity, idempotency, lỗi và contract tích hợp |
 | [Routes](docs/routes.md) | Bảng route public/internal/outbound, quyền, use case và exposure |
 | [Deploy](docs/deploy.md) | Runtime API/worker/DB, cấu hình, migration, phát hành, rollback và monitoring |
+| [Báo cáo triển khai](docs/bao-cao-trien-khai.md) | Component, commit, kiểm thử, kết quả Docker và phần cần tích hợp thật |
 
 [Mục lục tài liệu dự án](../../docs/README.md).
 
 ## Trạng thái phát triển
 
-Thư mục service và tài liệu đã được tổ chức riêng. Chưa triển khai ứng dụng backend, các component nghiệp vụ, OpenAPI, Dockerfile hoặc cấu hình deploy. Các tài liệu kỹ thuật là bản thiết kế đề xuất để review, không xác nhận endpoint hay runbook đã chạy được.
+Đã triển khai C00–C15: domain độc lập, use case, PostgreSQL, REST API có JWT, callback Matching, transactional outbox, worker, OpenAPI và môi trường Docker local. Bộ kiểm thử gồm unit, integration, contract và e2e; xem số liệu và giới hạn trong báo cáo.
 
 Stack đã thống nhất: NestJS, TypeScript, TypeORM và PostgreSQL. Routing, Pricing và Matching được tích hợp qua contract; REST callback và outbox phục vụ luồng bất đồng bộ.
 
-Domain sẽ độc lập với NestJS, TypeORM và HTTP client. Tài liệu trong `docs/` là cơ sở để validate thiết kế từng component trước khi code.
+Routing, Pricing, Matching, Gateway và Notification hiện được kiểm chứng bằng contract/mock. Tích hợp các service thật và phát hành lên hosting là bước tiếp theo.
+
+## Chạy local
+
+Từ thư mục `service/trip-service`, với Docker Desktop đang chạy:
+
+```powershell
+docker compose -f compose.local.yml up -d --build
+docker compose -f compose.local.yml ps
+npm.cmd ci
+npm.cmd run smoke:local
+```
+
+API: <http://localhost:3001>; Swagger: <http://localhost:3001/docs>; worker probe: <http://localhost:3002/health/ready>. Mock và DB dùng credential thử, chỉ mở port host trên loopback. Chi tiết nhận JWT local, kiểm thử và chạy source nằm trong [Deploy](docs/deploy.md).
+
+## Kiểm thử
+
+```powershell
+docker compose -f compose.test.yml up -d --wait
+$env:TEST_DATABASE_URL = 'postgres://trip_test:trip_test@127.0.0.1:55434/trip_test'
+npm.cmd run lint
+npm.cmd run typecheck
+npm.cmd run test:all
+npm.cmd run build
+```
+
+Tests chỉ nhận DB có tên kết thúc bằng `_test`; dữ liệu trong các bảng Trip của DB đó được làm sạch giữa các ca. Không dùng URL DB local/production cho tests.
 
 ## Quy trình
 
-Người dùng duyệt thiết kế component, sau đó duyệt kết quả kiểm thử. Chỉ commit và push `main` sau khi kết quả được duyệt, theo quy trình trong tài liệu nghiệp vụ.
+Theo yêu cầu triển khai mới nhất: thực hiện từng feature nhỏ, viết và chạy kiểm thử, commit/push `main` sau khi kiểm thử đạt và bàn giao báo cáo để review. Thay đổi chính sách nghiệp vụ vẫn cần người dùng xác nhận.

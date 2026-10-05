@@ -1,0 +1,33 @@
+name: Trip Service
+on:
+  push:
+    paths: ['service/trip-service/**', '.github/workflows/trip-service.yml']
+  pull_request:
+    paths: ['service/trip-service/**', '.github/workflows/trip-service.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: service/trip-service
+    services:
+      postgres:
+        image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+        env: {POSTGRES_USER: trip_test, POSTGRES_PASSWORD: trip_test, POSTGRES_DB: trip_test}
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U trip_test -d trip_test" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://trip_test:trip_test@localhost:5432/trip_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24.15.0', cache: npm, cache-dependency-path: service/trip-service/package-lock.json}
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:all
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=moderate
+      - run: docker build -t chande-trip:ci .
