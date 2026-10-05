@@ -8,6 +8,7 @@ Ngày: 06/10/2026. Cập nhật theo từng feature; kết quả kiểm thử d�
 | F00 | Package/lockfile, compiler strict, secrets/env/profile loader | 8 unit tests, lint/typecheck/build đạt | `713a4ff` |
 | F01 | Domain, chuẩn hóa số đo, snapshot driver và ports độc lập NestJS | 11 tests tổng; bounds, overflow, duplicate/timestamp | Xem lịch sử `feat(routing): define route models and provider ports` |
 | F02 | Mock và OSRM Route/Table, fetch có giới hạn/cancel, polyline6 và error mapping | 17 tests tổng; 6 adapter contract tests dùng HTTP fixture | Xem lịch sử `feat(routing): add OSRM route and table adapters` |
+| F03 | Token bucket request/burst và sliding-window budget matrix theo từng attempt | 4 tests dùng fake monotonic clock; 21 tests tổng | Xem lịch sử `feat(routing): bound outbound request and matrix rates` |
 
 ## Đầu vào tích hợp còn thiếu
 
