@@ -14,23 +14,23 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
+/** Lỗi xác thực của endpoint nội bộ: thiếu/sai X-Service-Token → 401, đúng token nhưng sai quyền → 403. */
 @Component
-public class JsonSecurityErrorHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
+public class InternalSecurityErrorHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(JsonSecurityErrorHandler.class);
+    private static final Logger log = LoggerFactory.getLogger(InternalSecurityErrorHandler.class);
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException ex) throws IOException {
-        log.warn("401 {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
-        response.setHeader("WWW-Authenticate", "Bearer");
-        ErrorResponseWriter.write(request, response, ErrorCode.UNAUTHENTICATED);
+        log.warn("401 nội bộ {} {} từ {}", request.getMethod(), request.getRequestURI(), request.getRemoteAddr());
+        ErrorResponseWriter.write(request, response, ErrorCode.INVALID_SERVICE_CREDENTIAL);
     }
 
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException ex) throws IOException {
-        log.warn("403 {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        log.warn("403 nội bộ {} {}", request.getMethod(), request.getRequestURI());
         ErrorResponseWriter.write(request, response, ErrorCode.FORBIDDEN_ACTION);
     }
 }

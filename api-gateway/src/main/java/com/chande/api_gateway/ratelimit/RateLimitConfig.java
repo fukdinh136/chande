@@ -9,7 +9,7 @@ import java.time.Clock;
 public class RateLimitConfig {
 
     @Bean
-    public SlidingWindowRateLimiter loginRateLimiter(LoginRateLimitProperties properties) {
+    public SlidingWindowRateLimiter authRateLimiter(AuthRateLimitProperties properties) {
         return new SlidingWindowRateLimiter(properties.maxAttempts(), properties.window(), Clock.systemUTC());
     }
 }

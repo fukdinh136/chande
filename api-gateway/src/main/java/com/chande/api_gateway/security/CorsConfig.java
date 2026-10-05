@@ -17,8 +17,9 @@ public class CorsConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(corsProperties.allowedOrigins());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        config.setExposedHeaders(List.of("Retry-After"));
+        // Idempotency-Key bắt buộc ở nhiều API (Trip R02/R06/R07, User R01–R11); X-Request-Id để đối soát log
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id"));
+        config.setExposedHeaders(List.of("X-Request-Id", "Idempotency-Replayed", "Retry-After", "Location"));
         config.setAllowCredentials(false);
         config.setMaxAge(Duration.ofHours(1));
 

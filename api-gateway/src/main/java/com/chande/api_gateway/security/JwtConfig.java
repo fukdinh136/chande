@@ -1,53 +1,55 @@
 package com.chande.api_gateway.security;
 
-import lombok.RequiredArgsConstructor;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jose.util.DefaultResourceRetriever;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2TokenValidator;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtClaimNames;
-import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtValidators;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.time.Duration;
 
 @Configuration
-@RequiredArgsConstructor
 public class JwtConfig {
 
-    private final JwtProperties jwtProperties;
+    private static final int JWKS_CONNECT_TIMEOUT_MS = 2_000;
+    private static final int JWKS_READ_TIMEOUT_MS = 3_000;
+    private static final int JWKS_SIZE_LIMIT_BYTES = 256 * 1024;
 
     @Bean
-    public JwtDecoder jwtDecoder() {
-        SecretKey key = new SecretKeySpec(
-                jwtProperties.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+    public JwtDecoder jwtDecoder(JwtProperties properties) {
+        return IssuerRoutingJwtDecoder.create(properties, issuer -> remoteJwkSource(issuer.jwkSetUri()));
+    }
 
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key)
-                .macAlgorithm(MacAlgorithm.HS256)
-                .build();
-
-        OAuth2TokenValidator<Jwt> issuerValidator = new JwtClaimValidator<Object>(
-                JwtClaimNames.ISS,
-                iss -> iss != null && jwtProperties.allowedIssuers().contains(iss.toString()));
-
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefault(),
-                issuerValidator));
-        return decoder;
+    /**
+     * JWKS được cache 5 phút và chỉ tải lại tối đa mỗi 30 giây khi gặp kid lạ, nên dù nhiều request
+     * mang token giả cũng không dội tải sang User/Driver Service. Nếu JWKS tạm không truy cập được,
+     * vẫn dùng khoá đã cache thêm 30 phút để gateway không từ chối hàng loạt token hợp lệ.
+     * Khoá được tải lần đầu khi có request cần xác thực, không phải lúc khởi động.
+     */
+    static JWKSource<SecurityContext> remoteJwkSource(URI jwkSetUri) {
+        try {
+            return JWKSourceBuilder
+                    .create(jwkSetUri.toURL(), new DefaultResourceRetriever(
+                            JWKS_CONNECT_TIMEOUT_MS, JWKS_READ_TIMEOUT_MS, JWKS_SIZE_LIMIT_BYTES))
+                    .cache(Duration.ofMinutes(5).toMillis(), Duration.ofSeconds(5).toMillis())
+                    .rateLimited(Duration.ofSeconds(30).toMillis())
+                    .outageTolerant(Duration.ofMinutes(30).toMillis())
+                    .build();
+        } catch (MalformedURLException e) {
+            throw new IllegalStateException("jwk-set-uri không hợp lệ: " + jwkSetUri, e);
+        }
     }
 
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
-        authorities.setAuthoritiesClaimName("role");
+        authorities.setAuthoritiesClaimName(IssuerRoutingJwtDecoder.ROLE_CLAIM);
         authorities.setAuthorityPrefix("ROLE_");
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
