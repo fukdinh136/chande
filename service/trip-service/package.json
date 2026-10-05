@@ -22,6 +22,7 @@
     "outbox:requeue": "node dist/requeue.js",
     "mock:dev": "tsx watch src/mock.ts",
     "mock:prod": "node dist/mock.js",
+    "smoke:local": "node scripts/smoke.cjs",
     "migration:run": "node dist/migrate.js",
     "migration:show": "node node_modules/typeorm/cli.js migration:show -d dist/infrastructure/persistence/data-source.js"
   },
