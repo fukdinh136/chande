@@ -1,6 +1,6 @@
-# Routing Service — thiết kế và kế hoạch triển khai
+# Routing Service
 
-Ngày lập: 06/10/2026. Trạng thái: **tài liệu thiết kế để review và file cấu hình mẫu; chưa có runtime Routing, provider adapter hoặc Docker image chạy được**.
+Ngày cập nhật: 06/10/2026. Đã có runtime TypeScript/NestJS, bốn API, OSRM adapter và pipeline queue/pool/limiter. ETA Matrix lấy snapshot qua Realtime Client; port/mock đã chạy, HTTP adapter Realtime thật chờ contract. Xem [báo cáo triển khai](docs/bao-cao-trien-khai.md) cho checks/commit và giới hạn tích hợp.
 
 Routing tính tuyến đường, khoảng cách/thời gian và tính lại tuyến. Calculate ETA Matrix nhận điểm đón/profile xe từ Matching, gọi Realtime Client lấy vị trí driver trong bán kính 2 km, tính ETA qua OSRM và trả kết quả theo driverId. Trip sở hữu chuyến/giá đã chốt; lựa chọn/mời tài xế bên trong Matching được thiết kế sau. Thiết kế dựa trên C3 người dùng cung cấp, user story, contract Trip và bổ sung luồng Realtime → ETA do người dùng xác nhận.
 
@@ -15,7 +15,29 @@ Routing tính tuyến đường, khoảng cách/thời gian và tính lại tuy�
 | Queue / worker pool | Bounded queue trong RAM, tối đa hai job async đồng thời trong một process |
 | Kiểm thử / công cụ | `node:test`, compile trước khi test; npm, ESLint, `tsx` cho development |
 
-Domain/application độc lập với NestJS; OSRM và Realtime chạy riêng. Các package, scripts và runtime thuộc F00–F11 trong kế hoạch, chưa được tạo ở lần cập nhật tài liệu này.
+Domain/application độc lập với NestJS; OSRM và Realtime chạy riêng. Queue/limiter dùng một process/replica. Không có database riêng.
+
+## Chạy local
+
+Từ thư mục service, tạo file local nếu chưa có theo hướng dẫn dưới đây, điền ba token caller khác nhau rồi chạy:
+
+```powershell
+npm.cmd ci
+npm.cmd run start:dev
+```
+
+`npm.cmd run build` rồi `npm.cmd run start:prod` chạy output đã compile. Hai integrations để `mock` khi phát triển; mock dùng dữ liệu fixture, không xác nhận tuyến đường thực. OpenAPI local: `/docs` và `/openapi.json`.
+
+```powershell
+npm.cmd run lint
+npm.cmd run typecheck
+npm.cmd run test:all
+npm.cmd run test:trip
+docker build -t chande-routing:local .
+npm.cmd run smoke:docker
+```
+
+`test:trip` cần dependencies Trip đã cài, build Trip rồi dùng client/use case thật qua HTTP. Docker smoke tự tạo/xóa container thử, không đọc hoặc sửa `.env`/tokens local. Compose mock: `docker compose -f compose.local.yml up -d --build`; cần caller tokens inline trong `.env`.
 
 ## Tài liệu
 
@@ -29,6 +51,7 @@ Domain/application độc lập với NestJS; OSRM và Realtime chạy riêng. C
 | [Realtime Client](docs/realtime-client.md) | ETA Matrix lấy vị trí driver trong bán kính 2 km qua port/client Routing rồi tính ETA cho Matching |
 | [Deploy](docs/deploy.md) | Kế hoạch runtime/local/production, lifecycle, probes và tích hợp Trip |
 | [Kế hoạch phát triển](docs/ke-hoach-phat-trien.md) | Phase, feature nhỏ, kiểm thử, tiêu chí nghiệm thu và quyết định cần duyệt |
+| [Báo cáo triển khai](docs/bao-cao-trien-khai.md) | Feature đã làm, commit/checks, Docker smoke và các phần tích hợp thật còn chờ |
 
 [Mục lục dự án](../../docs/README.md).
 
@@ -43,7 +66,7 @@ EXTERNAL_MAP_AUTH_MODE=none
 EXTERNAL_MAP_API_KEY=
 ```
 
-OSRM gốc không định nghĩa bước xác thực API key trong [HTTP API](https://project-osrm.org/docs/v5.24.0/api/). Nếu dùng proxy/hosting có key riêng, điền `EXTERNAL_MAP_API_KEY`, chọn `EXTERNAL_MAP_AUTH_MODE=header` và tên header theo contract proxy. Hiện chưa có request gửi đến OSRM; chỉ chuyển `INTEGRATION_MODE=real` sau khi triển khai adapter, cấu hình endpoint/profile và kiểm thử theo [Cấu hình](docs/cau-hinh.md).
+OSRM gốc không định nghĩa bước xác thực API key trong [HTTP API](https://project-osrm.org/docs/v5.24.0/api/). Nếu dùng proxy/hosting có key riêng, điền `EXTERNAL_MAP_API_KEY`, chọn `EXTERNAL_MAP_AUTH_MODE=header` và tên header theo contract proxy. Adapter đã được kiểm thử với fake HTTP server; chỉ chuyển `INTEGRATION_MODE=real` sau khi cấu hình endpoint/profile đã kiểm chứng theo [Cấu hình](docs/cau-hinh.md).
 
 Trong checkout mới, nếu chưa có các file local, sao chép từ mẫu; không ghi đè file đã có key:
 
@@ -58,4 +81,4 @@ if (!(Test-Path -LiteralPath 'config/vehicle-profiles.json')) { Copy-Item -Liter
 - C3 nối Calculate ETA Matrix → RealtimeLocationPort → Realtime Client để lấy origins trong 2 km, rồi dispatcher → queue → worker pool → limiter → OSRM Table. Matching gửi pickup/profile, nhận vị trí/observedAt/ETA theo driverId; nghiệp vụ chọn/mời thiết kế sau.
 - Stack được chọn là Node.js 24 + TypeScript 5.9 + NestJS 11, đồng bộ với Trip. Phase 1 dùng bounded queue trong một process/một replica; API chờ Promise kết quả đến deadline và trả HTTP 200 hoặc lỗi. Mặc định hai async workers và deadline 4 giây.
 - Provider đã chốt **OSRM**. URL server, dữ liệu vùng, profile xe máy, giới hạn tải và hosting còn cần review. Mẫu dùng `osrm`/`mock`, URL và key trống; chưa chọn public demo hay tải dữ liệu bản đồ.
-- Triển khai runtime sau khi review kế hoạch; mỗi feature có kiểm thử riêng và commit nhỏ.
+- Runtime được triển khai theo feature nhỏ, có test và commit/push. Chưa có nghiệm thu OSRM/dataset xe máy hoặc adapter HTTP Realtime thật.

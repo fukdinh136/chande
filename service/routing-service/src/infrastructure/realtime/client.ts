@@ -10,7 +10,9 @@ export class RealtimeClient implements RealtimeLocationPort {
     checkpoint(context, this.clock);
     const controller = new AbortController(); const cancel = () => controller.abort(context.signal.reason instanceof RoutingError ? context.signal.reason : deadline());
     context.signal.addEventListener('abort', cancel, { once: true });
-    const timer = setTimeout(() => controller.abort(this.clock.now() >= context.deadline ? deadline() : new RoutingError('REALTIME_DEADLINE_EXCEEDED', 504)), Math.max(1, Math.min(this.settings.timeout, context.deadline - this.clock.now())));
+    const remaining = context.deadline - this.clock.now();
+    const globalLimit = remaining <= this.settings.timeout;
+    const timer = setTimeout(() => controller.abort(globalLimit || this.clock.now() >= context.deadline ? deadline() : new RoutingError('REALTIME_DEADLINE_EXCEEDED', 504)), Math.max(1, Math.ceil(Math.min(this.settings.timeout, remaining))));
     try {
       const raw = await new Promise<DriverLocation[]>((resolve, reject) => {
         const abort = () => { cleanup(); reject(controller.signal.reason); };

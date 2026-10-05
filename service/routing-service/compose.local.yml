@@ -1,0 +1,26 @@
+# Local mock only. Set three distinct caller tokens in .env; no real map credentials are required.
+services:
+  routing:
+    build: .
+    image: chande-routing:local
+    init: true
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      APP_ENV: development
+      HOST: 0.0.0.0
+      PORT: '3004'
+      INTEGRATION_MODE: mock
+      REALTIME_INTEGRATION_MODE: mock
+      SUPPORTED_VEHICLE_TYPES: MOCK_BIKE
+      VEHICLE_PROFILES_FILE: config/vehicle-profiles.example.json
+      ROUTING_TRIP_TOKEN: ${ROUTING_TRIP_TOKEN:?Set ROUTING_TRIP_TOKEN in .env}
+      ROUTING_MATCHING_TOKEN: ${ROUTING_MATCHING_TOKEN:?Set ROUTING_MATCHING_TOKEN in .env}
+      ROUTING_GATEWAY_TOKEN: ${ROUTING_GATEWAY_TOKEN:?Set ROUTING_GATEWAY_TOKEN in .env}
+    ports: ['127.0.0.1:3004:3004']
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    pids_limit: 100
+    mem_limit: 256m
+    stop_grace_period: 10s

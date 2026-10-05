@@ -4,11 +4,13 @@ import { z } from 'zod';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { Catch, Controller, Get, Post, HttpCode, Inject, Module, Req, Res, HttpException, type ArgumentsHost, type ExceptionFilter, type INestApplication } from '@nestjs/common';
-import { ApiBody, ApiSecurity, ApiTags, DocumentBuilder, SwaggerModule, type SchemaObject } from '@nestjs/swagger';
+import { ApiBody, ApiSecurity, ApiTags, ApiOkResponse, DocumentBuilder, SwaggerModule, type SchemaObject } from '@nestjs/swagger';
+import { envelopeSchema, summaryResponse, routeResponse, matrixResponse } from './documentation';
 import { RoutingRuntime } from '../bootstrap/runtime';
 import { RoutingError } from '../domain/errors';
 import { estimateSchema, routeRequestSchema, matrixRequestSchema, recalculateSchema } from '../domain/requests';
 import type { Context } from '../application/ports/clients';
+import { checkpoint } from '../application/context';
 interface RoutingRequest extends Request { routing: { requestId: string; started: number } }
 function bodySchema(schema: z.ZodType): SchemaObject { const json = z.toJSONSchema(schema, { io: 'input' }); delete json.$schema; return json as unknown as SchemaObject; }
 function authorize(req: Request, runtime: RoutingRuntime, operation: 'trip' | 'gateway' | 'matching'): void {
@@ -47,23 +49,28 @@ class RoutingController {
     const timer = setTimeout(abort, Math.max(1, deadline - this.runtime.clock.now()));
     req.on('aborted', abort); res.on('close', disconnect);
     try {
-      const data = await action({ requestId: req.routing.requestId, deadline, signal: controller.signal });
+      const context = { requestId: req.routing.requestId, deadline, signal: controller.signal };
+      const data = await action(context); checkpoint(context, this.runtime.clock);
       return { data, meta: { requestId: req.routing.requestId } };
     } finally { clearTimeout(timer); req.off('aborted', abort); res.off('close', disconnect); untrack(); }
   }
   @Post('internal/routes/estimate') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(estimateSchema) })
+  @ApiOkResponse({ schema: bodySchema(envelopeSchema(summaryResponse)) })
   estimate(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
     return this.execute(req, res, 'trip', ctx => this.runtime.route.estimate(req.body, ctx));
   }
   @Post('routes') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(routeRequestSchema) })
+  @ApiOkResponse({ schema: bodySchema(envelopeSchema(routeResponse)) })
   route(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
     return this.execute(req, res, 'gateway', ctx => this.runtime.route.full(req.body, ctx));
   }
   @Post('routes/matrix') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(matrixRequestSchema) })
+  @ApiOkResponse({ schema: bodySchema(envelopeSchema(matrixResponse)) })
   matrix(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
     return this.execute(req, res, 'matching', ctx => this.runtime.matrix.execute(req.body, ctx));
   }
   @Post('routes/recalculate') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(recalculateSchema) })
+  @ApiOkResponse({ schema: bodySchema(envelopeSchema(routeResponse)) })
   recalculate(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
     return this.execute(req, res, 'gateway', ctx => this.runtime.recalculate.execute(req.body, ctx));
   }
@@ -89,7 +96,7 @@ export async function createApp(runtime: RoutingRuntime): Promise<INestApplicati
   app.useGlobalFilters(new ErrorFilter()); app.enableShutdownHooks(['SIGINT', 'SIGTERM']);
   if (runtime.config.swagger && !runtime.config.production) {
     const document = SwaggerModule.createDocument(app, new DocumentBuilder().setTitle('Routing Service').setVersion('1.0').addApiKey({ type: 'apiKey', in: 'header', name: 'X-Service-Token' }, 'service-token').build());
-    SwaggerModule.setup('docs', app, document);
+    SwaggerModule.setup('docs', app, document, { jsonDocumentUrl: 'openapi.json' });
   }
   await app.init(); return app;
 }

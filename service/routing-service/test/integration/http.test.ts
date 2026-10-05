@@ -16,7 +16,8 @@ test('HTTP estimate envelope, generated correlation, full route and OpenAPI', as
   await fixture(async url => {
     const response = await post(url, input); assert.equal(response.status, 200); const result = await response.json(); assert.deepEqual(result.data, { distanceMeters: 4000, durationSeconds: 600 }); assert.match(result.meta.requestId, /^[a-f0-9-]{36}$/); assert.equal(response.headers.get('x-request-id'), result.meta.requestId);
     const id = '90000000-0000-4000-8000-000000000001'; const full = await post(url, { origin: point, destination: point, vehicleType: 'MOCK_BIKE' }, 'gateway-test-token', '/routes', id); assert.equal(full.status, 200); assert.equal((await full.json()).meta.requestId, id);
-    const doc = await fetch(url + '/docs-json'); assert.equal(doc.status, 200); assert.ok((await doc.json()).paths['/internal/routes/estimate']);
+    const doc = await fetch(url + '/openapi.json'); assert.equal(doc.status, 200); const schema = await doc.json(); assert.ok(schema.paths['/internal/routes/estimate']);
+    assert.deepEqual(Object.keys(schema.paths['/internal/routes/estimate'].post.responses['200'].content['application/json'].schema.properties.data.properties).sort(), ['distanceMeters', 'durationSeconds']);
   });
 });
 test('invalid tokens, scopes, DTO and correlation never reach provider', async () => {
@@ -42,4 +43,14 @@ test('Nest app.close invokes singleton pool shutdown and settles in-flight reque
   // Wait for the server to enter its provider rather than relying on a timing guess.
   for (let i = 0; i < 1000 && !runtime.pool.stats.running; i++) await tick();
   assert.equal(runtime.pool.stats.running, 1); await app.close(); assert.equal((await response).status, 503); assert.deepEqual(runtime.pool.stats, { accepting: false, running: 0, queued: 0 });
+});
+test('HTTP disconnect propagates cancellation and releases the worker', async () => {
+  let entered!: () => void; const ready = new Promise<void>(r => { entered = r; }); let cancelled = false;
+  await fixture(async (url, runtime) => {
+    const controller = new AbortController();
+    const pending = fetch(url + '/internal/routes/estimate', { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-token': 'trip-test-token' }, body: JSON.stringify(input), signal: controller.signal });
+    const rejected = assert.rejects(pending); await ready; controller.abort(); await rejected;
+    for (let i = 0; i < 1000 && runtime.pool.stats.running; i++) await tick();
+    assert.equal(cancelled, true); assert.equal(runtime.pool.stats.running, 0);
+  }, { route: async (_, context) => { entered(); await new Promise<void>(resolve => context.signal.addEventListener('abort', () => { cancelled = true; resolve(); }, { once: true })); return { distanceMeters: 1, durationSeconds: 1, steps: [] }; }, matrix: async () => [] });
 });

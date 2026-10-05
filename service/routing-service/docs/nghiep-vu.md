@@ -1,6 +1,6 @@
 # Nghiệp vụ Routing Service
 
-Ngày lập: 06/10/2026. Trạng thái: thiết kế đề xuất, chưa triển khai. [Kế hoạch](ke-hoach-phat-trien.md) phân biệt các contract hiện có với quyết định còn cần review.
+Ngày cập nhật: 06/10/2026. Runtime mock và OSRM adapter đã triển khai/kiểm thử; xem [báo cáo](bao-cao-trien-khai.md). [Kế hoạch](ke-hoach-phat-trien.md) phân biệt contract hiện có và chính sách cần consumer review. Real Realtime/OSRM dataset chưa nghiệm thu.
 
 ## 1. Phạm vi và ranh giới
 

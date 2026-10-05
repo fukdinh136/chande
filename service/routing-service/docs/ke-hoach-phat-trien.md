@@ -1,6 +1,6 @@
 # Kế hoạch phát triển Routing Service
 
-Ngày lập: 06/10/2026. **Thiết kế để review; chưa triển khai runtime hoặc chạy các bộ kiểm thử dưới đây.** Mỗi feature hoàn thành phải có test tương ứng và commit nhỏ; báo cáo feature/commit/test/giới hạn sau triển khai.
+Ngày cập nhật: 06/10/2026. F00–F09 đã triển khai; F11 đã có port/mock nhưng HTTP adapter thật chờ contract. F10 có Docker/CI/local Compose và smoke mock; real smoke/benchmark chờ OSRM endpoint/profile. [Báo cáo triển khai](bao-cao-trien-khai.md) ghi checks/commit và giới hạn, bảng dưới đây giữ kế hoạch/acceptance gốc để đối chiếu.
 
 ## 1. Đã xác nhận và đề xuất cần validate
 
@@ -40,7 +40,7 @@ API R01–R04 là mã endpoint ở [routes](routes.md); F00–F11 là mã featur
 
 F00 đặt Node engines `>=24 <25`, TypeScript 5.9, NestJS 11 + Express, Zod 4, dotenv và NestJS Swagger. Toolchain npm/ESLint/tsx, compiler strict ES2023/Node16/decorator metadata tương tự Trip; dependency versions được lock khi tạo package. Cấu trúc `src/api`, `domain`, `application/use-cases`, `application/ports`, `infrastructure`, `bootstrap`, `test` theo [kiến trúc](kien-truc.md).
 
-Các npm scripts dự kiến: `build` bằng tsc, `typecheck`, `lint`, `test:build`, `test`, `test:contract`, `test:integration`, `test:e2e`, `test:all`, `start:dev` bằng tsx và `start:prod` bằng node. Tổ chức test runner như Trip: compile TypeScript test trước, chạy `node:test` trên output `.test-dist`, tách suite unit/contract/integration/e2e. Package/scripts chưa được tạo ở task cập nhật tài liệu.
+Các npm scripts đã có: `build`, `typecheck`, `lint`, `test:build`, `test`, `test:contract`, `test:integration`, `test:all`, `test:trip`, `smoke:docker`, `start:dev`, `start:prod`. Runner compile TypeScript trước, chạy `node:test` trên `.test-dist`. `test:e2e` được dành cho suite riêng trong tương lai; hiện smoke process/Linux chạy bằng `smoke:docker`.
 
 ## 3. Acceptance theo nghiệp vụ
 
@@ -66,7 +66,7 @@ Các npm scripts dự kiến: `build` bằng tsc, `typecheck`, `lint`, `test:bui
 
 Không thêm live provider/network test vào unit/CI mặc định. Test geometry bằng decode/endpoint hợp lệ; không so exact tuyến mãi mãi qua mọi dataset update. Dùng fixture versioned để phát hiện wire-contract regression; acceptance thực địa ghi riêng.
 
-Kiểm tra tài liệu: liên kết/JSON/C3/stack nhất quán; R03 pickup/profile lấy origins qua Realtime, output theo driverId, F08 phụ thuộc F11 và có test orchestration; R01/R02/R04 và OSRM wire mapping giữ contract; env/profile local giữ nguyên. Chưa chạy runtime tests khi source/package chưa tồn tại.
+Kiểm tra tài liệu: liên kết/JSON/C3/stack nhất quán; R03 pickup/profile lấy origins qua Realtime, output theo driverId, F08 phụ thuộc F11 và có test orchestration; R01/R02/R04 và OSRM wire mapping giữ contract; env/profile local giữ nguyên. Kết quả checks thực tế ghi trong báo cáo.
 
 ## 5. Quy trình mỗi feature và phase sau
 

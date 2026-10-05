@@ -1,0 +1,16 @@
+node_modules
+.npm-cache
+.env
+.env.*
+!.env.example
+config/vehicle-profiles.json
+secrets
+.secrets
+dist
+.test-dist
+test
+coverage
+docs
+*.log
+*.tsbuildinfo
+.git

@@ -1,6 +1,6 @@
-# Kế hoạch deploy Routing Service
+# Deploy Routing Service
 
-Ngày lập: 06/10/2026. **Runbook thiết kế; chưa có app, lockfile, Dockerfile hoặc Compose chạy được.** Các bước dưới đây áp dụng khi feature runtime/deploy trong [kế hoạch](ke-hoach-phat-trien.md) đã hoàn thành. Không có image/container/dataset mới được tải ở bước lập tài liệu.
+Ngày cập nhật: 06/10/2026. App/lockfile/Dockerfile và Compose mock đã tạo; Docker smoke trên Linux đạt. Production chưa nghiệm thu: Realtime HTTP adapter thật chờ contract, OSRM endpoint/dataset/profile và sizing chưa chốt. Không tải dataset bản đồ trong triển khai này.
 
 ## 1. Topology phase 1 đề xuất
 
@@ -28,7 +28,7 @@ Public demo không phải endpoint production mặc định. Đọc [demo policy
 
 Dataset lớn nằm trong volume/thư mục dữ liệu riêng, ngoài Git và build context của Routing. Triển khai/cập nhật dataset bằng pipeline riêng; không rebuild dữ liệu mỗi lần restart API. Chuẩn bị attribution OpenStreetMap ở app hiển thị bản đồ theo [OSM copyright](https://www.openstreetmap.org/copyright).
 
-## 3. Local sau khi runtime hoàn thành
+## 3. Local hiện tại
 
 1. Cài Node.js 24 và npm; từ service root chạy `npm ci` với package-lock được tạo ở F00. Compiler dùng TypeScript 5.9, runtime NestJS 11/Express và Zod 4.
 2. Sao chép example nếu chưa có file local; điền caller tokens. Chạy mock trước để kiểm tra API/queue mà không cần OSRM.
@@ -48,7 +48,17 @@ npm.cmd run build
 npm.cmd run start:prod
 ```
 
-`build` chạy `tsc -p tsconfig.json`; `start:prod` chạy `node dist/main.js`. HOST/PORT lấy từ settings. Các lệnh npm.cmd trên dành cho PowerShell Windows; Linux/container dùng npm. Package/scripts/module này chưa tồn tại; Compose file sẽ được tạo ở F10. Probes dự kiến `/health/live`, `/health/ready`; cả hai không gọi provider. Test request bằng caller token từ môi trường, không dán key thật vào câu lệnh được lưu.
+`build` chạy `tsc -p tsconfig.json`; `start:prod` chạy `node dist/main.js`. HOST/PORT lấy từ settings. Linux/container dùng npm. Probes `/health/live`, `/health/ready` không gọi provider; OpenAPI `/docs` và `/openapi.json` bật local. Body cap 64 KiB; token/scope khác nhau cho Trip/Matching/Gateway.
+
+```powershell
+docker build -t chande-routing:local .
+npm.cmd run smoke:docker
+docker compose -f compose.local.yml up -d --build
+```
+
+Compose dùng `.env` hiện có, yêu cầu ba caller token inline, không ghi đè file. Nó bật mock, dùng profile example trong image, bind host 127.0.0.1:3004; non-root, read-only filesystem, drop capabilities. Không dùng Compose local này cho production. Với token file mounts, tạo deployment riêng theo đường dẫn trong container; không truyền đường dẫn Windows vào container mà không mount.
+
+Docker smoke tự sinh token test trong bộ nhớ và tạo container tạm: bốn API, 20 estimate đồng thời, restart, readiness và SIGTERM/exit. Container thử được xóa trong finally; không chạm container/volume Trip. Kết quả burst mock chỉ kiểm tra pipeline, không phải sizing OSRM. Lifecycle request đang chạy được test riêng bằng `app.close()`.
 
 ## 4. Tích hợp Trip sau kiểm thử
 
@@ -56,20 +66,20 @@ Giữ `POST /internal/routes/estimate`; chỉ trả hai số nguyên trong `data
 
 Không thay đổi env/source Trip trong task thiết kế. Khi tích hợp real, kiểm tra integration mode chung của Trip: bật real còn ảnh hưởng các dependency Pricing/Matching khác, nên không chỉ đổi một URL rồi coi toàn bộ hệ thống đã tích hợp. Matching/Gateway dùng token và scope riêng theo [routes](routes.md).
 
-## 5. Production / CI dự kiến
+## 5. Docker / CI và điều kiện production
 
-- Lock dependency qua package-lock và pin Node 24 image/digest; CI dùng npm ci, lint/typecheck/test:all rồi build. Test runner compile test trước khi chạy node:test; live OSRM tests tách khỏi CI mặc định. Runtime non-root, không bake secrets; `.dockerignore` sẽ loại env/local profiles/test output/coverage và map data.
+- Package-lock và Node 24.15.0 image/digest đã pin. [CI](../../../.github/workflows/routing-service.yml) chạy npm ci, lint/typecheck/test:all/build, test:trip và Trip contract, audit rồi build/smoke Docker. Workflow đã tạo; trạng thái GitHub run cần xem sau push. `.dockerignore` loại env/local profiles/secrets/test output/cache; runtime non-root, không bake secrets.
 - Docker multi-stage: build stage cài đầy đủ dependency, compile TypeScript; runtime stage chỉ production dependencies và dist, chạy `node dist/main.js`. Env/secrets/profiles được inject hoặc mount; OSRM có image/dataset riêng.
 - Chỉ mở Routing cho backend/probes; OSRM private. Public access đi Gateway với JWT, quyền và rate checks. HTTPS hoặc private HTTP được opt-in theo cấu hình, không truyền proxy key qua HTTP.
-- Một replica, một Node process; queue/pool/limiter là singleton. WORKER_POOL_SIZE giới hạn job async đang chạy; mọi outbound fetch đi qua worker/limiter. Set CPU/memory/response/queue caps và đo connection usage sau benchmark, không coi giá trị mẫu là production sizing.
+- Một replica, một Node process; queue/pool/limiter là singleton. WORKER_POOL_SIZE giới hạn map job async; mọi OSRM attempt đi qua worker/limiter. Realtime lookup dùng timeout/capacity riêng trước map queue. Set CPU/memory/response/queue caps và đo connection usage sau benchmark, không coi giá trị mẫu là production sizing.
 - Deploy mock staging để smoke API, sau đó real với dataset kiểm chứng. Test route summary/full/matrix/recalculate, auth, queue overload và failure; không lấy public demo làm load test.
 - Kiểm tra logs/metrics không lộ key/token/raw coordinates/URL query; docs/OpenAPI production mặc định tắt.
 
 ## 6. Lifecycle, quan sát và rollback
 
-Startup validate config, tạo OSRM adapter/queue/pool/limiter singleton trong NestJS lifecycle; readiness chỉ true khi admission/pool hoạt động. Bật `app.enableShutdownHooks()`; onModuleDestroy đóng admission/readiness, beforeApplicationShutdown drain trong grace rồi reject queued jobs/abort requests còn lại và thu dọn response streams/timers/listeners. Mỗi Promise settle một lần; finally giải phóng slot. Process chết có thể mất job trong RAM; caller gửi lại tính toán, không hứa durable delivery. Tham chiếu [NestJS lifecycle](https://docs.nestjs.com/fundamentals/lifecycle-events).
+Startup validate config và tạo singleton runtime ở composition root; readiness chỉ true khi pool nhận job. Bật `app.enableShutdownHooks()`; `beforeApplicationShutdown` đóng admission, reject queued jobs ngay, drain active jobs trong grace, sau đó abort map/Realtime/HTTP requests còn lại trước khi đóng adapter. Mỗi Promise settle một lần và finally giải phóng slot. Process chết có thể mất job trong RAM; caller retry phép tính, không hứa durable delivery. [NestJS lifecycle](https://docs.nestjs.com/fundamentals/lifecycle-events).
 
-Lifecycle tests gọi `app.close()` để kiểm tra drain/cleanup ổn định trên Windows và CI; kiểm tra SIGTERM/shutdown thực tế trong Linux container ở F10. Grace 5000 ms là mặc định; OSRM không bị dừng cùng Routing nếu đang phục vụ caller khác.
+Lifecycle tests gọi `app.close()` với job đang chạy; Linux smoke đã kiểm tra restart/SIGTERM với mock. Grace 5000 ms là mặc định; OSRM không bị dừng cùng Routing.
 
 Theo dõi latency tổng và từng stage, queue depth/age/rejection, workers đang bận, outbound attempts/timeouts/errors, matrix elements, limiter waits, profile/dataset revision. Synthetic route kiểm tra đường đi riêng với tần suất được budget; không thực hiện trong mỗi readiness probe.
 

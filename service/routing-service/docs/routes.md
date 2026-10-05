@@ -1,15 +1,15 @@
 # Routes Routing Service
 
-Ngày lập: 06/10/2026. Đây là bảng route thiết kế; runtime Routing chưa triển khai. Request/response và lỗi: [API](api.md).
+Ngày cập nhật: 06/10/2026. Bảng route đã triển khai. Request/response và lỗi: [API](api.md). Realtime HTTP integration thật còn chờ contract.
 
 ## Inbound
 
 | Mã | Method / route tại Routing | Caller được phép đề xuất | Component | Contract |
 | --- | --- | --- | --- | --- |
 | R01 | POST `/internal/routes/estimate` | Trip | Calculate Route, summary view | Đã có Trip client/test; giữ strict RouteSummary |
-| R02 | POST `/routes` | Gateway, Trip nếu scope được duyệt | Calculate Route, full view | Đề xuất polyline/steps |
+| R02 | POST `/routes` | Gateway | Calculate Route, full view | Polyline6/steps; Trip hiện không có scope này |
 | R03 | POST `/routes/matrix` | Matching | Calculate ETA Matrix | Pickup/profile → Realtime lấy driver trong 2 km → OSRM tính N→1 ETA |
-| R04 | POST `/routes/recalculate` | Gateway | Recalculate Route | Đề xuất current location → destination |
+| R04 | POST `/routes/recalculate` | Gateway | Recalculate Route | Current location → destination |
 | H01 | GET `/health/live` | Runtime probe | Process liveness | Không gọi Map API |
 | H02 | GET `/health/ready` | Runtime probe | Config + pool/admission readiness | Không gọi Map API có tính phí |
 | D01 | GET `/docs` | Developer local | OpenAPI UI | Bật local; production mặc định tắt |

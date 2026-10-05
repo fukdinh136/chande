@@ -14,6 +14,8 @@
     "test:e2e": "npm run test:build && node scripts/test.cjs e2e",
     "test:all": "npm run test:build && node scripts/test.cjs all",
     "test:trip": "npm --prefix ../trip-service run build && npm run test:build && node scripts/test.cjs cross-service",
+    "smoke:docker": "node scripts/docker-smoke.cjs",
+    "docs:check": "node scripts/check-docs.cjs",
     "start:dev": "tsx watch src/main.ts",
     "start:prod": "node dist/main.js"
   },

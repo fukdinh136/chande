@@ -1,6 +1,6 @@
 # Thiết kế API Routing Service
 
-Ngày lập: 06/10/2026. Chưa triển khai Routing runtime. R01 là contract **Trip client hiện có**; R02–R04 và các chính sách Routing bổ sung là **đề xuất cần validate**. REST JSON cho phase 1; gRPC là lựa chọn phase sau, chưa có proto.
+Ngày cập nhật: 06/10/2026. R01–R04 đã triển khai và kiểm thử qua NestJS HTTP; R01 được kiểm tra bằng Trip client/use case thật. R02–R04 vẫn cần consumer validate nghiệp vụ tích hợp. REST JSON cho phase 1; chưa có gRPC. Realtime HTTP adapter thật chờ wire contract, mock đã nối đầy đủ luồng ETA.
 
 ## 1. Quy ước chung
 
@@ -62,7 +62,7 @@ Caller đề xuất: Gateway; Trip được mở scope full route nếu sau này
   "vehicleType": "BIKE",
   "polyline": {
     "encoding": "encoded_polyline",
-    "precision": 5,
+    "precision": 6,
     "value": "ENCODED_POLYLINE_FROM_PROVIDER"
   },
   "steps": [],
@@ -70,7 +70,7 @@ Caller đề xuất: Gateway; Trip được mở scope full route nếu sau này
 }
 ```
 
-Polyline value là placeholder. Thiết kế OSRM full view chọn precision 6; precision 5 trong ví dụ minh họa vẫn hợp lệ ở DTO, không được gắn nhãn sai geometry thật. Nếu `includeSteps=true`, mỗi step đề xuất có `distanceMeters`, `durationSeconds`, `streetName` nullable, `instruction` nullable và `maneuver` gồm `type`, `modifier` nullable, `location` theo Location, `exit` nullable. OSRM adapter map maneuver, chưa có formatter instruction tiếng Việt; `instruction=null` trong v1. Không tự hứa hướng dẫn tiếng Việt chỉ từ steps. Nếu có formatter ở phase sau, text phải được sanitize; UI không chèn raw HTML. Attribution thuộc app hiển thị bản đồ; xem [deploy](deploy.md).
+Polyline value là placeholder; runtime dùng precision 6. Nếu `includeSteps=true`, mỗi step có `distanceMeters`, `durationSeconds`, `streetName` nullable, `instruction` nullable và `maneuver` gồm `type`, `modifier` nullable, `location`, `exit` nullable. Adapter map maneuver, chưa có formatter tiếng Việt nên `instruction=null`. Mock trả fixture geometry và steps rỗng, không mô phỏng hướng dẫn thật. Attribution thuộc app hiển thị; xem [deploy](deploy.md).
 
 ## 4. R03 — POST /routes/matrix
 
@@ -119,9 +119,9 @@ Realtime trả danh sách rỗng: HTTP 200 với `entries=[]`, `radiusMeters=200
 
 Realtime lỗi/timeout/schema sai làm request thất bại; không trả empty list. Lỗi network/quota/schema của một OSRM batch hoặc shape sai trả lỗi toàn request v1; không đưa technical failure vào NO_ROUTE. OSRM NoTable/NoSegment ở cấp request trả 422 NO_ROUTE; chỉ map từng cell NO_ROUTE khi matrix Ok hợp lệ. Không có rank/winner/assignment trong response.
 
-Giới hạn batch = minimum của giới hạn ứng dụng, capability provider theo mode và phần budget khả dụng. Mỗi HTTP attempt tính request quota và số element phát sinh; retry không được bỏ qua limiter. Matrix có N×1 elements ở contract này; không mở NxM tùy ý trong v1.
+Batch size là minimum của MATRIX_BATCH_MAX_ELEMENTS và RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE. Limiter kiểm tra budget khả dụng trước từng attempt; quá budget chờ hữu hạn hoặc lỗi, không âm thầm giảm snapshot. Giới hạn server/capability cần kiểm chứng và cấu hình batch phù hợp; không tự detect khi startup. Matrix là N×1, không mở NxM tùy ý.
 
-Realtime lookup, queue, limiter, OSRM attempts/batches và aggregation cùng chia sẻ deadline 4 giây; không reset deadline sau khi nhận vị trí. R03 là thay đổi của contract thiết kế chưa triển khai; estimate R01 của Trip giữ nguyên.
+Realtime lookup, queue, limiter, OSRM attempts/batches và aggregation cùng chia sẻ deadline 4 giây; không reset deadline sau khi nhận vị trí. R03 đã được triển khai với Realtime port/mock; estimate R01 của Trip giữ nguyên.
 
 ## 5. R04 — POST /routes/recalculate
 
@@ -148,6 +148,7 @@ CurrentLocation trở thành origin; application dùng chung Calculate Route. Ga
 | 400 | UNSUPPORTED_VEHICLE_TYPE | Mã xe không có allowlist/mapping |
 | 401 | INVALID_SERVICE_CREDENTIAL | Caller token thiếu/sai |
 | 403 | FORBIDDEN_OPERATION | Token hợp lệ nhưng không được gọi operation |
+| 413 | INVALID_REQUEST | Body vượt 64 KiB |
 | 422 | NO_ROUTE | Route/estimate/recalculate không tìm được tuyến; matrix dùng entry status |
 | 422 | UNSUPPORTED_CAPABILITY | Mode không hỗ trợ matrix/geometry/steps theo request |
 | 503 | ROUTING_BUSY | Queue đầy, snapshot Realtime vượt capacity matrix, job chờ quá budget hoặc limiter không cấp permit kịp |
@@ -165,7 +166,7 @@ Có thể trả `Retry-After: 1` cho ROUTING_BUSY như gợi ý backoff; không 
 
 Nếu deadline end-to-end đã hết, trả ROUTING_DEADLINE_EXCEEDED; REALTIME_DEADLINE_EXCEEDED dành cho timeout lookup khi request còn budget. Lỗi Realtime chỉ ảnh hưởng R03; estimate/full route/recalculate không gọi dependency vị trí.
 
-## 7. OSRM adapter contract dự kiến
+## 7. OSRM adapter contract
 
 Provider đã chọn OSRM; wire API tham chiếu [OSRM HTTP API](https://project-osrm.org/docs/v5.24.0/api/). Version deployment thực tế và algorithm phải được kiểm chứng trước real. Thiết kế adapter:
 
@@ -179,7 +180,7 @@ Không bật `fallback_speed`; không dùng đường chim bay cho cell không c
 
 Kiểm tra HTTP và code JSON; không coi HTTP 200 là đủ. `NoRoute`/`NoSegment` → NO_ROUTE; `NoTable` → NO_ROUTE cấp request; `NotImplemented` → UNSUPPORTED_CAPABILITY; `TooBig` → PROVIDER_CONFIGURATION_ERROR cần chỉnh batch/server limit; Invalid* sau input đã validate → PROVIDER_CONFIGURATION_ERROR. Unknown code/schema → INVALID_PROVIDER_RESPONSE. Network/429/5xx retry hữu hạn theo deadline; auth proxy 401/403 không retry. Không trả message provider nguyên văn.
 
-Profile trong URL không tự chọn lại dataset đã build; mapping endpoint/profile ở [cấu hình](cau-hinh.md) phải được acceptance cho loại xe. Capability Table distance phải kiểm tra với version/algorithm đang deploy; không tự chạy N route fallback khi thiếu distance vì sẽ đổi tải/latency. Chưa gửi external request hoặc xác minh endpoint thực tế trong task này.
+Profile trong URL không tự chọn lại dataset đã build; mapping endpoint/profile ở [cấu hình](cau-hinh.md) phải được acceptance cho loại xe. Capability Table distance phải kiểm tra với version/algorithm đang deploy; không tự chạy N route fallback khi thiếu distance vì sẽ đổi tải/latency. Đã test wire contract bằng fake HTTP server; chưa gọi OSRM thật hoặc xác minh dataset/profile triển khai.
 
 ## 8. Realtime Client — outbound contract
 

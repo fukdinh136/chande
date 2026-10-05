@@ -1,6 +1,6 @@
 # Cấu hình Routing và OSRM
 
-Ngày lập: 06/10/2026. Provider **OSRM đã được người dùng chọn**. Stack Node.js 24 + TypeScript 5.9 + NestJS 11, settings validate bằng Zod 4 và loader dùng dotenv/`process.env`. Các file cấu hình đã tạo; config loader/runtime thuộc feature F00, chưa triển khai. Validation dưới đây là yêu cầu thiết kế.
+Ngày cập nhật: 06/10/2026. Provider **OSRM đã được người dùng chọn**. Config loader đã triển khai ở [config.ts](../src/bootstrap/config.ts) và kiểm thử: Node.js 24 + TypeScript 5.9 + NestJS 11, Zod 4 và dotenv/`process.env`. Không ghi đè file local. Runtime chặn real Realtime khi chưa có adapter wire được xác nhận.
 
 ## 1. File bạn cần sửa
 
@@ -84,7 +84,7 @@ Tên profile trong URL không chứng minh loại dataset. Mỗi mapping cần g
 
 Production có thể dùng `EXTERNAL_MAP_API_KEY_FILE=/run/secrets/external-map-api-key` với header auth; tương tự ba caller token files. Không đặt cả inline và file. Loader đọc UTF-8/trim; thiếu file hoặc key rỗng ở header mode làm startup lỗi. Không copy `.env`/secrets vào image hoặc log. `.env`, `secrets/` và profile local đều Git ignored.
 
-Real OSRM auth none **không bắt buộc key**. Real vẫn fail-fast nếu thiếu endpoint, enabled profile null, transport/host sai hoặc capability không hỗ trợ. Readiness kiểm tra nội bộ, không gọi OSRM mỗi probe; synthetic route check là tác vụ vận hành riêng.
+Real OSRM auth none **không bắt buộc key**. Startup fail-fast nếu thiếu endpoint, enabled profile null hoặc transport/host sai. Capability server không tự detect khi startup; response thiếu/sai bị adapter từ chối khi gọi. Readiness kiểm tra nội bộ, không gọi OSRM mỗi probe; synthetic route check là tác vụ vận hành riêng.
 
 ## 5. Những điểm còn cần chốt
 

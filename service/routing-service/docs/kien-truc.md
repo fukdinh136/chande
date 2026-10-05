@@ -1,6 +1,6 @@
 # Kiến trúc Routing Service và component C3
 
-Ngày lập: 06/10/2026. Tất cả class/module/port bên dưới là **thiết kế dự kiến**, chưa có mã nguồn runtime. Stack đã chọn: **Node.js 24 + TypeScript 5.9 + NestJS 11 + Express**, Zod 4, HTTP client `fetch` và `AbortController`. Compiler strict, npm/ESLint/tsx và `node:test` được tổ chức tương tự Trip; domain/application độc lập với NestJS.
+Ngày cập nhật: 06/10/2026. Runtime đã triển khai theo các lớp bên dưới; OSRM adapter được test bằng fake HTTP, Realtime có port/mock và chờ wire adapter thật. Stack: **Node.js 24 + TypeScript 5.9 + NestJS 11 + Express**, Zod 4, `fetch`/`AbortController`; domain/application độc lập với NestJS. Kết quả thực tế trong [báo cáo](bao-cao-trien-khai.md).
 
 ## 1. Ranh giới runtime
 
@@ -80,7 +80,7 @@ Realtime Client là bổ sung theo yêu cầu người dùng sau C3 gốc. Calcu
 | Realtime Client | Center + radius 2000 m + context → DriverLocation[] | Gọi Realtime qua port, validate/chuẩn hóa driverId/location/observedAt; giữ metadata nguồn | Đúng bán kính; empty khác lỗi; token riêng; timeout/cancel; không xếp hạng/gán hoặc tự tính ETA |
 | Config/composition root | Env/secret/profile file → dependencies | Validate cấu hình, chọn mock/OSRM/Realtime adapters độc lập, start/stop lifecycle | Real thiếu cấu hình lỗi startup; header auth thiếu key lỗi; OSRM auth none không cần key; production cấm mock |
 
-## 4. Ports và cấu trúc dự kiến
+## 4. Ports và cấu trúc hiện tại
 
 ```text
 service/routing-service/
@@ -89,11 +89,13 @@ service/routing-service/
   config/vehicle-profiles.example.json
   config/vehicle-profiles.json  # local, Git ignored
   docs/                        # tài liệu đã tạo
-  package.json                 # phần dưới chưa triển khai; npm scripts/dependencies
+  package.json                 # npm scripts/dependencies
   package-lock.json
   tsconfig.json                # strict, ES2023/Node16, decorators như Trip
   tsconfig.test.json
-  eslint.config.mjs
+  eslint.config.cjs
+  Dockerfile
+  compose.local.yml            # mock local
   src/
     main.ts                    # bootstrap NestJS API
     api/                       # NestJS controllers/guards, Zod DTO, errors, OpenAPI
@@ -102,18 +104,16 @@ service/routing-service/
       use-cases/               # calculate-route, eta-matrix, recalculate
       ports/                   # MapDispatcher, MapProvider, Clock, RealtimeLocationPort
     infrastructure/
-      dispatcher.ts
-      queue.ts
-      worker-pool.ts
-      rate-limiter.ts
-      providers/               # OSRM adapter + mock
-      clients/                 # realtime-client.ts + mock, wire mapping của Realtime
+      pipeline/pool.ts         # dispatcher + bounded queue + async worker pool
+      pipeline/limiter.ts       # token bucket + sliding element budget
+      map/                     # OSRM adapter + mock + polyline6
+      realtime/client.ts       # validating client + mock; real wire adapter còn chờ
     bootstrap/                 # settings, composition, singleton runtime/lifecycle
   test/                        # unit, contract, integration, concurrency, lifecycle
   scripts/                     # compile/run test helpers như Trip
 ```
 
-Các port dự kiến: `MapDispatcher.execute(job, { deadline, signal })` được application dùng và trả `Promise` kết quả typed; `MapProvider.route()/matrix()` cho worker nhận `AbortSignal`; provider capabilities mô tả modes/geometry/matrix/max batch. Job giữ operation, requestId, payload đã validate, deadline monotonic và cơ chế resolve/reject Promise. `Clock` được inject để test thời gian/limiter. Provider key được giữ trong adapter/config riêng, không serialize vào job hoặc response.
+Ports ở [clients.ts](../src/application/ports/clients.ts): `MapDispatcher.dispatch(job, context)` trả Promise typed; `MapProvider.route()/matrix()` nhận context signal/deadline. Batch lấy từ config; capability server được nghiệm thu ngoài startup, adapter từ chối response không hỗ trợ. Job giữ operation, requestId, payload đã validate, deadline monotonic và resolve/reject. `Clock` được inject; provider key không serialize vào job/response.
 
 `RealtimeLocationPort.findNearbyDriverLocations(center, context): Promise<DriverLocation[]>` dùng context requestId/deadline/signal; adapter lấy bán kính 2000 m từ settings. Realtime Service sở hữu query radius; Routing giữ schema đã chuẩn hóa. Client này dùng timeout/credential riêng và không đi qua OSRM map queue/limiter. Không làm route/estimate/recalculate phụ thuộc vào Realtime.
 
@@ -123,11 +123,11 @@ NestJS controller/guard/filter nằm ở API; các port thuộc application và 
 
 ## 5. Lifecycle, deadline và retry
 
-- Queue/pool/limiter, OSRM adapter và Realtime Client là singleton providers. Runtime provider khởi tạo ở `onApplicationBootstrap`; bật `app.enableShutdownHooks()` cho signal shutdown. `onModuleDestroy` đóng admission/readiness, `beforeApplicationShutdown` drain/cancel hữu hạn, gồm thu dọn Realtime requests đang chạy. [NestJS lifecycle](https://docs.nestjs.com/fundamentals/lifecycle-events).
-- Bounded queue trong RAM có admission timeout và job-age limit; dispatcher trả Promise, pool chỉ bắt đầu tối đa `WORKER_POOL_SIZE` job đồng thời. `finally` thu dọn timer/listener/response stream và giải phóng slot; catch job error để worker tiếp tục. Không để unhandled rejection hoặc Promise treo.
+- Queue/pool/limiter, OSRM adapter và Realtime Client nằm trong singleton `RoutingRuntime`, tạo bởi composition root trước `app.init()`. Bật `app.enableShutdownHooks()`; `beforeApplicationShutdown` đóng admission/readiness, drain/cancel trước HTTP adapter, gồm Realtime requests đang chạy. [NestJS lifecycle](https://docs.nestjs.com/fundamentals/lifecycle-events).
+- Bounded queue trong RAM từ chối ngay khi đầy, không thêm admission waiters ngoài capacity. QUEUE_ADMISSION_TIMEOUT_MS là upper bound cấu hình; implementation fail-fast khi không có slot. Queue age dùng ROUTING_JOB_MAX_WAIT_MS. `finally` thu dọn timer/listener/response stream và slot; worker tiếp tục sau lỗi.
 - Deadline end-to-end đề xuất 4 giây, nhỏ hơn Trip `HTTP_TIMEOUT_MS=5000` hiện tại. Queue, limiter, provider HTTP/read body, retry/backoff, batch aggregation và serialize cùng dùng một deadline; mỗi attempt chỉ dùng thời gian còn lại.
-- Timeout enqueue/admission khác tuổi tối đa khi nằm queue; cả hai được kiểm soát. Job bị caller cancel/hết deadline trước dispatch được loại và reject; Promise chỉ settle một lần. Dùng `AbortController` kết hợp cancellation của caller, deadline job và timeout attempt; signal được truyền vào fetch/read body và các bước chờ. HTTP đã gửi trước disconnect vẫn có thể được OSRM xử lý; cancel không chứng minh provider chưa xử lý.
-- Worker xin rate permit ở từng attempt. Retry tối đa 2 attempts tổng, với jitter/backoff và Retry-After chỉ khi còn budget; network/429/5xx tạm thời được retry. Input lỗi, mode sai, auth/key lỗi, NO_ROUTE và schema sai không retry.
+- Admission fail-fast khác tuổi tối đa khi nằm queue. Job caller cancel/hết deadline trước dispatch bị loại và reject; Promise settle một lần. `AbortController` kết hợp caller, deadline job và timeout attempt. Request đã gửi có thể vẫn được OSRM xử lý; cancel không chứng minh provider chưa xử lý.
+- Worker xin permit ở từng attempt, mặc định 2 attempts tổng; exponential backoff hữu hạn theo deadline. Chưa thêm jitter hoặc đọc Retry-After của OSRM; API trả Retry-After: 1 cho ROUTING_BUSY. Network/429/5xx được retry; auth/key, NO_ROUTE và schema sai không retry.
 - Realtime lookup và matrix batching nằm trong cùng deadline request, không tạo budget mới sau lookup. Empty snapshot trả kết quả rỗng; lookup lỗi dừng trước OSRM. Không bắt đầu batch/attempt nếu không đủ budget; số worker không vượt concurrency cấu hình. Lỗi một batch hủy/thu dọn các phần việc còn lại rồi trả lỗi theo contract v1.
 - Shutdown đóng admission, readiness=false, hoàn tất job còn đủ deadline trong grace, reject job queued/cancel request đang chạy khi hết grace, dừng pool và thu dọn response streams/timers/listeners. Lifecycle tests gọi `app.close()`; signal shutdown được kiểm tra trong Linux container. Queue in-memory mất khi process chết; caller retry tính toán. Không hứa durable delivery/exactly once.
 
@@ -139,7 +139,7 @@ Request budget bảo vệ request/sec; matrix budget bảo vệ element count ri
 
 OSRM là dependency riêng với dataset/profile đã build; URL tùy profile có thể khác server. V1 không tự cung cấp traffic realtime, geocoding hay map tiles. Không chọn public demo mặc định; xem [deploy](deploy.md) cho dữ liệu, sizing và vận hành.
 
-Không persist/cache route payload mặc định; `requestId` không phải cache key. Route geometry, attribution và quyền lưu dữ liệu cần review theo provider trước khi thêm cache. Log chỉ operation/requestId/jobId, latency, queue depth, attempts, error category, quota usage; không log key, Authorization, raw provider URL/query, tọa độ đầy đủ hay toàn bộ steps.
+Không persist/cache route payload; `requestId` không phải cache key. Route geometry, attribution và quyền lưu dữ liệu cần review trước khi thêm cache. Runtime chỉ log startup/failure chung, không log token, URL/raw payload hay tọa độ. Queue stats có ở runtime; metrics/structured operation logs cần bổ sung trước production.
 
 ## 7. Tương thích Trip
 

@@ -1,6 +1,6 @@
 # Realtime Client trong Routing Service
 
-Ngày lập: 06/10/2026. **Thiết kế client/port và phối hợp với ETA Matrix; chưa có runtime.** Client nằm trong Routing, lấy vị trí driver trong bán kính **2 km** quanh pickup để Calculate ETA Matrix tính ETA trả Matching. Nghiệp vụ chọn/mời tài xế bên trong Matching được thiết kế sau.
+Ngày cập nhật: 06/10/2026. **Port/mock, validation và ETA orchestration đã triển khai; HTTP adapter thật chờ contract.** [Client](../src/infrastructure/realtime/client.ts) nằm trong Routing, lấy vị trí driver trong bán kính **2 km** quanh pickup để Calculate ETA Matrix tính ETA trả Matching. Nghiệp vụ chọn/mời tài xế bên trong Matching được thiết kế sau.
 
 ## 1. Trách nhiệm
 
