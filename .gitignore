@@ -16,6 +16,13 @@ web-build/
 .env.*
 !.env.example
 
+# Local-only legacy Driver Gateway; the official Gateway may live elsewhere.
+/api-gateway/
+# Private signing keys and local diagnostic output
+*.pem
+*.key
+*-lint-results.json
+
 # Logs
 *.log
 
