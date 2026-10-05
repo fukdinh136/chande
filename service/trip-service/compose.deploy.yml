@@ -1,0 +1,85 @@
+name: chande-trip
+x-runtime: &runtime
+  image: ${TRIP_IMAGE:?Set TRIP_IMAGE to a release image@sha256 digest}
+  init: true
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  stop_grace_period: 45s
+x-config: &config
+  NODE_ENV: production
+  INTEGRATION_MODE: real
+  DATABASE_URL_FILE: /run/secrets/database-runtime-url
+services:
+  trip-db:
+    image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    restart: unless-stopped
+    environment: {POSTGRES_USER: trip_bootstrap, POSTGRES_DB: trip, POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password}
+    secrets: [postgres-password, migration-password, runtime-password]
+    volumes: [trip-data:/var/lib/postgresql, './deploy/init-roles.sh:/docker-entrypoint-initdb.d/10-trip-roles.sh:ro']
+    networks: [trip-db]
+    healthcheck: {test: [CMD-SHELL, 'pg_isready -U trip_bootstrap -d trip'], interval: 5s, timeout: 3s, retries: 20}
+  trip-migrate:
+    <<: *runtime
+    command: [node, dist/migrate.js]
+    environment: {NODE_ENV: production, INTEGRATION_MODE: real, DATABASE_URL_FILE: /run/secrets/database-migration-url}
+    secrets: [database-migration-url]
+    networks: [trip-db]
+    depends_on: {trip-db: {condition: service_healthy}}
+  trip-api:
+    <<: *runtime
+    restart: unless-stopped
+    environment:
+      <<: *config
+      SUPPORTED_VEHICLE_TYPES: ${SUPPORTED_VEHICLE_TYPES:?Required vehicle codes}
+      AUTH_JWKS_URL: ${AUTH_JWKS_URL:?Required HTTPS JWKS}
+      AUTH_JWT_ISSUER: ${AUTH_JWT_ISSUER:?Required JWT issuer}
+      AUTH_JWT_AUDIENCE: ${AUTH_JWT_AUDIENCE:-trip-service}
+      CURSOR_SIGNING_KEY_FILE: /run/secrets/cursor-signing-key
+      MATCHING_CALLBACK_TOKEN_FILE: /run/secrets/matching-callback-token
+      ROUTING_BASE_URL: ${ROUTING_BASE_URL:?Required Routing URL}
+      PRICING_BASE_URL: ${PRICING_BASE_URL:?Required Pricing URL}
+      ROUTING_TOKEN_FILE: /run/secrets/routing-token
+      PRICING_TOKEN_FILE: /run/secrets/pricing-token
+      SWAGGER_ENABLED: 'false'
+    secrets: [database-runtime-url, cursor-signing-key, matching-callback-token, routing-token, pricing-token]
+    expose: ['3001']
+    networks: [trip-db, backend]
+    depends_on: {trip-migrate: {condition: service_completed_successfully}}
+    healthcheck: {test: [CMD, node, -e, "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"], interval: 10s, timeout: 3s, retries: 5, start_period: 30s}
+  trip-worker:
+    <<: *runtime
+    restart: unless-stopped
+    command: [node, dist/worker.js]
+    environment:
+      <<: *config
+      MATCHING_BASE_URL: ${MATCHING_BASE_URL:?Required Matching URL}
+      GATEWAY_EVENTS_BASE_URL: ${GATEWAY_EVENTS_BASE_URL:?Required Gateway URL}
+      NOTIFICATION_BASE_URL: ${NOTIFICATION_BASE_URL:?Required Notification URL}
+      MATCHING_TOKEN_FILE: /run/secrets/matching-token
+      GATEWAY_EVENTS_TOKEN_FILE: /run/secrets/gateway-events-token
+      NOTIFICATION_TOKEN_FILE: /run/secrets/notification-token
+    secrets: [database-runtime-url, matching-token, gateway-events-token, notification-token]
+    expose: ['3002']
+    networks: [trip-db, backend]
+    depends_on: {trip-migrate: {condition: service_completed_successfully}}
+    healthcheck: {test: [CMD, node, -e, "fetch('http://127.0.0.1:3002/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"], interval: 10s, timeout: 3s, retries: 5, start_period: 30s}
+networks:
+  trip-db: {internal: true}
+  backend: {external: true, name: '${TRIP_BACKEND_NETWORK:-chande-backend}'}
+volumes:
+  trip-data:
+secrets:
+  postgres-password: {file: '${TRIP_SECRETS_DIR:?Required secrets directory}/postgres-password'}
+  migration-password: {file: '${TRIP_SECRETS_DIR}/migration-password'}
+  runtime-password: {file: '${TRIP_SECRETS_DIR}/runtime-password'}
+  database-migration-url: {file: '${TRIP_SECRETS_DIR}/database-migration-url'}
+  database-runtime-url: {file: '${TRIP_SECRETS_DIR}/database-runtime-url'}
+  cursor-signing-key: {file: '${TRIP_SECRETS_DIR}/cursor-signing-key'}
+  matching-callback-token: {file: '${TRIP_SECRETS_DIR}/matching-callback-token'}
+  routing-token: {file: '${TRIP_SECRETS_DIR}/routing-token'}
+  pricing-token: {file: '${TRIP_SECRETS_DIR}/pricing-token'}
+  matching-token: {file: '${TRIP_SECRETS_DIR}/matching-token'}
+  gateway-events-token: {file: '${TRIP_SECRETS_DIR}/gateway-events-token'}
+  notification-token: {file: '${TRIP_SECRETS_DIR}/notification-token'}

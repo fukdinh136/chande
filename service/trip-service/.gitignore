@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.test-dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+secrets/
+deployment.env
+npm-debug.log*
+.mock-data/

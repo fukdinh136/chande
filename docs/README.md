@@ -8,18 +8,15 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 | --- | --- | --- |
 | Trip Service | [Nghiệp vụ Trip Service](../service/trip-service/docs/nghiep-vu.md) | Phạm vi v1, ranh giới service, quy tắc, vòng đời chuyến, luồng nghiệp vụ, component và tiêu chí validate |
 | Trip Service | [Kiến trúc](../service/trip-service/docs/kien-truc.md) | Lớp/port/adapter, dữ liệu, transaction và luồng outbox |
+| Trip Service | [Sơ đồ C4](../service/trip-service/docs/c4.md) | Context, container, component và code diagram theo triển khai hiện tại |
 | Trip Service | [API](../service/trip-service/docs/api.md) | Request/response, model, xác thực, idempotency và mã lỗi |
 | Trip Service | [Routes](../service/trip-service/docs/routes.md) | Đường dẫn public/internal/outbound, quyền và use case |
 | Trip Service | [Deploy](../service/trip-service/docs/deploy.md) | Cấu hình, migration, phát hành, rollback và vận hành |
-| Driver Service | [Nghiệp vụ Driver Service](../service/driver-service/docs/nghiep-vu.md) | Phạm vi v1, schema giữ nguyên, quy tắc, user story và nghiệm thu |
-| Driver Service | [Kiến trúc](../service/driver-service/docs/kien-truc.md) | C3, ports/adapters, mapping database và phối hợp Trip/Matching |
-| Driver Service | [API](../service/driver-service/docs/api.md) | OTP/JWT, hồ sơ/xe/availability, snapshot và giới hạn contract |
-| Driver Service | [Routes](../service/driver-service/docs/routes.md) | Public/internal/outbound, quyền và exposure |
-| Driver Service | [Deploy](../service/driver-service/docs/deploy.md) | Config, schema verification, release/rollback và monitoring |
+| Trip Service | [Báo cáo triển khai](../service/trip-service/docs/bao-cao-trien-khai.md) | Những phần đã làm, commit, kiểm thử, Docker và giới hạn tích hợp |
 
 ## Cách sử dụng
 
 - Đọc quy tắc đã xác nhận trước khi triển khai; các mặc định đề xuất được ghi riêng trong tài liệu.
-- Duyệt thiết kế từng component trước khi code, sau đó duyệt kết quả kiểm thử trước khi commit và push `main`.
+- Theo yêu cầu triển khai mới nhất, thực hiện và kiểm thử từng feature nhỏ rồi commit/push `main`; người dùng review kết quả qua báo cáo triển khai.
 - Khi thay đổi nghiệp vụ, cập nhật tài liệu và các tiêu chí nghiệm thu liên quan để tránh khác biệt giữa tài liệu và mã nguồn.
 - Tài liệu tham chiếu và sơ đồ là đầu vào để đối chiếu; quyết định được người dùng xác nhận là cơ sở giải quyết khác biệt giữa các nguồn.
