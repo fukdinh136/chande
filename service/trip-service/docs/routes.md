@@ -1,6 +1,6 @@
 # Routes Trip Service
 
-Ngày cập nhật: 05/10/2026. Trạng thái: route catalog đề xuất, chưa có controller hoặc endpoint chạy được.
+Ngày cập nhật: 05/10/2026. R01–R08 và probes đã triển khai; Swagger bật được ở local. Outbound dùng HTTP adapter và mock đúng contract; Gateway/service thật chưa tích hợp.
 
 Chi tiết request/response và lỗi nằm trong [API](api.md). Trách nhiệm component nằm trong [Kiến trúc](kien-truc.md). Chính sách quyền/trạng thái nằm trong [Nghiệp vụ](nghiep-vu.md).
 
@@ -48,7 +48,7 @@ R08 dùng `eventId` trong body để chống callback lặp; không dùng `Idemp
 
 ## 4. Các route Trip gọi ra ngoài
 
-Các route dưới đây là **contract đề xuất của service ngoài**, chưa phải API tồn tại trong repo. Mock server phải thực hiện cùng contract; service thật cần xác nhận trước tích hợp. Mỗi đích dùng base URL/credential riêng trong [Deploy](deploy.md).
+Các route dưới đây là contract đã dùng trong adapter và mock của Trip. Service thật cần xác nhận trước tích hợp. Mỗi đích dùng base URL/credential riêng trong [Deploy](deploy.md).
 
 | Mã | Đích | Method và route | Bên gửi | Vai trò | ACK thành công |
 | --- | --- | --- | --- | --- | --- |
@@ -58,8 +58,9 @@ Các route dưới đây là **contract đề xuất của service ngoài**, ch�
 | O04 | Matching | `POST /internal/matching/requests/:tripId/cancel` | Outbox Worker qua Matching Client | Dừng tìm/giải phóng; terminal marker chống lệnh đến muộn | 202 đã lưu bền vững |
 | O05 | Gateway | `POST /internal/events/trips` | Outbox Worker | Cấp event cho realtime | 202 đã lưu bền vững |
 | O06 | Notification | `POST /internal/events/trips` | Outbox Worker | Cấp event cho thông báo | 202 đã lưu bền vững |
+| O07 | Matching | `POST /internal/events/trips` | Outbox Worker, chỉ `trip.completed` | Kết thúc reservation khi hoàn thành, giữ terminal marker | 202 đã lưu bền vững |
 
-O03/O04 có command ID; O05/O06 có event ID. Matching callback R08 sau khi tài xế chấp nhận. Người dùng không gọi R08 hoặc O03/O04 trực tiếp để tự gán tài xế.
+O03/O04 có command ID; O05/O06/O07 có event ID. Matching callback R08 sau khi tài xế chấp nhận. Người dùng không gọi R08 hoặc O03/O04 trực tiếp để tự gán tài xế. O07 bổ sung contract giải phóng reservation sau COMPLETED; xem API.
 
 ## 5. Route không có trong v1
 
@@ -75,4 +76,17 @@ Không có route ép trạng thái `ASSIGNED`, `SEARCHING` hoặc `CANCELLED` qu
 - [ ] API xác minh token và quyền sở hữu, không chỉ dựa vào Gateway.
 - [ ] Internal callback có credential riêng; public actor không dùng được.
 - [ ] Probe và Swagger đúng port/môi trường, không public ngoài ý muốn.
-- [ ] O01–O06 được service ngoài xác nhận hoặc mock đầy đủ trước nghiệm thu contract.
+- [x] O01–O07 có HTTP adapter/mock; contract với service thật còn cần xác nhận.
+
+## 7. Routes riêng của bộ mock local
+
+Mock ở port 3003, chỉ dùng môi trường development; không thuộc API Trip/Gateway và bị chặn khi `NODE_ENV=production`.
+
+| Method | Route | Mục đích |
+| --- | --- | --- |
+| GET | `/jwks` | Public key của issuer thử; khóa đổi khi mock restart |
+| GET | `/health/live` | Probe mock |
+| POST | `/mock/token` | `{sub: UUID, role: RIDER/DRIVER}` → JWT thử |
+| POST | `/mock/accept` | `{tripId, ...Assignment}` → mô phỏng tài xế chấp nhận và gọi R08; retry cùng eventId |
+
+Mock giữ command/event receipt và terminal marker trong volume để kiểm thử restart; không tự chọn/gán tài xế. Giá mock là giá cố định để kiểm chứng Trip, không đại diện Pricing thật.

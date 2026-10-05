@@ -1,10 +1,10 @@
 # Kiến trúc Trip Service
 
-Ngày cập nhật: 05/10/2026. Phiên bản thiết kế: 0.1. Trạng thái: đề xuất để review, chưa triển khai.
+Ngày cập nhật: 05/10/2026. Kiến trúc triển khai v1; API/worker và Docker local đã chạy, contract ngoài dùng mock. Báo cáo và bằng chứng kiểm thử: [Báo cáo triển khai](bao-cao-trien-khai.md).
 
 Nguồn nghiệp vụ: [Nghiệp vụ Trip Service](nghiep-vu.md). Contract HTTP: [API](api.md), [Routes](routes.md). Vận hành: [Deploy](deploy.md).
 
-Stack NestJS, TypeScript, TypeORM, PostgreSQL và REST callback + outbox đã được xác nhận. Cấu trúc code, schema bổ sung, port, định dạng API và cấu hình vận hành dưới đây là thiết kế đề xuất; cần validate ở component tương ứng. Hiện thư mục service chỉ có tài liệu, chưa có package, migration, ứng dụng hoặc worker.
+Stack NestJS, TypeScript, TypeORM, PostgreSQL và REST callback + outbox giữ nguyên. Các mặc định kỹ thuật đã được hiện thực và kiểm thử để review; contract với service thật, retention và hạ tầng hosting vẫn cần thống nhất.
 
 ## 1. Ranh giới hệ thống
 
@@ -51,13 +51,13 @@ flowchart TB
 | Domain | Entity Trip, state machine, quyền trên một chuyến, giá đã chốt, timestamp và domain event | TypeScript thuần; không import NestJS, TypeORM, DTO HTTP hoặc client bên ngoài |
 | Application | Estimate/Create/Get/Update/Cancel/Receive Assignment; orchestration và transaction boundary | Phụ thuộc Domain và port, không phụ thuộc adapter cụ thể |
 | Ports | Contract repository, unit of work, quote, identity, clock, ID, external client và delivery | Dùng kiểu application/domain; không trả TypeORM entity hoặc HTTP response thô |
-| Infrastructure | TypeORM entity/mapper/repository, migration, HTTP adapter, JWT verifier, outbox delivery | Ánh xạ dữ liệu/lỗi thành contract của port; không tự thêm chính sách nghiệp vụ |
+| Infrastructure | TypeORM DataSource/transaction, SQL mapper/repository, migration, HTTP adapter và outbox delivery | Ánh xạ dữ liệu/lỗi thành contract của port; không tự thêm chính sách nghiệp vụ |
 | Presentation | Route, DTO, xác thực, validation, response và error mapping | Lấy actor từ identity xác thực; gọi use case; không quyết định chuyển trạng thái |
 | Bootstrap | Chọn adapter thật/mock và nối dependency | Chỉ tại đây biết concrete implementation |
 
-Application use case được khởi tạo qua factory để giữ domain/application thuần. Nest đăng ký runtime token `Symbol` cho các port và nối adapter trong composition root; TypeScript interface không tự là token runtime. Cách nối này dựa trên [NestJS custom providers](https://docs.nestjs.com/fundamentals/custom-providers).
+`bootstrap/context.ts` khởi tạo use case bằng port/adapters cụ thể; Nest đăng ký `TRIP_CONTEXT` và dùng `@Inject` tường minh. Domain/application không phụ thuộc Nest hoặc metadata constructor, chạy được cả build và watch bằng tsx. Provider dựa trên [NestJS custom providers](https://docs.nestjs.com/fundamentals/custom-providers).
 
-### Cấu trúc code dự kiến
+### Cấu trúc code thực tế
 
 ```text
 service/trip-service/
@@ -68,18 +68,20 @@ service/trip-service/
       use-cases/            # Các mốc C06, C09–C13
       ports/                # Repository, UnitOfWork, client, Clock, identity...
     infrastructure/
-      persistence/          # Entity, mapper, repository, migrations, DataSource
+      persistence/          # SQL mapper, repository, migrations, DataSource
       clients/              # Routing, Pricing, Matching, event destination
-      auth/                 # JWT và service credential verifier
       outbox/               # Claim, lease, delivery, retry
-    presentation/http/      # Controller, DTO, guard, exception filter
+    api/                    # Controller, Zod DTO, JWT verifier, guard, filter
     bootstrap/              # Factory, module và cấu hình
     main.ts                 # Entry point API
     worker.ts               # Entry point dispatcher + health HTTP riêng
+    migrate.ts              # Migration job có advisory lock
+    mock.ts                 # Bộ service/issuer thử, không dùng production
+    requeue.ts              # CLI requeue delivery bị blocked
   test/                     # Unit, integration, contract, e2e
 ```
 
-Cấu trúc này chưa được tạo ngoài phần `docs`/README. Build đề xuất giữ entry point thành `dist/main.js`, `dist/worker.js`, migration và DataSource trong `dist/infrastructure/persistence/` để khớp tài liệu deploy.
+Build giữ entry point trong `dist/` và migration/DataSource trong `dist/infrastructure/persistence/`. `Store`/`Transaction` là port gộp Trip, quote, receipt, inbox và outbox để bảo vệ transaction chung. `PgStore` dùng câu SQL tham số hóa qua TypeORM EntityManager; không có entity ORM phụ thuộc domain. JSONB lưu snapshot, các cột UUID/status/version/money làm ràng buộc và index; migration kiểm tra snapshot không lệch các cột bảo vệ nghiệp vụ.
 
 ## 3. Các port chính
 
@@ -98,7 +100,7 @@ Cấu trúc này chưa được tạo ngoài phần `docs`/README. Build đề x
 | `IdentityVerifier` | Kiểm tra token, trả principal hợp lệ | Presentation |
 | `Clock` / `IdGenerator` | Thời gian server và ID; có fake cho unit test | Application/domain khi cần |
 
-Tên và chữ ký cụ thể được duyệt khi triển khai C00/C03. Domain kiểm tra một Trip; giới hạn active giữa nhiều Trip cần application và constraint database, không thể chỉ nằm trong entity.
+Tên port chi tiết trong bảng là năng lực thiết kế; chữ ký thực tế nằm tại `application/ports/store.ts`, `clients.ts` và identity verifier tại `api/auth.ts`. Domain kiểm tra một Trip; giới hạn active giữa nhiều Trip được application và unique index database bảo vệ.
 
 ## 4. Dữ liệu và transaction
 
@@ -159,7 +161,7 @@ sequenceDiagram
     Note over M: Tiếp tục mời tài xế cho tới khi nhận hoặc hủy
     M->>API: Assignment sau tài xế chấp nhận
     API->>DB: Transaction assignment + history + events + inbox
-    API-->>M: 200 xác nhận gán
+    API-->>M: 202 ACK assignment đã commit
     W->>Rider: Sự kiện qua Gateway/Notification
 ```
 
@@ -182,6 +184,7 @@ Gateway/Notification giao tiếp với worker theo các route riêng trong [Rout
 - 400/401/403/404/409 từ đích được phân loại theo contract, không mặc nhiên coi là thành công. Lỗi contract/credential chuyển blocked và cảnh báo; sau sửa cấu hình có cơ chế requeue có kiểm soát, không bỏ record.
 - Lệnh tìm chưa gửi cho Trip đã hủy có thể skipped; vẫn bảo đảm có cancel command nếu từng có khả năng đích đã nhận search. Không chỉ dựa vào một lần đọc trước HTTP để kết luận race đã được giải quyết.
 - Gateway và Notification có delivery riêng; lỗi một đích không làm đích khác bị mất event.
+- COMPLETED thêm delivery `trip.completed` đến Matching qua O07 để giải phóng reservation; cancel dùng O04. Mọi ACK phải giữ đúng ID; terminal marker ở Matching bảo vệ cancel/completion đến trước search.
 - Event payload chỉ có dữ liệu cần thiết; không ghi token, mật khẩu hoặc hồ sơ đầy đủ vào outbox/log.
 
 ## 7. Xác thực, quyền và chế độ mock
@@ -198,6 +201,6 @@ Gateway/Notification giao tiếp với worker theo các route riêng trong [Rout
 - Worker có probe riêng kiểm tra DB/schema và dispatch loop. Probe API không chứng minh worker đang hoạt động.
 - Log/metric dùng request ID, trip ID, event/command ID và destination. Theo dõi tuổi outbox, blocked delivery, version conflict và chuyến `SEARCHING` lâu; không tự hủy từ alert.
 - Unit test domain/use case dùng fake port; integration test dùng PostgreSQL thật; contract test mock từng đích; e2e kiểm tra HTTP + DB + worker.
-- Triển khai theo C00–C15 ở tài liệu nghiệp vụ. Validate entity/schema, contract client và auth trước component tương ứng; chỉ push khi kết quả được duyệt.
+- C00–C15 đã triển khai theo yêu cầu làm liên tục, kiểm thử và push từng feature nhỏ; báo cáo là đầu vào để người dùng review kết quả. Các service thật vẫn cần nghiệm thu tích hợp riêng.
 
 Các quyết định đề xuất cần duyệt: cấu trúc code, tên bảng/port, version ban đầu, retention receipt/inbox/outbox, payload snapshot, health probe, retry/lease và topology Docker. Các chính sách giá, hủy và không deadline tìm xe vẫn theo tài liệu nghiệp vụ, không thay đổi bởi thiết kế kỹ thuật.

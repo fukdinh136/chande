@@ -1,10 +1,10 @@
 # API Trip Service
 
-Ngày cập nhật: 05/10/2026. Contract: 0.1 draft. Trạng thái: đề xuất để review; chưa có endpoint hoặc OpenAPI sinh từ mã nguồn.
+Ngày cập nhật: 05/10/2026. Contract Trip: 1.0. R01–R08 đã triển khai, OpenAPI sinh từ controller và DTO tại `/openapi.json` khi bật Swagger. Contract service ngoài được kiểm chứng bằng mock, cần bên sở hữu xác nhận trước tích hợp thật.
 
 Nghiệp vụ chuẩn: [Nghiệp vụ](nghiep-vu.md). Danh mục đường dẫn/exposure: [Routes](routes.md). Transaction và adapter: [Kiến trúc](kien-truc.md). Base URL, credential và port: [Deploy](deploy.md).
 
-Quy tắc nghiệp vụ đã chốt giữ nguyên. Tên trường, response envelope, mã lỗi, JWT claims và contract service ngoài dưới đây là đề xuất kỹ thuật để validate C00/C14 và các client. Không coi các path hoặc mã loại xe ví dụ là API/danh mục đã tồn tại.
+Quy tắc nghiệp vụ đã chốt giữ nguyên. Tên trường, envelope, lỗi và JWT claims dưới đây là mặc định kỹ thuật đã triển khai để review. `MOCK_BIKE` chỉ dùng local/test; danh mục xe thật và prefix Gateway vẫn cần thống nhất với các service liên quan.
 
 ## 1. Quy ước HTTP và identity
 
@@ -20,7 +20,7 @@ Quy tắc nghiệp vụ đã chốt giữ nguyên. Tên trường, response enve
 
 Envelope thành công nghiệp vụ: `{ "data": <result>, "meta": { "requestId": "<uuid>" } }`. Envelope lỗi: `{ "error": { "code": "<code>", "message": "<message>", "details": [] }, "meta": { "requestId": "<uuid>" } }`. Client dựa vào `code`, không parse `message`; `details` không có credential hoặc dữ liệu của người khác.
 
-Swagger UI/OpenAPI dự kiến được tạo cùng controller khi triển khai, theo [NestJS OpenAPI](https://docs.nestjs.com/openapi/introduction). Validation DTO dự kiến dùng cơ chế [NestJS ValidationPipe](https://docs.nestjs.com/techniques/validation), có whitelist, từ chối unknown field và kiểm tra kiểu tường minh; không tự ép chuỗi bất kỳ thành số.
+Swagger UI/OpenAPI được tạo bằng [NestJS OpenAPI](https://docs.nestjs.com/openapi/introduction). DTO dùng Zod strict và cùng schema chuyển sang OpenAPI bằng [Zod JSON Schema](https://zod.dev/json-schema); từ chối unknown field, kiểm tra kiểu tường minh và chỉ chuyển `limit` sau khi xác minh chuỗi số nguyên. JWT dùng [jose remote JWKS](https://github.com/panva/jose/blob/main/docs/jwks/remote/functions/createRemoteJWKSet.md), chỉ RS256/ES256, yêu cầu `exp`, `sub`, `role` và xác minh issuer/audience.
 
 ## 2. Các model dùng chung
 
@@ -287,7 +287,7 @@ Ví dụ lỗi version; details không chứa dữ liệu nhạy cảm:
 
 ## 11. Contract Trip gọi ra ngoài
 
-Tất cả O01–O06 trong Routes dùng `X-Service-Token` riêng cho đích và `X-Request-Id`. Route/body sau là đề xuất, cần chủ service ngoài xác nhận; không phải tài liệu mô tả implementation của họ.
+Tất cả O01–O07 trong Routes dùng `X-Service-Token` riêng cho đích và `X-Request-Id`. Route/body sau là contract Trip đã triển khai với mock; cần chủ service ngoài xác nhận, không mô tả implementation thật của họ.
 
 | Route | Request | Response thành công |
 | --- | --- | --- |
@@ -296,8 +296,11 @@ Tất cả O01–O06 trong Routes dùng `X-Service-Token` riêng cho đích và 
 | O03 Matching start | Command tìm ở ví dụ dưới | 202 `data: {commandId, accepted: true}` sau lưu bền vững |
 | O04 Matching cancel | `{commandId, type: "matching.search.cancelled", tripId, tripVersion, occurredAt, reason}` | 202 `data: {commandId, accepted: true}`, kể cả cần tạo terminal marker trước khi thấy search |
 | O05/O06 event | Event envelope ở mục 12 | 202 `data: {eventId, accepted: true}` sau lưu bền vững |
+| O07 Matching completion | Event `trip.completed` ở mục 12, gửi `POST /internal/events/trips` đến Matching | 202 `data: {eventId, accepted: true}`; kết thúc reservation và giữ terminal marker |
 
-O01/O02/O03/O04/O05/O06 trả envelope với `meta.requestId`. HTTP timeout không chứng minh bên nhận chưa xử lý. Worker chỉ retry các command/event có cùng ID; Estimate có thể được thực hiện lại vì chưa tạo Trip.
+O01–O07 trả envelope với `meta.requestId`; ACK phải trả đúng command/event ID đang gửi. HTTP timeout không chứng minh bên nhận chưa xử lý. Worker retry command/event cùng ID. HTTP client giới hạn response 1 MiB và yêu cầu JSON hợp lệ; không lưu quote từ dữ liệu dependency lỗi.
+
+O07 bổ sung điểm kết thúc reservation khi chuyến hoàn thành, ngoài lệnh hủy O04. Đây là phần hoàn thiện contract vận hành, giữ nguyên chính sách giá/vòng đời. Matching thật phải xác nhận contract này; completion/cancel đến trước search vẫn không được mở lại tìm.
 
 Command tìm mẫu:
 
@@ -330,7 +333,7 @@ Command UUID giữ nguyên khi retry; type/ID/Trip version không đổi. Matchi
 | trip.completed | COMPLETED |
 | trip.cancelled | CANCELLED |
 
-Envelope chung cho Gateway và Notification:
+Envelope chung cho Gateway, Notification và event completion gửi Matching:
 
 ```json
 {
@@ -353,7 +356,7 @@ Payload v1 tối thiểu; client đọc chi tiết qua API được phân quyề
 ## 13. Health và Swagger
 
 - API live: 200 `{"status":"ok"}` khi process phục vụ được probe; không yêu cầu dependency ngoài.
-- API ready: 200 `{"status":"ready"}` khi DB và schema tương thích; 503 `{"status":"not_ready"}` nếu không. Không fail chỉ vì Matching/Notification lỗi.
+- API ready: 200 `{"status":"ok"}` khi DB và schema tương thích; 503 `{"status":"unavailable"}` nếu không. Không fail chỉ vì Matching/Notification lỗi.
 - Worker live/ready dùng cùng payload trên port 3002; readiness còn kiểm tra dispatch loop có tiến triển. Worker là process khác, không dùng API probe thay thế.
 - Probe không dùng envelope nghiệp vụ, không trả chi tiết credential/schema hoặc stack trace.
 - `/docs` là HTML Swagger UI, `/openapi.json` là OpenAPI JSON không bọc envelope; production mặc định tắt và không public qua Gateway.
@@ -367,4 +370,4 @@ Payload v1 tối thiểu; client đọc chi tiết qua API được phân quyề
 - [ ] Mã loại xe, breakdown, snapshot và auth claims đã được bên sở hữu contract xác nhận.
 - [ ] O03/O04 và event receiver chống lặp, lưu bền vững trước ACK, xử lý cancel/search sai thứ tự.
 - [ ] Không thêm deadline tìm xe, phí hủy hoặc tính lại giá vào DTO/handler.
-- [ ] Khi triển khai, OpenAPI sinh từ controller được kiểm tra khớp tài liệu này trước nghiệm thu C14.
+- [x] OpenAPI sinh từ controller và cùng DTO, có kiểm thử các routes và schema request/response.

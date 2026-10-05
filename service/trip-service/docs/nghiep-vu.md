@@ -1,8 +1,8 @@
 # Nghiệp vụ Trip Service — giai đoạn 1
 
-Ngày lập: 05/10/2026. Trạng thái: bản tài liệu để review, chưa xác nhận triển khai hoặc nghiệm thu component.
+Ngày lập/cập nhật: 05/10/2026. Quy tắc v1 đã được triển khai trong Trip; kiểm thử và giới hạn tích hợp ghi ở [Báo cáo triển khai](bao-cao-trien-khai.md). Nghiệm thu của người dùng và tích hợp service thật là bước review tiếp theo.
 
-Tài liệu mô tả nghiệp vụ Trip Service theo những quyết định đã thống nhất. Các quy tắc được người dùng xác nhận, thiết kế phát triển đã thống nhất và các mặc định đề xuất được phân biệt ở các mục riêng. Tài liệu không xác nhận các service hoặc API đã được triển khai.
+Tài liệu mô tả nghiệp vụ Trip Service theo quyết định đã thống nhất. Quy tắc đã xác nhận tách khỏi mặc định kỹ thuật; việc Trip chạy với mock không xác nhận các service ngoài đã được triển khai.
 
 ## 1. Mục tiêu và phạm vi v1
 
@@ -387,16 +387,17 @@ Không tự bổ sung phí hủy, deadline tìm xe, tính giá thực tế, đ�
 
 Áp dụng theo từng mốc C00–C15:
 
-1. Trình bày thiết kế: trách nhiệm, interface, quy tắc áp dụng, ví dụ thành công/thất bại và test dự kiến.
-2. Chờ người dùng validate thiết kế rồi mới code component đó.
-3. Kiểm thử và trình bày kết quả, cách chạy, các giới hạn hoặc phụ thuộc chưa tích hợp thật.
-4. Chờ người dùng duyệt kết quả component.
-5. Tạo commit `feat(trip): <component>` và push `main` lên `origin`; kiểm tra remote để tránh ghi đè, không force-push. Báo commit hash.
-6. Tiếp tục component kế tiếp; nếu có thay đổi nghiệp vụ, cập nhật tài liệu trước khi áp dụng.
+1. Dựa vào tài liệu đã chốt, triển khai từng feature nhỏ với trách nhiệm/interface rõ ràng.
+2. Viết và chạy kiểm thử phù hợp; transaction/race dùng PostgreSQL thật, API dùng HTTP và JWT ký thật.
+3. Sau khi kiểm thử đạt, commit từng feature và push `main` lên `origin`; không force-push.
+4. Bàn giao báo cáo gồm component, commit, kết quả kiểm thử, cách chạy và giới hạn để người dùng review.
+5. Chính sách nghiệp vụ mới vẫn phải được người dùng xác nhận; cập nhật tài liệu và test khi có thay đổi.
+
+Quy trình này theo yêu cầu mới nhất “triển khai dần … git từng feature nhỏ … báo cáo … triển khai đi”, thay cho quy trình chờ duyệt lại mỗi bước trong bản thiết kế ban đầu.
 
 Lint, typecheck và test theo component phải đạt trước khi trình nghiệm thu. Integration test bảo vệ transaction/ràng buộc active dùng PostgreSQL thật; contract test dùng mock service. Không coi việc chạy với mock là đã tích hợp thành công môi trường thật.
 
-Tài liệu nghiệp vụ được lưu tại `service/trip-service/docs/nghiep-vu.md`; mục lục chung nằm tại `docs/README.md`. Việc tổ chức tài liệu không triển khai component hoặc tự commit/push. Người dùng review tài liệu trước khi thực hiện bước GitHub.
+Tài liệu nghiệp vụ tại `service/trip-service/docs/nghiep-vu.md`; mục lục chung tại `docs/README.md`; kết quả và commit tại báo cáo triển khai.
 
 ## 14. Checklist review tài liệu
 
@@ -411,4 +412,4 @@ Tài liệu nghiệp vụ được lưu tại `service/trip-service/docs/nghiep-
 - [ ] Trách nhiệm từng component đủ rõ để duyệt thiết kế riêng.
 - [ ] Tất cả 28 user story được đối chiếu; phần hỗ trợ một phần không được ghi là hoàn thành toàn bộ.
 - [ ] Quyết định đã xác nhận được tách khỏi mặc định đề xuất.
-- [ ] Chưa commit/push tài liệu hoặc triển khai component khi chưa được duyệt tương ứng.
+- [x] Triển khai, kiểm thử và commit/push từng feature theo ủy quyền mới nhất; kết quả được bàn giao để review.
