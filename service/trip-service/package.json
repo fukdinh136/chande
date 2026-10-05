@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint src test scripts",
-    "test:build": "tsc -p tsconfig.test.json",
+    "test:build": "node scripts/clean-test.cjs && tsc -p tsconfig.test.json",
     "test": "npm run test:build && node scripts/test.cjs unit",
     "test:integration": "npm run test:build && node scripts/test.cjs integration",
     "test:contract": "npm run test:build && node scripts/test.cjs contract",
@@ -19,6 +19,7 @@
     "worker:dev": "tsx watch src/worker.ts",
     "start:prod": "node dist/main.js",
     "worker:prod": "node dist/worker.js",
+    "outbox:requeue": "node dist/requeue.js",
     "migration:run": "node node_modules/typeorm/cli.js migration:run -d dist/infrastructure/persistence/data-source.js",
     "migration:show": "node node_modules/typeorm/cli.js migration:show -d dist/infrastructure/persistence/data-source.js"
   },
