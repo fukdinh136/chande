@@ -12,6 +12,7 @@ Ngày: 06/10/2026. Cập nhật theo từng feature; kết quả kiểm thử d�
 | F04 | Bounded queue, pool async, deadline/cancel, retry qua limiter, bounded shutdown | 4 tests concurrency/cancel/deadline/shutdown; 25 tests tổng | Xem lịch sử `feat(routing): dispatch jobs through bounded worker pool` |
 | F05 | Calculate Route: estimate strict hai trường, full route; validate trước dispatch | 27 tests tổng; invalid vehicle/input không gọi provider | Xem lịch sử `feat(routing): implement calculate route views` |
 | F06 | NestJS API, caller tokens/scopes, strict DTO/envelope, correlation, OpenAPI và probes | 31 tests tổng; HTTP lỗi/size/auth và `app.close()` với request đang chạy | Xem lịch sử `feat(routing): expose authenticated routing HTTP API` |
+| F07 | Cross-service test dùng `RoutingClient` và `EstimateTrip` thật qua Routing HTTP | 2 cross-service tests; failure/timeout không gọi Pricing hoặc lưu quote | Xem lịch sử `test(routing): verify Trip estimate compatibility` |
 
 Queue đầy trả `ROUTING_BUSY` ngay, nằm trong admission budget; không tạo hàng đợi chờ admission ngoài capacity. Queue age vẫn bị giới hạn riêng. Limiter chạy trong worker, mọi retry cần permit mới.
 
