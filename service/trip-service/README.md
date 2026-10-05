@@ -8,6 +8,7 @@ Service quản lý nghiệp vụ chuyến đi của Chande, từ báo giá và �
 | --- | --- |
 | [Nghiệp vụ](docs/nghiep-vu.md) | Phạm vi v1, quy tắc đã chốt, vòng đời, user story và tiêu chí nghiệm thu |
 | [Kiến trúc](docs/kien-truc.md) | Ranh giới service, lớp/port/adapter, dữ liệu, transaction và outbox |
+| [Sơ đồ C4](docs/c4.md) | C1–C4 theo code hiện tại: API/worker, domain, transaction, idempotency và outbox |
 | [API](docs/api.md) | Model, request/response, identity, idempotency, lỗi và contract tích hợp |
 | [Routes](docs/routes.md) | Bảng route public/internal/outbound, quyền, use case và exposure |
 | [Deploy](docs/deploy.md) | Runtime API/worker/DB, cấu hình, migration, phát hành, rollback và monitoring |

@@ -4,6 +4,8 @@ Ngày cập nhật: 05/10/2026. Kiến trúc triển khai v1; API/worker và Doc
 
 Nguồn nghiệp vụ: [Nghiệp vụ Trip Service](nghiep-vu.md). Contract HTTP: [API](api.md), [Routes](routes.md). Vận hành: [Deploy](deploy.md).
 
+[Sơ đồ C4 theo mã nguồn hiện tại](c4.md) tổng hợp C1–C4, tách component API/worker và đi sâu vào Trip Domain, transaction, idempotency, assignment và outbox delivery.
+
 Stack NestJS, TypeScript, TypeORM, PostgreSQL và REST callback + outbox giữ nguyên. Các mặc định kỹ thuật đã được hiện thực và kiểm thử để review; contract với service thật, retention và hạ tầng hosting vẫn cần thống nhất.
 
 ## 1. Ranh giới hệ thống
