@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build and test output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Expo
+.expo/
+web-build/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local-only legacy Driver Gateway; the official Gateway may live elsewhere.
+/api-gateway/
+# Private signing keys and local diagnostic output
+*.pem
+*.key
+*-lint-results.json
+
+# Logs
+*.log
+
+# Operating system files
+.DS_Store
+Thumbs.db
