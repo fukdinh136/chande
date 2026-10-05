@@ -16,13 +16,9 @@ public final class PublicEndpoints {
     /** Mọi endpoint ẩn danh (đều là POST). */
     public static final List<String> ANONYMOUS_POST = List.of(
             "/api/v1/auth/register",
-            "/api/v1/auth/register/verify",
-            "/api/v1/auth/otp/resend",
             "/api/v1/auth/login",
             "/api/v1/auth/refresh",
             "/api/v1/auth/logout",
-            "/api/v1/auth/password/forgot",
-            "/api/v1/auth/password/reset",
             "/api/v1/driver-auth/otp/request",
             "/api/v1/driver-auth/otp/verify",
             "/api/v1/driver-auth/refresh",
@@ -31,11 +27,7 @@ public final class PublicEndpoints {
     /** Endpoint có thể bị dò mật khẩu/OTP hoặc spam SMS: giới hạn số lần thử theo IP ngay tại gateway. */
     public static final List<String> BRUTE_FORCE_SENSITIVE_POST = List.of(
             "/api/v1/auth/register",
-            "/api/v1/auth/register/verify",
-            "/api/v1/auth/otp/resend",
             "/api/v1/auth/login",
-            "/api/v1/auth/password/forgot",
-            "/api/v1/auth/password/reset",
             "/api/v1/driver-auth/otp/request",
             "/api/v1/driver-auth/otp/verify");
 

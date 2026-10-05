@@ -14,6 +14,7 @@ import org.springframework.web.servlet.function.ServerResponse;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.springframework.cloud.gateway.server.mvc.filter.BeforeFilterFunctions.removeRequestHeader;
 import static org.springframework.cloud.gateway.server.mvc.filter.BeforeFilterFunctions.stripPrefix;
@@ -56,11 +57,18 @@ public class GatewayRoutesConfig {
                 .before(stripPrefix(ApiPaths.PREFIX_SEGMENTS))
                 // Credential nội bộ không bao giờ được đi từ client xuống service
                 .before(removeRequestHeader(ServiceTokenAuthenticationFilter.HEADER))
+                .before(trustedCredential(service.serviceToken()))
                 .filter(new UpstreamFilter(serviceId, instances,
                         service.maxConcurrentRequests(), failover.maxAttempts()))
                 .after(prefixRelativeLocation())
                 .after(removeHeadersOwnedByGateway())
                 .build();
+    }
+
+    /** Client credentials were removed above; only server config may grant upstream service scope. */
+    static Function<ServerRequest, ServerRequest> trustedCredential(String token) {
+        return request -> token == null || token.isEmpty() ? request : ServerRequest.from(request)
+                .headers(headers -> headers.set(ServiceTokenAuthenticationFilter.HEADER, token)).build();
     }
 
     /** Service trả {@code Location: /trips/<id>}; client cần đường dẫn public {@code /api/v1/trips/<id>}. */

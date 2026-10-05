@@ -64,10 +64,15 @@ gateway:
         instances: ${TRIP_SERVICE_URLS:http://localhost:3001}
         paths: /trips/**
         max-concurrent-requests: 256
-      # Giữ chỗ: Routing service (Python) chưa có tài liệu API, cổng/đường dẫn là tạm
+      # Server credential is injected only for these Gateway-scoped Routing APIs.
       routing-service:
-        instances: ${ROUTING_SERVICE_URLS:http://localhost:8000}
-        paths: /routing/**
+        instances: ${ROUTING_SERVICE_URLS:http://localhost:3004}
+        paths: /routes, /routes/recalculate
+        max-concurrent-requests: 128
+        service-token: ${ROUTING_GATEWAY_TOKEN:}
+      matching-service:
+        instances: ${MATCHING_SERVICE_URLS:http://localhost:3007}
+        paths: /matching/offers/**
         max-concurrent-requests: 128
   internal:
     # Cổng cho /internal/** (Trip gửi sự kiện chuyến). Chỉ mở trong mạng nội bộ.

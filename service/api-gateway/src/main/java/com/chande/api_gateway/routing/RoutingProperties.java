@@ -2,6 +2,7 @@ package com.chande.api_gateway.routing;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.util.unit.DataSize;
 
 import java.net.URI;
@@ -50,8 +51,20 @@ public record RoutingProperties(
      */
     public record Service(List<URI> instances,
                           List<String> paths,
-                          @DefaultValue("256") int maxConcurrentRequests) {
+                          @DefaultValue("256") int maxConcurrentRequests,
+                          @DefaultValue("") String serviceToken) {
 
+        public Service(List<URI> instances, List<String> paths, int maxConcurrentRequests) {
+            this(instances, paths, maxConcurrentRequests, "");
+        }
+
+        @Override
+        public String toString() {
+            return "Service[instances=" + instances + ", paths=" + paths
+                    + ", maxConcurrentRequests=" + maxConcurrentRequests + ", serviceToken=***]";
+        }
+
+        @ConstructorBinding
         public Service {
             if (instances == null || instances.isEmpty()) {
                 throw new IllegalStateException("Mỗi service cần ít nhất một instance");
@@ -81,6 +94,10 @@ public record RoutingProperties(
             }
             instances = List.copyOf(instances);
             paths = List.copyOf(paths);
+            serviceToken = serviceToken == null ? "" : serviceToken.trim();
+            if (serviceToken.chars().anyMatch(c -> c <= 32 || c >= 127)) {
+                throw new IllegalStateException("Service credential must be printable ASCII without whitespace");
+            }
         }
     }
 }

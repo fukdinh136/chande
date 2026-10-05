@@ -41,6 +41,7 @@ class GatewayRoutingIntegrationTest {
     static final StubService DRIVER = StubService.start("driver-service");
     static final StubService TRIP = StubService.start("trip-service");
     static final StubService ROUTING = StubService.start("routing-service");
+    static final StubService MATCHING = StubService.start("matching-service");
     static final String DEAD_TRIP_INSTANCE = StubService.deadUrl();
     static final TestTokens TOKENS = new TestTokens();
     static final int INTERNAL_PORT = StubService.freePort();
@@ -58,6 +59,8 @@ class GatewayRoutingIntegrationTest {
         registry.add("gateway.routing.services.trip-service.instances", () -> DEAD_TRIP_INSTANCE + "," + TRIP.url());
         registry.add("gateway.routing.services.routing-service.instances", ROUTING::url);
         registry.add("gateway.routing.services.routing-service.max-concurrent-requests", () -> 2);
+        registry.add("gateway.routing.services.routing-service.service-token", () -> "trusted-routing-server-token");
+        registry.add("gateway.routing.services.matching-service.instances", MATCHING::url);
         // Cooldown rất ngắn để instance chết bị thử lại thường xuyên → luôn đi qua nhánh failover
         registry.add("gateway.routing.failover.unavailable-cooldown", () -> "1ms");
         registry.add("gateway.internal.port", () -> INTERNAL_PORT);
@@ -73,7 +76,7 @@ class GatewayRoutingIntegrationTest {
 
     @AfterAll
     static void stopStubs() {
-        List.of(USER_A, USER_B, DRIVER, TRIP, ROUTING).forEach(StubService::close);
+        List.of(USER_A, USER_B, DRIVER, TRIP, ROUTING, MATCHING).forEach(StubService::close);
         TOKENS.close();
     }
 
@@ -96,7 +99,7 @@ class GatewayRoutingIntegrationTest {
         String tripId = "20000000-0000-4000-8000-000000000001";
         return List.of(
                 new Route("POST", "/api/v1/auth/login", null, "user-service", "/auth/login"),
-                new Route("POST", "/api/v1/auth/register/verify", null, "user-service", "/auth/register/verify"),
+                new Route("POST", "/api/v1/auth/register", null, "user-service", "/auth/register"),
                 new Route("POST", "/api/v1/auth/logout-all", rider, "user-service", "/auth/logout-all"),
                 new Route("GET", "/api/v1/users/me", rider, "user-service", "/users/me"),
                 new Route("PATCH", "/api/v1/users/me", rider, "user-service", "/users/me"),
@@ -108,7 +111,8 @@ class GatewayRoutingIntegrationTest {
                 new Route("GET", "/api/v1/trips/" + tripId, rider, "trip-service", "/trips/" + tripId),
                 new Route("PATCH", "/api/v1/trips/" + tripId + "/status", driver, "trip-service", "/trips/" + tripId + "/status"),
                 new Route("POST", "/api/v1/trips/" + tripId + "/cancel", rider, "trip-service", "/trips/" + tripId + "/cancel"),
-                new Route("GET", "/api/v1/routing/route", rider, "routing-service", "/routing/route"));
+                new Route("GET", "/api/v1/matching/offers/active", driver, "matching-service", "/matching/offers/active"),
+                new Route("POST", "/api/v1/routes", rider, "routing-service", "/routes"));
     }
 
     @Test
@@ -208,7 +212,7 @@ class GatewayRoutingIntegrationTest {
         try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<HttpResponse<String>>> results = new ArrayList<>();
             for (int i = 0; i < 8; i++) {
-                results.add(pool.submit(() -> send("GET", "/api/v1/routing/route?sleep=600", rider, null, Map.of())));
+                results.add(pool.submit(() -> send("POST", "/api/v1/routes?sleep=600", rider, "{}", Map.of())));
             }
             int rejected = 0;
             for (Future<HttpResponse<String>> result : results) {
@@ -309,9 +313,20 @@ class GatewayRoutingIntegrationTest {
         HttpResponse<String> actual = send("GET", "/api/v1/users/me", TOKENS.rider(RIDER_ID), null,
                 Map.of("Origin", "http://localhost:5500"));
         assertThat(actual.headers().allValues("Access-Control-Allow-Origin")).containsExactly("http://localhost:5500");
+        assertThat(actual.headers().firstValue("Access-Control-Expose-Headers").orElse("")).contains("Idempotent-Replay");
 
         HttpResponse<String> withoutOrigin = send("GET", "/api/v1/users/me", TOKENS.rider(RIDER_ID), null, Map.of());
         assertThat(withoutOrigin.headers().allValues("Access-Control-Allow-Origin")).isEmpty();
+    }
+
+    @Test
+    void offersAreDriverOnlyAndRoutingCredentialCannotBeSpoofed() throws Exception {
+        assertThat(send("GET", "/api/v1/matching/offers/active", TOKENS.rider(RIDER_ID), null, Map.of()).statusCode()).isEqualTo(403);
+        var response = send("POST", "/api/v1/routes", TOKENS.rider(RIDER_ID), "{}", Map.of("X-Service-Token", "client-spoof"));
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(JSON.readTree(response.body()).get("serviceToken").asString()).isEqualTo("trusted-routing-server-token");
+        assertThat(send("POST", "/api/v1/routes/matrix", TOKENS.driver(DRIVER_ID), "{}", Map.of()).statusCode()).isEqualTo(403);
+        assertThat(send("POST", "/api/v1/internal/matching/requests", TOKENS.driver(DRIVER_ID), "{}", Map.of()).statusCode()).isEqualTo(403);
     }
 
     @Test

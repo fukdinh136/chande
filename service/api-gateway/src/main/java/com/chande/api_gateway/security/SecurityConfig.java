@@ -82,8 +82,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/trips/*/status").hasRole(DRIVER)
                         .requestMatchers("/api/v1/trips/**").hasAnyRole(RIDER, DRIVER)
 
-                        // Routing Service: route giữ chỗ, chưa có tài liệu API
-                        .requestMatchers("/api/v1/routing/**").hasAnyRole(RIDER, DRIVER)
+                        // Routing Gateway scope excludes estimate/matrix and all internal routes.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/routes", "/api/v1/routes/recalculate").hasAnyRole(RIDER, DRIVER)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/matching/offers/active", "/api/v1/matching/offers/*").hasRole(DRIVER)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/matching/offers/*/accept", "/api/v1/matching/offers/*/decline").hasRole(DRIVER)
 
                         .anyRequest().denyAll())
                 .exceptionHandling(e -> e
