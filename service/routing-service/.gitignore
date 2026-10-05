@@ -6,6 +6,7 @@ config/vehicle-profiles.json
 node_modules/
 .test-dist/
 coverage/
+.npm-cache/
 *.tsbuildinfo
 dist/
 build/
