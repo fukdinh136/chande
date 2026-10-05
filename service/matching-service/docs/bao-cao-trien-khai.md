@@ -65,10 +65,12 @@ Cả hai nhận offer qua WebSocket, reconnect nhận lại cùng offer/hạn, a
 | M04 | `9e1f3d7` — ranking và offer tuần tự |
 | M05 | `33d4683` — quyết định và callback/đối soát Trip |
 | M06 | `1fa1faf` — Rabbit publisher và Realtime delivery |
-| M07 | Commit Docker/CI/smoke và báo cáo này; tra bằng `git log --oneline -- service/matching-service` |
+| M07 | `2c82f85` — Docker/CI/smoke Hà Nội và bàn giao |
 
 ### Phạm vi đã xác minh và phần còn lại
 
-CI đã khai báo trong `.github/workflows/matching-service.yml`; kết quả local không thay thế kết quả GitHub Actions. Smoke gọi REST Matching trực tiếp, chưa kiểm chứng ingress Gateway hoặc UI thiết bị. RIDER issuer và Gateway/Notification event sink dùng mock; fixture SQL chỉ dành database Driver mới của stack smoke, không phải migration production. BIKE OSRM thật, GPS background/traffic, nhiều replica và hosting production chưa nghiệm thu. Không ghi đè `.env`, key/token local hoặc xóa volume có sẵn.
+GitHub Actions đã hoàn tất **success** cho commit runtime `2c82f85`: [Matching Service](https://github.com/fukdinh136/chande/actions/runs/37379263559), [Trip Service](https://github.com/fukdinh136/chande/actions/runs/37379263386), [Routing Service](https://github.com/fukdinh136/chande/actions/runs/37379263364). Workflow Matching chạy PostgreSQL/Rabbit integration, checks các service liên quan và Docker build Matching/Realtime; smoke Hà Nội là kiểm chứng local riêng, không tải dataset OSRM trong CI.
+
+Smoke gọi REST Matching trực tiếp, chưa kiểm chứng ingress Gateway hoặc UI thiết bị. RIDER issuer và Gateway/Notification event sink dùng mock; fixture SQL chỉ dành database Driver mới của stack smoke, không phải migration production. BIKE OSRM thật, GPS background/traffic, nhiều replica và hosting production chưa nghiệm thu. Không ghi đè `.env`, key/token local hoặc xóa volume có sẵn.
 
 Chạy lại, startup/shutdown, requeue và giới hạn Gateway: [runbook](deploy.md). Component/source và C3: [kiến trúc](kien-truc.md). Contract và quyền: [API](api.md).
