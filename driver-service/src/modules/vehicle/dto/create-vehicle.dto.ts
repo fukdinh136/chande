@@ -5,17 +5,13 @@ import {
   IsString,
   Length,
   Matches,
-  MaxLength,
   ValidateIf,
 } from 'class-validator';
-
 import { VehicleType } from '../../../common/enums/vehicle-type.enum';
 
 export class CreateVehicleDto {
   @Transform(({ value }) =>
-    typeof value === 'string'
-      ? value.trim().toUpperCase()
-      : value,
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
   @IsString()
   @Length(5, 15)
@@ -25,25 +21,19 @@ export class CreateVehicleDto {
   @IsEnum(VehicleType)
   vehicleType: VehicleType;
 
-  @ValidateIf((_object, value) => value !== undefined)
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
-  @MaxLength(100)
-  brandModel?: string;
+  @Length(1, 100)
+  brandModel: string;
 
-  @ValidateIf((_object, value) => value !== undefined)
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
-  @MaxLength(100)
-  brand?: string;
-
-  @ValidateIf((_object, value) => value !== undefined)
-  @IsString()
-  @MaxLength(100)
-  model?: string;
-
-  @ValidateIf((_object, value) => value !== undefined)
-  @IsString()
-  @MaxLength(30)
-  color?: string;
+  @Length(1, 30)
+  color: string;
 
   @ValidateIf((_object, value) => value !== undefined)
   @IsBoolean()

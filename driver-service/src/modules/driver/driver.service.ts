@@ -1,22 +1,25 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { DriverStatus } from '../../common/enums/driver-status.enum';
-import { Vehicle } from '../vehicle/entities/vehicle.entity';
+import { AvailabilityService } from '../../availability/availability.service';
+import { DriverAccountStatus } from '../../common/enums/driver-account-status.enum';
 import { CreateDriverDto } from './dto/create-driver.dto';
 import { Driver } from './entities/driver.entity';
+import { Vehicle } from '../vehicle/entities/vehicle.entity';
 
 @Injectable()
 export class DriverService {
   constructor(
     @InjectRepository(Driver)
     private readonly driverRepository: Repository<Driver>,
+    private readonly availability: AvailabilityService,
   ) {}
 
   async create(
@@ -24,98 +27,69 @@ export class DriverService {
     passwordHash: string,
   ): Promise<Driver> {
     const phone = this.normalizePhone(dto.phone);
+    const licenseNumber = dto.licenseNumber.trim().toUpperCase();
 
-    const existingDriver = await this.driverRepository.findOne({
-      where: { phone },
+    const existing = await this.driverRepository.findOne({
+      where: [{ phone }, { licenseNumber }],
     });
 
-    if (existingDriver) {
+    if (existing) {
       throw new ConflictException(
-        'Phone number is already registered',
+        'Phone number or license number is already registered',
       );
     }
 
     const driver = this.driverRepository.create({
       phone,
-      name: dto.name.trim(),
       passwordHash,
+      name: dto.name.trim(),
       avatarUrl: dto.avatarUrl,
-      licenseNumber: dto.licenseNumber,
-      status: DriverStatus.OFFLINE,
+      licenseNumber,
+      accountStatus: DriverAccountStatus.PENDING,
     });
 
     return this.driverRepository.save(driver);
   }
 
-  async findById(id: string): Promise<Driver> {
+  async findById(id: string) {
     const driver = await this.driverRepository.findOne({
       where: { id },
-      relations: {
-        vehicles: true,
-      },
+      relations: { vehicles: true },
     });
 
     if (!driver) {
       throw new NotFoundException('Driver not found');
     }
 
-    return driver;
+    // Tài khoản chưa duyệt hoặc bị khóa không được duy trì Online.
+    if (driver.accountStatus !== DriverAccountStatus.ACTIVE) {
+      await this.availability.set(id, 'OFFLINE');
+    }
+
+    const status = await this.availability.get(id);
+
+    // Chỉ trả các trường công khai, không trả passwordHash.
+    return {
+      id: driver.id,
+      phone: driver.phone,
+      name: driver.name,
+      avatarUrl: driver.avatarUrl,
+      licenseNumber: driver.licenseNumber,
+      accountStatus: driver.accountStatus,
+      status,
+      vehicles: driver.vehicles,
+      createdAt: driver.createdAt,
+      updatedAt: driver.updatedAt,
+    };
   }
 
   async findByPhone(phone: string): Promise<Driver | null> {
     return this.driverRepository.findOne({
-      where: {
-        phone: this.normalizePhone(phone),
-      },
+      where: { phone: this.normalizePhone(phone) },
     });
   }
 
-  async toggleStatus(driverId: string): Promise<Driver> {
-    return this.driverRepository.manager.transaction(
-      async (manager) => {
-        const driver = await manager.findOne(Driver, {
-          where: { id: driverId },
-          lock: {
-            mode: 'pessimistic_write',
-          },
-        });
-
-        if (!driver) {
-          throw new NotFoundException('Driver not found');
-        }
-
-        if (driver.status === DriverStatus.OFFLINE) {
-          const activeVehicle = await manager.findOne(Vehicle, {
-            where: {
-              driverId,
-              isActive: true,
-            },
-          });
-
-          if (!activeVehicle) {
-            throw new BadRequestException(
-              'Select an active vehicle before going online',
-            );
-          }
-        }
-
-        driver.status =
-          driver.status === DriverStatus.ONLINE
-            ? DriverStatus.OFFLINE
-            : DriverStatus.ONLINE;
-
-        return manager.save(Driver, driver);
-      },
-    );
-  }
-
-  private normalizePhone(phone: string): string {
-    return phone.trim().replace(/\s+/g, '');
-  }
-
-  async findByPhoneWithPassword(
-    phone: string,
-  ): Promise<Driver | null> {
+  async findByPhoneWithPassword(phone: string): Promise<Driver | null> {
     return this.driverRepository
       .createQueryBuilder('driver')
       .addSelect('driver.passwordHash')
@@ -123,5 +97,52 @@ export class DriverService {
         phone: this.normalizePhone(phone),
       })
       .getOne();
+  }
+
+  async toggleStatus(driverId: string) {
+    // Cùng khóa hàng driver với VehicleService để tránh đổi xe
+    // và bật Online đồng thời trong luồng của ứng dụng.
+    await this.driverRepository.manager.transaction(async (manager) => {
+      const driver = await manager.findOne(Driver, {
+        where: { id: driverId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!driver) {
+        throw new NotFoundException('Driver not found');
+      }
+
+      const current = await this.availability.get(driverId);
+
+      // Luôn cho phép dừng làm việc.
+      if (current === 'ONLINE') {
+        await this.availability.set(driverId, 'OFFLINE');
+        return;
+      }
+
+      if (driver.accountStatus !== DriverAccountStatus.ACTIVE) {
+        throw new ForbiddenException(
+          'Driver account must be ACTIVE before going online',
+        );
+      }
+
+      const vehicle = await manager.findOne(Vehicle, {
+        where: { driverId, isActive: true },
+      });
+
+      if (!vehicle) {
+        throw new BadRequestException(
+          'Select an active vehicle before going online',
+        );
+      }
+
+      await this.availability.set(driverId, 'ONLINE');
+    });
+
+    return this.findById(driverId);
+  }
+
+  private normalizePhone(phone: string): string {
+    return phone.trim().replace(/\s+/g, '');
   }
 }

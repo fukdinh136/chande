@@ -31,14 +31,11 @@ export class CreateDriverDto {
   })
   avatarUrl?: string;
 
-  @Transform(({ value }) =>
-    typeof value === 'string'
-      ? value.trim().toUpperCase()
-      : value,
+ @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
-  @ValidateIf((_object, value) => value !== undefined)
   @IsString()
   @MinLength(1)
   @MaxLength(20)
-  licenseNumber?: string;
+  licenseNumber: string;
 }

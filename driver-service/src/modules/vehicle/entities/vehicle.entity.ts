@@ -12,21 +12,27 @@ import { VehicleType } from '../../../common/enums/vehicle-type.enum';
 import { Driver } from '../../driver/entities/driver.entity';
 
 @Entity('vehicles')
-@Index('IDX_vehicle_driver', ['driverId'])
-@Index('IDX_vehicle_one_active', ['driverId'], {
+@Index('ix_vehicles_driver_id', ['driverId'])
+@Index('ux_vehicles_one_active_per_driver', ['driverId'], {
   unique: true,
-  where: '"is_active" = true',
+  where: 'is_active',
 })
 export class Vehicle {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Index('IDX_vehicle_plate', { unique: true })
   @Column({
-    name: 'license_plate',
-    length: 15,
+    name: 'driver_id',
+    type: 'uuid',
   })
-  vehiclePlate: string;
+  driverId: string;
+
+  @ManyToOne(() => Driver, (driver) => driver.vehicles, {
+    nullable: false,
+    onDelete: 'NO ACTION',
+  })
+  @JoinColumn({ name: 'driver_id' })
+  driver: Driver;
 
   @Column({
     name: 'vehicle_type',
@@ -36,38 +42,32 @@ export class Vehicle {
   vehicleType: VehicleType;
 
   @Column({
+    name: 'license_plate',
+    type: 'varchar',
+    length: 15,
+    unique: true,
+  })
+  vehiclePlate: string;
+
+  @Column({
     name: 'brand_model',
     type: 'varchar',
     length: 100,
-    nullable: true,
   })
-  brandModel: string | null;
+  brandModel: string;
 
   @Column({
     type: 'varchar',
     length: 30,
-    nullable: true,
   })
-  color: string | null;
+  color: string;
 
   @Column({
     name: 'is_active',
+    type: 'boolean',
     default: false,
   })
   isActive: boolean;
-
-  @ManyToOne(() => Driver, (driver) => driver.vehicles, {
-    onDelete: 'CASCADE',
-    nullable: false,
-  })
-  @JoinColumn({ name: 'driver_id' })
-  driver: Driver;
-
-  @Column({
-    name: 'driver_id',
-    type: 'uuid',
-  })
-  driverId: string;
 
   @CreateDateColumn({
     name: 'created_at',

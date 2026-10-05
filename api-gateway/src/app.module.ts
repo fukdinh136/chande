@@ -4,6 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 
 import { LocationGateway } from './gateway/location.gateway';
 import { RedisModule } from './redis/redis.module';
+import { MockDispatchController } from './gateway/mock-dispatch.controller';
+import { MockTripController } from './controllers/mock-trip.controller';
 
 @Module({
   imports: [
@@ -28,5 +30,6 @@ import { RedisModule } from './redis/redis.module';
     RedisModule,
   ],
   providers: [LocationGateway],
+  controllers: [MockDispatchController, MockTripController],
 })
 export class AppModule {}

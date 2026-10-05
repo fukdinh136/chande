@@ -7,28 +7,26 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
-export type VehicleType = 'CAR' | 'MOTORBIKE';
+export type VehicleType = 'BIKE' | 'CAR_4' | 'CAR_7';
 
 @Injectable()
-export class RedisService
-  implements OnModuleInit, OnModuleDestroy
-{
+export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private readonly client: Redis;
 
-  private readonly carKey = 'drivers:geo:CAR';
-  private readonly bikeKey = 'drivers:geo:MOTORBIKE';
-  private readonly seenKey = 'drivers:locations:last_seen';
+  private readonly geoKeys = [
+    'drivers:geo:BIKE',
+    'drivers:geo:CAR_4',
+    'drivers:geo:CAR_7',
+  ];
 
+  private readonly seenKey = 'drivers:locations:last_seen';
   private cleanupTimer?: ReturnType<typeof setInterval>;
   private cleaning = false;
 
-  constructor(configService: ConfigService) {
+  constructor(config: ConfigService) {
     this.client = new Redis(
-      configService.get<string>(
-        'REDIS_URL',
-        'redis://127.0.0.1:6379',
-      ),
+      config.get<string>('REDIS_URL', 'redis://127.0.0.1:6379'),
       {
         lazyConnect: true,
         connectTimeout: 5000,
@@ -36,9 +34,6 @@ export class RedisService
         maxRetriesPerRequest: 1,
         enableOfflineQueue: false,
         autoResendUnfulfilledCommands: false,
-
-        retryStrategy: (attempt) =>
-          attempt <= 3 ? attempt * 500 : null,
       },
     );
 
@@ -57,99 +52,81 @@ export class RedisService
     }
 
     this.cleanupTimer = setInterval(() => {
-      if (!this.cleaning) {
-        void this.cleanupExpired();
-      }
-    }, 15000);
-
-    this.logger.log('Redis ready');
+      if (!this.cleaning) void this.cleanupExpired();
+    }, 15_000);
   }
 
   async updateDriverLocation(
     driverId: string,
     lat: number,
     lng: number,
-    vehicle: {
-      id: string;
-      vehicleType: VehicleType;
-    },
+    vehicle: { id: string; vehicleType: VehicleType },
   ): Promise<void> {
-    const targetKey =
-      vehicle.vehicleType === 'CAR'
-        ? this.carKey
-        : this.bikeKey;
+    if (!['BIKE', 'CAR_4', 'CAR_7'].includes(vehicle.vehicleType)) {
+      throw new Error('Unsupported vehicle type');
+    }
 
-    // Lua chạy nguyên tử:
-    // - Bỏ tài xế khỏi các GEO cũ.
-    // - Ghi vào GEO đúng loại xe.
-    // - Cập nhật HASH và thời điểm nhận vị trí.
-    await this.client.eval(
+    const result = await this.client.eval(
       `
-      local t = redis.call('TIME')
-      local now = tonumber(t[1]) * 1000
-        + math.floor(tonumber(t[2]) / 1000)
+        -- Không ghi lại vị trí nếu REST vừa chuyển tài xế Offline.
+        if redis.call('GET', KEYS[7]) ~= 'ONLINE' then
+          return 0
+        end
 
-      redis.call('ZREM', KEYS[1], ARGV[1])
-      redis.call('ZREM', KEYS[2], ARGV[1])
+        local t = redis.call('TIME')
+        local now = tonumber(t[1]) * 1000
+          + math.floor(tonumber(t[2]) / 1000)
 
-      redis.call(
-        'GEOADD',
-        KEYS[5],
-        ARGV[3],
-        ARGV[2],
-        ARGV[1]
-      )
+        for i = 1, 3 do
+          redis.call('ZREM', KEYS[i], ARGV[1])
+        end
 
-      redis.call(
-        'HSET',
-        KEYS[3],
-        'status', 'ONLINE',
-        'vehicle_id', ARGV[4],
-        'vehicle_type', ARGV[5],
-        'last_seen', tostring(now)
-      )
-
-      redis.call('EXPIRE', KEYS[3], 30)
-      redis.call('ZADD', KEYS[4], now, ARGV[1])
-
-      return 1
+        redis.call('GEOADD', KEYS[6], ARGV[3], ARGV[2], ARGV[1])
+        redis.call(
+          'HSET', KEYS[4],
+          'status', 'ONLINE',
+          'vehicle_id', ARGV[4],
+          'vehicle_type', ARGV[5],
+          'last_seen', tostring(now)
+        )
+        redis.call('EXPIRE', KEYS[4], 30)
+        redis.call('ZADD', KEYS[5], now, ARGV[1])
+        return 1
       `,
-      5,
-      this.carKey,
-      this.bikeKey,
+      7,
+      ...this.geoKeys,
       `driver:${driverId}:state`,
       this.seenKey,
-      targetKey,
+      `drivers:geo:${vehicle.vehicleType}`,
+      `driver:${driverId}:availability`,
       driverId,
       String(lat),
       String(lng),
       vehicle.id,
       vehicle.vehicleType,
     );
+
+    if (result !== 1) {
+      throw new Error('Driver is no longer ONLINE');
+    }
   }
 
-  async removeDriverLocation(
-    driverId: string,
-  ): Promise<void> {
+  async removeDriverLocation(driverId: string): Promise<void> {
     await this.client.eval(
       `
-      redis.call('ZREM', KEYS[1], ARGV[1])
-      redis.call('ZREM', KEYS[2], ARGV[1])
-      redis.call('ZREM', KEYS[3], ARGV[1])
-      redis.call('DEL', KEYS[4])
-
-      return 1
+        for i = 1, 3 do
+          redis.call('ZREM', KEYS[i], ARGV[1])
+        end
+        redis.call('ZREM', KEYS[4], ARGV[1])
+        redis.call('DEL', KEYS[5])
+        return 1
       `,
-      4,
-      this.carKey,
-      this.bikeKey,
+      5,
+      ...this.geoKeys,
       this.seenKey,
       `driver:${driverId}:state`,
       driverId,
     );
-
-    // Không xóa driver:<id>:lock.
-    // Khóa đó thuộc luồng Matching.
   }
 
   private async cleanupExpired(): Promise<void> {
@@ -158,39 +135,33 @@ export class RedisService
     try {
       await this.client.eval(
         `
-        local t = redis.call('TIME')
-        local now = tonumber(t[1]) * 1000
-          + math.floor(tonumber(t[2]) / 1000)
+          local t = redis.call('TIME')
+          local now = tonumber(t[1]) * 1000
+            + math.floor(tonumber(t[2]) / 1000)
 
-        local ids = redis.call(
-          'ZRANGEBYSCORE',
-          KEYS[3],
-          '-inf',
-          now - 30000,
-          'LIMIT',
-          0,
-          1000
-        )
+          local ids = redis.call(
+            'ZRANGEBYSCORE', KEYS[4],
+            '-inf', now - 30000,
+            'LIMIT', 0, 1000
+          )
 
-        for _, id in ipairs(ids) do
-          redis.call('ZREM', KEYS[1], id)
-          redis.call('ZREM', KEYS[2], id)
-          redis.call('ZREM', KEYS[3], id)
-          redis.call('DEL', 'driver:' .. id .. ':state')
-        end
+          for _, id in ipairs(ids) do
+            for i = 1, 3 do
+              redis.call('ZREM', KEYS[i], id)
+            end
+            redis.call('ZREM', KEYS[4], id)
+            redis.call('DEL', 'driver:' .. id .. ':state')
+          end
 
-        return #ids
+          return #ids
         `,
-        3,
-        this.carKey,
-        this.bikeKey,
+        4,
+        ...this.geoKeys,
         this.seenKey,
       );
-    } catch (error) {
+    } catch (cause) {
       this.logger.warn(
-        error instanceof Error
-          ? error.message
-          : 'Location cleanup failed',
+        cause instanceof Error ? cause.message : 'Cleanup failed',
       );
     } finally {
       this.cleaning = false;
@@ -198,10 +169,7 @@ export class RedisService
   }
 
   onModuleDestroy(): void {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer);
-    }
-
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer);
     this.client.disconnect();
   }
 }

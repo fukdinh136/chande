@@ -1,13 +1,15 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 
-import { DriverStatus } from '../../common/enums/driver-status.enum';
+import { AvailabilityService } from '../../availability/availability.service';
+import { DriverAccountStatus } from '../../common/enums/driver-account-status.enum';
 import { Driver } from '../driver/entities/driver.entity';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
@@ -18,51 +20,27 @@ export class VehicleService {
   constructor(
     @InjectRepository(Vehicle)
     private readonly vehicles: Repository<Vehicle>,
+    private readonly availability: AvailabilityService,
   ) {}
 
   private async lockDriver(
     manager: EntityManager,
     driverId: string,
-  ): Promise<Driver> {
+  ): Promise<void> {
     const driver = await manager.findOne(Driver, {
       where: { id: driverId },
-      lock: {
-        mode: 'pessimistic_write',
-      },
+      lock: { mode: 'pessimistic_write' },
     });
 
     if (!driver) {
       throw new NotFoundException('Driver not found');
     }
 
-    return driver;
-  }
-
-  private resolveBrandModel(
-    dto: UpdateVehicleDto,
-  ): string | undefined {
-    if (
-      dto.brandModel !== undefined &&
-      (dto.brand !== undefined || dto.model !== undefined)
-    ) {
-      throw new BadRequestException(
-        'Send brandModel OR brand/model, not both',
-      );
+    if (driver.accountStatus === DriverAccountStatus.BLOCKED) {
+      throw new ForbiddenException('Driver account is blocked');
     }
 
-    const value =
-      dto.brandModel ??
-      (dto.brand !== undefined || dto.model !== undefined
-        ? [dto.brand, dto.model].filter(Boolean).join(' ')
-        : undefined);
-
-    if (value !== undefined && value.trim().length > 100) {
-      throw new BadRequestException(
-        'Combined brand/model must not exceed 100 characters',
-      );
-    }
-
-    return value?.trim();
+    // PENDING vẫn được thêm xe để hoàn thiện hồ sơ.
   }
 
   async create(
@@ -70,29 +48,20 @@ export class VehicleService {
     dto: CreateVehicleDto,
   ): Promise<Vehicle> {
     return this.vehicles.manager.transaction(async (manager) => {
-      const driver = await this.lockDriver(manager, driverId);
+      await this.lockDriver(manager, driverId);
+
       const vehiclePlate = dto.vehiclePlate.trim().toUpperCase();
 
-      const plateExists = await manager.exists(Vehicle, {
-        where: { vehiclePlate },
-      });
-
-      if (plateExists) {
-        throw new ConflictException(
-          'A vehicle with this plate already exists',
-        );
+      if (await manager.exists(Vehicle, { where: { vehiclePlate } })) {
+        throw new ConflictException('Vehicle plate already exists');
       }
 
-      const hasActiveVehicle = await manager.exists(Vehicle, {
-        where: {
-          driverId,
-          isActive: true,
-        },
-      });
+      const isActive = dto.isActive ?? false;
 
-      const isActive = dto.isActive ?? !hasActiveVehicle;
-
-      if (isActive && driver.status !== DriverStatus.OFFLINE) {
+      if (
+        isActive &&
+        (await this.availability.get(driverId)) === 'ONLINE'
+      ) {
         throw new BadRequestException(
           'Go offline before changing the active vehicle',
         );
@@ -101,13 +70,8 @@ export class VehicleService {
       if (isActive) {
         await manager.update(
           Vehicle,
-          {
-            driverId,
-            isActive: true,
-          },
-          {
-            isActive: false,
-          },
+          { driverId, isActive: true },
+          { isActive: false },
         );
       }
 
@@ -115,8 +79,8 @@ export class VehicleService {
         driverId,
         vehiclePlate,
         vehicleType: dto.vehicleType,
-        brandModel: this.resolveBrandModel(dto),
-        color: dto.color?.trim(),
+        brandModel: dto.brandModel.trim(),
+        color: dto.color.trim(),
         isActive,
       });
 
@@ -127,9 +91,7 @@ export class VehicleService {
   async findMyVehicles(driverId: string): Promise<Vehicle[]> {
     return this.vehicles.find({
       where: { driverId },
-      order: {
-        createdAt: 'DESC',
-      },
+      order: { createdAt: 'DESC' },
     });
   }
 
@@ -138,16 +100,11 @@ export class VehicleService {
     vehicleId: string,
   ): Promise<Vehicle> {
     const vehicle = await this.vehicles.findOne({
-      where: {
-        id: vehicleId,
-        driverId,
-      },
+      where: { id: vehicleId, driverId },
     });
 
     if (!vehicle) {
-      throw new NotFoundException(
-        'Vehicle not found or does not belong to this driver',
-      );
+      throw new NotFoundException('Vehicle not found');
     }
 
     return vehicle;
@@ -159,42 +116,45 @@ export class VehicleService {
     dto: UpdateVehicleDto,
   ): Promise<Vehicle> {
     return this.vehicles.manager.transaction(async (manager) => {
-      const driver = await this.lockDriver(manager, driverId);
+      await this.lockDriver(manager, driverId);
 
       const vehicle = await manager.findOne(Vehicle, {
-        where: {
-          id: vehicleId,
-          driverId,
-        },
+        where: { id: vehicleId, driverId },
       });
 
       if (!vehicle) {
-        throw new NotFoundException(
-          'Vehicle not found or does not belong to this driver',
-        );
+        throw new NotFoundException('Vehicle not found');
       }
 
       if (
-        driver.status !== DriverStatus.OFFLINE &&
-        (vehicle.isActive || dto.isActive === true)
+        (vehicle.isActive || dto.isActive === true) &&
+        (await this.availability.get(driverId)) === 'ONLINE'
       ) {
         throw new BadRequestException(
-          'Go offline before changing the active vehicle',
+          'Go offline before editing or changing the active vehicle',
         );
       }
 
       if (dto.vehiclePlate !== undefined) {
-        vehicle.vehiclePlate = dto.vehiclePlate.trim().toUpperCase();
+        const vehiclePlate = dto.vehiclePlate.trim().toUpperCase();
+
+        const duplicate = await manager.findOne(Vehicle, {
+          where: { vehiclePlate },
+        });
+
+        if (duplicate && duplicate.id !== vehicle.id) {
+          throw new ConflictException('Vehicle plate already exists');
+        }
+
+        vehicle.vehiclePlate = vehiclePlate;
       }
 
       if (dto.vehicleType !== undefined) {
         vehicle.vehicleType = dto.vehicleType;
       }
 
-      const brandModel = this.resolveBrandModel(dto);
-
-      if (brandModel !== undefined) {
-        vehicle.brandModel = brandModel;
+      if (dto.brandModel !== undefined) {
+        vehicle.brandModel = dto.brandModel.trim();
       }
 
       if (dto.color !== undefined) {
@@ -204,13 +164,8 @@ export class VehicleService {
       if (dto.isActive === true) {
         await manager.update(
           Vehicle,
-          {
-            driverId,
-            isActive: true,
-          },
-          {
-            isActive: false,
-          },
+          { driverId, isActive: true },
+          { isActive: false },
         );
       }
 

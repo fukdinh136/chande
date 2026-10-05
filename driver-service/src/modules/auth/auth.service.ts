@@ -15,6 +15,9 @@ import { RequestOtpDto } from './dto/request-otp.dto';
 import { OtpService } from './otp.service';
 import { PasswordService } from './password.service';
 
+import { ForbiddenException } from '@nestjs/common';
+import { DriverAccountStatus } from '../../common/enums/driver-account-status.enum';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -101,22 +104,28 @@ export class AuthService {
   }
 
   private async createSession(driver: Driver) {
+    if (driver.accountStatus === DriverAccountStatus.BLOCKED) {
+      throw new ForbiddenException('Driver account is blocked');
+    }
+
+    const profile = await this.driverService.findById(driver.id);
+
     const accessToken = await this.jwtService.signAsync({
       sub: driver.id,
       phone: driver.phone,
     });
 
-    // Chỉ trả các trường công khai, không trả passwordHash.
     return {
       authenticated: true,
       requiresRegistration: false,
       accessToken,
-
       driver: {
-        id: driver.id,
-        phone: driver.phone,
-        name: driver.name,
-        status: driver.status,
+        id: profile.id,
+        phone: profile.phone,
+        name: profile.name,
+        licenseNumber: profile.licenseNumber,
+        accountStatus: profile.accountStatus,
+        status: profile.status,
       },
     };
   }
