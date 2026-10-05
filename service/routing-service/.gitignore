@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+secrets/
+config/vehicle-profiles.json
+node_modules/
+.test-dist/
+coverage/
+*.tsbuildinfo
+dist/
+build/
+*.log

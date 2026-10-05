@@ -13,6 +13,15 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 | Trip Service | [Routes](../service/trip-service/docs/routes.md) | Đường dẫn public/internal/outbound, quyền và use case |
 | Trip Service | [Deploy](../service/trip-service/docs/deploy.md) | Cấu hình, migration, phát hành, rollback và vận hành |
 | Trip Service | [Báo cáo triển khai](../service/trip-service/docs/bao-cao-trien-khai.md) | Những phần đã làm, commit, kiểm thử, Docker và giới hạn tích hợp |
+| Routing Service | [Mục lục thiết kế](../service/routing-service/README.md) | Thiết kế theo C3 và OSRM, trạng thái triển khai và file cấu hình local |
+| Routing Service | [Nghiệp vụ](../service/routing-service/docs/nghiep-vu.md) | Ranh giới, calculate route, ETA matrix, recalculate và user story |
+| Routing Service | [Kiến trúc và C3](../service/routing-service/docs/kien-truc.md) | Dispatcher, bounded queue, worker pool, limiter, OSRM adapter, Realtime Client và chiều trả kết quả |
+| Routing Service | [API](../service/routing-service/docs/api.md) | Contract Trip tương thích, full route, matrix lấy vị trí qua Realtime, recalculate và OSRM mapping |
+| Routing Service | [Routes](../service/routing-service/docs/routes.md) | Inbound/outbound, caller scopes và private exposure |
+| Routing Service | [Cấu hình](../service/routing-service/docs/cau-hinh.md) | Endpoint OSRM, proxy key tùy chọn, vehicle profiles và secrets |
+| Routing Service | [Deploy](../service/routing-service/docs/deploy.md) | Kế hoạch local/production, dataset OSRM, probes, lifecycle và rollback |
+| Routing Service | [Realtime Client](../service/routing-service/docs/realtime-client.md) | ETA Matrix lấy vị trí driver trong bán kính 2 km qua client Routing để tính ETA trả Matching |
+| Routing Service | [Kế hoạch phát triển](../service/routing-service/docs/ke-hoach-phat-trien.md) | F00–F11, dependency, acceptance, test và commit theo feature |
 
 ## Cách sử dụng
 
