@@ -36,6 +36,11 @@
     "typeorm": "^0.3.31",
     "zod": "^4.6.5"
   },
+  "overrides": {
+    "@nestjs/swagger": {
+      "js-yaml": "5.4.2"
+    }
+  },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^24.19.1",
