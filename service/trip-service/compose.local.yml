@@ -3,6 +3,7 @@ x-app: &app
   image: chande-trip:local
   build: .
   init: true
+  mem_limit: 256m
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
   stop_grace_period: 45s
@@ -30,6 +31,7 @@ x-environment: &environment
 services:
   trip-db:
     image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    mem_limit: 512m
     environment: {POSTGRES_USER: trip_local, POSTGRES_PASSWORD: trip_local, POSTGRES_DB: trip_local}
     ports: ['127.0.0.1:55433:5432']
     volumes: [trip-data:/var/lib/postgresql]

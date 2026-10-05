@@ -2,7 +2,7 @@
 set -eu
 migration_password="$(cat /run/secrets/migration-password)"
 runtime_password="$(cat /run/secrets/runtime-password)"
-psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=migration_password="$migration_password" --set=runtime_password="$runtime_password" <<'SQL'
+psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1 --set=migration_password="$migration_password" --set=runtime_password="$runtime_password" <<'SQL'
 CREATE ROLE trip_migrator LOGIN PASSWORD :'migration_password';
 CREATE ROLE trip_runtime LOGIN PASSWORD :'runtime_password';
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
