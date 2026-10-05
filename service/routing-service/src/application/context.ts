@@ -1,7 +1,8 @@
 import type { Clock, Context } from './ports/clients';
-import { deadline } from '../domain/errors';
+import { deadline, RoutingError } from '../domain/errors';
 export function checkpoint(context: Context, clock: Clock): void {
-  if (context.signal.aborted || clock.now() >= context.deadline) throw deadline();
+  if (clock.now() >= context.deadline) throw deadline();
+  if (context.signal.aborted) throw context.signal.reason instanceof RoutingError ? context.signal.reason : deadline();
 }
 export function wait(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {

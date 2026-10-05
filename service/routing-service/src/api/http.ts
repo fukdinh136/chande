@@ -7,7 +7,7 @@ import { Catch, Controller, Get, Post, HttpCode, Inject, Module, Req, Res, HttpE
 import { ApiBody, ApiSecurity, ApiTags, DocumentBuilder, SwaggerModule, type SchemaObject } from '@nestjs/swagger';
 import { RoutingRuntime } from '../bootstrap/runtime';
 import { RoutingError } from '../domain/errors';
-import { estimateSchema, routeRequestSchema } from '../domain/requests';
+import { estimateSchema, routeRequestSchema, matrixRequestSchema } from '../domain/requests';
 import type { Context } from '../application/ports/clients';
 interface RoutingRequest extends Request { routing: { requestId: string; started: number } }
 function bodySchema(schema: z.ZodType): SchemaObject { const json = z.toJSONSchema(schema, { io: 'input' }); delete json.$schema; return json as unknown as SchemaObject; }
@@ -41,6 +41,7 @@ class RoutingController {
   private async execute(req: RoutingRequest, res: Response, caller: 'trip' | 'gateway' | 'matching', action: (context: Context) => Promise<unknown>) {
     authorize(req, this.runtime, caller);
     const controller = new AbortController(); const abort = () => controller.abort();
+    const untrack = this.runtime.track(controller);
     const disconnect = () => { if (!res.writableEnded) abort(); };
     const deadline = req.routing.started + this.runtime.config.limits.deadline;
     const timer = setTimeout(abort, Math.max(1, deadline - this.runtime.clock.now()));
@@ -48,7 +49,7 @@ class RoutingController {
     try {
       const data = await action({ requestId: req.routing.requestId, deadline, signal: controller.signal });
       return { data, meta: { requestId: req.routing.requestId } };
-    } finally { clearTimeout(timer); req.off('aborted', abort); res.off('close', disconnect); }
+    } finally { clearTimeout(timer); req.off('aborted', abort); res.off('close', disconnect); untrack(); }
   }
   @Post('internal/routes/estimate') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(estimateSchema) })
   estimate(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
@@ -57,6 +58,10 @@ class RoutingController {
   @Post('routes') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(routeRequestSchema) })
   route(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
     return this.execute(req, res, 'gateway', ctx => this.runtime.route.full(req.body, ctx));
+  }
+  @Post('routes/matrix') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(matrixRequestSchema) })
+  matrix(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
+    return this.execute(req, res, 'matching', ctx => this.runtime.matrix.execute(req.body, ctx));
   }
   @Get('health/live') live() { return { status: 'ok' }; }
   @Get('health/ready') ready() {

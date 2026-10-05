@@ -14,10 +14,13 @@ Ngày: 06/10/2026. Cập nhật theo từng feature; kết quả kiểm thử d�
 | F06 | NestJS API, caller tokens/scopes, strict DTO/envelope, correlation, OpenAPI và probes | 31 tests tổng; HTTP lỗi/size/auth và `app.close()` với request đang chạy | Xem lịch sử `feat(routing): expose authenticated routing HTTP API` |
 | F07 | Cross-service test dùng `RoutingClient` và `EstimateTrip` thật qua Routing HTTP | 2 cross-service tests; failure/timeout không gọi Pricing hoặc lưu quote | Xem lịch sử `test(routing): verify Trip estimate compatibility` |
 | F11 (phần port/mock) | Realtime Client validate snapshot, timeout/cancel/response cap; mock vị trí quanh pickup | 3 unit tests; HTTP adapter thật chờ contract | Xem lịch sử `feat(routing): add realtime driver location client` |
+| F08 | ETA Matrix gọi Realtime, batch driver→pickup, giữ metadata; scope Matching | 4 orchestration + 1 HTTP tests; 39 tests tổng | Xem lịch sử `feat(routing): calculate candidate ETA matrices` |
 
 Queue đầy trả `ROUTING_BUSY` ngay, nằm trong admission budget; không tạo hàng đợi chờ admission ngoài capacity. Queue age vẫn bị giới hạn riêng. Limiter chạy trong worker, mọi retry cần permit mới.
 
 Shutdown pool ở `beforeApplicationShutdown`, trước khi Nest đóng HTTP adapter; sau grace abort các job còn lại. Body trên 64 KiB trả 413 `INVALID_REQUEST`. OpenAPI `/docs` và `/docs-json` chỉ bật ngoài production khi cấu hình cho phép.
+
+Matrix dùng deadline chung gồm lookup và mọi batch, không sort/chọn driver và không nhận candidates từ Matching. Empty thành công, dependency lỗi không thành empty; quá cap không cắt danh sách. Runtime chặn `REALTIME_INTEGRATION_MODE=real` nếu chưa có wire adapter đã xác nhận; không tự fallback mock. Số HTTP request đang xử lý cũng bị giới hạn bằng queue size + worker count, bao gồm lookup ngoài map queue.
 
 ## Đầu vào tích hợp còn thiếu
 

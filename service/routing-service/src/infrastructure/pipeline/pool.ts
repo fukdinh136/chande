@@ -29,7 +29,7 @@ export class WorkerPool implements MapDispatcher {
     if (!this.accepting || (this.active.size >= this.limits.workers && this.queue.length >= this.limits.queueSize)) return Promise.reject(busy());
     return new Promise((resolve, reject) => {
       const controller = new AbortController(); const local = { ...context, signal: controller.signal };
-      const cancel = () => controller.abort(deadline());
+      const cancel = () => controller.abort(context.signal.reason instanceof RoutingError ? context.signal.reason : deadline());
       const timer = setTimeout(cancel, Math.max(1, context.deadline - this.clock.now()));
       const pending: Pending = { job, context: local, controller, resolve, reject, cleanup: () => { clearTimeout(timer); clearTimeout(pending.queueTimer); context.signal.removeEventListener('abort', cancel); controller.signal.removeEventListener('abort', remove); } };
       const remove = () => {

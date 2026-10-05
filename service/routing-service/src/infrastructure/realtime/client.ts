@@ -8,7 +8,7 @@ export class RealtimeClient implements RealtimeLocationPort {
   constructor(private readonly source: RealtimeLocationPort, private readonly settings: Config['realtime'], private readonly clock: Clock) {}
   async findNearbyDriverLocations(center: Location, context: Context): Promise<DriverLocation[]> {
     checkpoint(context, this.clock);
-    const controller = new AbortController(); const cancel = () => controller.abort(deadline());
+    const controller = new AbortController(); const cancel = () => controller.abort(context.signal.reason instanceof RoutingError ? context.signal.reason : deadline());
     context.signal.addEventListener('abort', cancel, { once: true });
     const timer = setTimeout(() => controller.abort(this.clock.now() >= context.deadline ? deadline() : new RoutingError('REALTIME_DEADLINE_EXCEEDED', 504)), Math.max(1, Math.min(this.settings.timeout, context.deadline - this.clock.now())));
     try {
