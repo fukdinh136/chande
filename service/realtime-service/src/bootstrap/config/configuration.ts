@@ -23,7 +23,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const freshnessMs = integer('LOCATION_FRESHNESS_MS', 30000, 30000);
   const orderRetentionMs = integer('LOCATION_ORDER_RETENTION_MS', 86400000, 604800000);
   if (orderRetentionMs <= freshnessMs) throw new Error('Order retention must exceed GPS freshness');
+  if (value('RABBITMQ_URL')) {
+    if (!['amqp:', 'amqps:'].includes(new URL(value('RABBITMQ_URL')).protocol)) throw new Error('Invalid RABBITMQ_URL');
+    url('MATCHING_BASE_URL'); credential('MATCHING_REALTIME_TOKEN');
+  }
   return {
+    rabbitUrl: value('RABBITMQ_URL'), matchingUrl: value('MATCHING_BASE_URL'), matchingToken: value('MATCHING_REALTIME_TOKEN'),
     port: integer('PORT', 3004, 65535), redisUrl,
     redisTimeoutMs: integer('REDIS_TIMEOUT_MS', 3000, 60000),
     jwksUrl: url('AUTH_JWKS_URL'), issuer: required('AUTH_JWT_ISSUER'), audience: value('AUTH_JWT_AUDIENCE') || 'realtime-service',

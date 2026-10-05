@@ -14,6 +14,9 @@ test('PostgreSQL receipt replay/conflict, terminal marker and lease survive reco
     await assert.rejects(call({ a: 2 }), /IDEMPOTENCY_CONFLICT/);
     assert.equal((await repo.getSearch(id))?.status, 'CANCELLED');
     assert.ok(!(await repo.claim(100, 1000)).some(c => c.trip_id === id));
+    const active = randomUUID(); await repo.transaction(tx => tx.saveSearch({ tripId: active, status: 'SEARCHING', command: null, offerId: null, attempts: 0 }));
+    const claims = await repo.claim(100, 1000); const claimed = claims.find(c => c.trip_id === active); assert.ok(claimed?.lease_id);
+    assert.ok(!(await repo.claim(100, 1000)).some(c => c.trip_id === active)); await repo.finishLease(active, claimed.lease_id);
     const commands = new Commands(repo);
     await commands.search({ commandId: randomUUID(), tripId: id } as Command);
     assert.equal((await repo.getSearch(id))?.status, 'CANCELLED');

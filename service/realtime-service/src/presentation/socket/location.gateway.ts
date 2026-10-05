@@ -10,14 +10,17 @@ import { RealtimeError } from '../../domain/errors';
 import { LocationDto } from './dto/location.dto';
 import { envelope, errorResponse } from '../http/response';
 import { DriverSocketGuard, SocketSession } from './guards/driver-socket.guard';
+import { OfferConsumer } from '../../infrastructure/offers/consumer';
 @WebSocketGateway({ namespace: '/realtime', transports: ['websocket'], maxHttpBufferSize: 4096 })
 export class LocationGateway implements OnGatewayInit, OnGatewayDisconnect {
   constructor(
     @Inject(TOKEN_VERIFIER) private readonly verifier: TokenVerifier,
     @Inject(UpdateLocation) private readonly update: UpdateLocation,
     private readonly guard: DriverSocketGuard,
+    @Inject(OfferConsumer) private readonly offers: OfferConsumer,
   ) {}
   afterInit(server: Namespace) {
+    this.offers.attach(server);
     server.use((socket, next) => {
       void (async () => {
         const auth: unknown = socket.handshake.auth;
@@ -37,6 +40,8 @@ export class LocationGateway implements OnGatewayInit, OnGatewayDisconnect {
       const state = socket.data as SocketSession;
       state.expiryTimer = setTimeout(() => socket.disconnect(true), Math.min(2147483647, Math.max(1, state.identity!.expiresAt - Date.now())));
       state.expiryTimer.unref();
+      void socket.join('driver:' + state.identity!.driverId);
+      void this.offers.replay(state.identity!.driverId).catch(() => {});
     });
   }
   handleDisconnect(socket: Socket) {

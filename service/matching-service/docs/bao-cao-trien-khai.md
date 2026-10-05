@@ -23,3 +23,9 @@ Local: Trip unit 55, Routing unit 30, Driver unit/contract/e2e 25, Price unit 5 
 ## M05
 
 REST nội bộ và driver, strict schemas, credential scopes, durable decision receipts và assignment reconciliation đã triển khai. Callback giữ snapshot/eventId; network mất ACK sau Trip commit được xác nhận bằng matching-state, không gửi assignment mới. Local PostgreSQL/HTTP tests: replay accept, key conflict, decline sau accept, ownership, scope token và cancel sau assignment không mở lại reservation. Worker có lease renewal, backoff và job giới hạn thời gian.
+
+## M06
+
+Publisher persistent/mandatory/confirms, durable queue, manual ACK, delay queues và DLQ đã triển khai. Realtime join room từ JWT, truy vấn offer authoritative trước phát/reconnect; cache Redis giữ version/tombstone 7 ngày, không reset expiresAt. RabbitMQ thật và PostgreSQL: publisher chỉ đánh dấu delivered sau confirm, giữ message ID. Realtime test kiểm tra message cũ sau revoke, duplicate, expiry, đúng driver room và malformed.
+
+Matching: 5 unit + 4 PostgreSQL/RabbitMQ integration tests pass; Realtime build/lint + consumer test pass. CTE claim sửa để final SELECT trả rows trực tiếp, tránh tuple UPDATE của TypeORM; đã thêm test claim positive và lease exclusion.

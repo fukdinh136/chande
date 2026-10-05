@@ -18,9 +18,11 @@ import { DriverSocketGuard } from '../../presentation/socket/guards/driver-socke
 import { NearbyController } from '../../presentation/http/controllers/nearby.controller';
 import { HealthController } from '../../presentation/http/controllers/health.controller';
 import { ROUTING_CREDENTIAL, RoutingServiceGuard } from '../../presentation/http/guards/routing-service.guard';
+import { OfferConsumer } from '../../infrastructure/offers/consumer';
 @Module({
   controllers: [NearbyController, HealthController],
   providers: [
+    { provide: OfferConsumer, inject: [RedisConnection, CONFIG], useFactory: (r: RedisConnection, c: Config) => new OfferConsumer(r.client, c) },
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: RedisConnection, inject: [CONFIG], useFactory: (c: Config) => new RedisConnection(c.redisUrl, c.redisTimeoutMs) },
     { provide: LOCATION_STORE, inject: [RedisConnection, CONFIG], useFactory: (r: RedisConnection, c: Config) => new RedisLocationRepository(r.client, c.freshnessMs, c.maxFutureMs, c.orderRetentionMs, c.minIntervalMs, c.cleanupBatch, c.maxCandidates) },
