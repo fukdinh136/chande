@@ -10,6 +10,7 @@ Ngày: 06/10/2026. Cập nhật theo từng feature; kết quả kiểm thử d�
 | F02 | Mock và OSRM Route/Table, fetch có giới hạn/cancel, polyline6 và error mapping | 17 tests tổng; 6 adapter contract tests dùng HTTP fixture | Xem lịch sử `feat(routing): add OSRM route and table adapters` |
 | F03 | Token bucket request/burst và sliding-window budget matrix theo từng attempt | 4 tests dùng fake monotonic clock; 21 tests tổng | Xem lịch sử `feat(routing): bound outbound request and matrix rates` |
 | F04 | Bounded queue, pool async, deadline/cancel, retry qua limiter, bounded shutdown | 4 tests concurrency/cancel/deadline/shutdown; 25 tests tổng | Xem lịch sử `feat(routing): dispatch jobs through bounded worker pool` |
+| F05 | Calculate Route: estimate strict hai trường, full route; validate trước dispatch | 27 tests tổng; invalid vehicle/input không gọi provider | Xem lịch sử `feat(routing): implement calculate route views` |
 
 Queue đầy trả `ROUTING_BUSY` ngay, nằm trong admission budget; không tạo hàng đợi chờ admission ngoài capacity. Queue age vẫn bị giới hạn riêng. Limiter chạy trong worker, mọi retry cần permit mới.
 
