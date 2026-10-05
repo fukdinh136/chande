@@ -1,7 +1,21 @@
 {
-  "schemaVersion": 1,
-  "vehicleTypes": {
-    "CAR": {"profile": "driving", "baseUrl": null},
-    "BIKE": {"profile": null, "baseUrl": null}
-  }
+    "schemaVersion":  1,
+    "vehicleTypes":  {
+                         "CAR":  {
+                                     "profile":  "driving",
+                                     "baseUrl":  null
+                                 },
+                         "BIKE":  {
+                                      "profile":  null,
+                                      "baseUrl":  null
+                                  },
+                         "CAR_4":  {
+                                       "profile":  "driving",
+                                       "baseUrl":  null
+                                   },
+                         "CAR_7":  {
+                                       "profile":  "driving",
+                                       "baseUrl":  null
+                                   }
+                     }
 }

@@ -7,7 +7,7 @@ export class CalculateEtaMatrix {
   constructor(private readonly realtime: RealtimeLocationPort, private readonly dispatcher: MapDispatcher, private readonly clock: Clock, private readonly vehicles: readonly string[], private readonly capacity: { matrixCandidates: number; matrixBatch: number; elementsPerMinute: number }) {}
   async execute(value: unknown, context: Context) {
     const input = request(matrixRequestSchema, value); requireVehicle(input.vehicleType, this.vehicles); checkpoint(context, this.clock);
-    const drivers = driverSnapshot(await this.realtime.findNearbyDriverLocations(input.pickup, context)); checkpoint(context, this.clock);
+    const drivers = driverSnapshot(await this.realtime.findNearbyDriverLocations(input.pickup, context, input.vehicleType)); checkpoint(context, this.clock);
     if (drivers.length > this.capacity.matrixCandidates) throw busy();
     const entries: (DriverLocation & Cell)[] = [];
     const size = Math.min(this.capacity.matrixBatch, this.capacity.elementsPerMinute);

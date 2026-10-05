@@ -15,6 +15,7 @@ import { HttpOtp } from "../../infrastructure/otp/http-otp";
 import { RedisState } from "../../infrastructure/redis/redis-state";
 import { HttpTripActive } from "../../infrastructure/clients/trip-active.client";
 import { Config } from "../config/configuration";
+import { HttpOccupancy } from '../../infrastructure/clients/occupancy.client';
 export const CONTEXT = "DRIVER_CONTEXT";
 export class DriverContext {
   readonly store: PostgresStore;
@@ -89,7 +90,7 @@ export class DriverContext {
       state,
       config.vehicleTypes,
     );
-    this.batchEligibility = new BatchEligibilityUseCase(this.store, state, config.vehicleTypes);
+    this.batchEligibility = new BatchEligibilityUseCase(this.store, state, config.vehicleTypes, config.tripLookupToken && config.matchingLookupToken && config.matchingUrl ? new HttpOccupancy(config.tripUrl, config.tripLookupToken, config.matchingUrl, config.matchingLookupToken, config.httpTimeout) : undefined);
   }
   async onModuleInit() {
     await this.store.assertSchema();

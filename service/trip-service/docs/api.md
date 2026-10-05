@@ -223,7 +223,7 @@ Lỗi: 400 DTO; 404 người ngoài/không có chuyến; 409 version cũ hoặc 
 
 Matching chỉ gửi sau khi tài xế chấp nhận; snapshot phải lấy từ nguồn Driver hợp lệ, loại xe khớp quote. Trip ghi assignedAt bằng thời gian server. Callback không nhận trạng thái/giá tùy ý hoặc quyền ép gán tài xế bận.
 
-**200** là assignment đã commit, không chỉ đã nhận HTTP:
+**202** là assignment đã commit, không chỉ đã nhận HTTP:
 
 ```json
 {

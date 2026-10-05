@@ -10,7 +10,7 @@ import { CancelTrip } from '../application/use-cases/cancel';
 import { JsonHttpClient } from '../infrastructure/clients/http';
 import { RoutingClient } from '../infrastructure/clients/routing';
 import { PricingClient } from '../infrastructure/clients/pricing';
-import { JwtVerifier, type IdentityVerifier } from '../api/auth';
+import { JwtVerifier, RoleIdentity, type IdentityVerifier } from '../api/auth';
 import type { Runtime } from '../application/ports/clients';
 export class TripContext {
   readonly estimate: EstimateTrip; readonly create: CreateTrip; readonly assignment: ReceiveAssignment;
@@ -20,6 +20,6 @@ export class TripContext {
     this.estimate = new EstimateTrip(store, new RoutingClient(new JsonHttpClient(config.routingUrl, config.routingToken, config.httpTimeout)), new PricingClient(new JsonHttpClient(config.pricingUrl, config.pricingToken, config.httpTimeout)), runtime, config.vehicleTypes);
     this.create = new CreateTrip(store, runtime); this.assignment = new ReceiveAssignment(store, runtime);
     this.get = new GetTrip(store, new HistoryCursor(config.cursorKey)); this.update = new UpdateTrip(store, runtime); this.cancel = new CancelTrip(store, runtime);
-    this.identity = identity ?? new JwtVerifier(config);
+    this.identity = identity ?? (config.driverJwksUrl && config.driverIssuer ? new RoleIdentity(new JwtVerifier(config), new JwtVerifier({ ...config, jwksUrl: config.driverJwksUrl, issuer: config.driverIssuer })) : new JwtVerifier(config));
   }
 }

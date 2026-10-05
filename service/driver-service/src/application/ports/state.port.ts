@@ -1,5 +1,6 @@
 import { DesiredStatus } from "../../domain/driver/status";
 export interface State {
+  project?(id: string, status: 'AVAILABLE' | 'BUSY' | 'OFFLINE' | 'UNKNOWN'): Promise<void>;
   read(
     id: string,
   ): Promise<{

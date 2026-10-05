@@ -1,8 +1,25 @@
 {
-  "schemaVersion": 1,
-  "vehicleTypes": {
-    "CAR": { "profile": "mock_car", "baseUrl": null },
-    "BIKE": { "profile": "mock_motorcycle", "baseUrl": null },
-    "MOCK_BIKE": { "profile": "mock_motorcycle", "baseUrl": null }
-  }
+    "schemaVersion":  1,
+    "vehicleTypes":  {
+                         "CAR":  {
+                                     "profile":  "mock_car",
+                                     "baseUrl":  null
+                                 },
+                         "BIKE":  {
+                                      "profile":  "mock_motorcycle",
+                                      "baseUrl":  null
+                                  },
+                         "MOCK_BIKE":  {
+                                           "profile":  "mock_motorcycle",
+                                           "baseUrl":  null
+                                       },
+                         "CAR_4":  {
+                                       "profile":  "mock_car",
+                                       "baseUrl":  null
+                                   },
+                         "CAR_7":  {
+                                       "profile":  "mock_car",
+                                       "baseUrl":  null
+                                   }
+                     }
 }

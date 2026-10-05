@@ -6,7 +6,7 @@ import { checkpoint } from '../../application/context';
 /** Wire adapter can be injected once the Realtime API contract is supplied. No endpoint is invented here. */
 export class RealtimeClient implements RealtimeLocationPort {
   constructor(private readonly source: RealtimeLocationPort, private readonly settings: Config['realtime'], private readonly clock: Clock) {}
-  async findNearbyDriverLocations(center: Location, context: Context): Promise<DriverLocation[]> {
+  async findNearbyDriverLocations(center: Location, context: Context, vehicleType?: string): Promise<DriverLocation[]> {
     checkpoint(context, this.clock);
     const controller = new AbortController(); const cancel = () => controller.abort(context.signal.reason instanceof RoutingError ? context.signal.reason : deadline());
     context.signal.addEventListener('abort', cancel, { once: true });
@@ -18,7 +18,7 @@ export class RealtimeClient implements RealtimeLocationPort {
         const abort = () => { cleanup(); reject(controller.signal.reason); };
         const cleanup = () => controller.signal.removeEventListener('abort', abort);
         controller.signal.addEventListener('abort', abort, { once: true });
-        Promise.resolve().then(() => { checkpoint({ ...context, signal: controller.signal }, this.clock); return this.source.findNearbyDriverLocations(center, { ...context, signal: controller.signal }); }).then(value => { cleanup(); resolve(value); }, error => { cleanup(); reject(error); });
+        Promise.resolve().then(() => { checkpoint({ ...context, signal: controller.signal }, this.clock); return this.source.findNearbyDriverLocations(center, { ...context, signal: controller.signal }, vehicleType); }).then(value => { cleanup(); resolve(value); }, error => { cleanup(); reject(error); });
       });
       checkpoint(context, this.clock);
       let size: number; try { size = Buffer.byteLength(JSON.stringify(raw)); } catch { throw new RoutingError('INVALID_REALTIME_RESPONSE', 503); }

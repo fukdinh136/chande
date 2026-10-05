@@ -49,7 +49,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     throw new Error("Invalid vehicle types");
   const issuer = required("AUTH_JWT_ISSUER");
   const audience = (
-    env.AUTH_JWT_AUDIENCES ?? "driver-service,trip-service,realtime-service"
+    env.AUTH_JWT_AUDIENCES ?? "driver-service,trip-service,realtime-service,matching-service"
   )
     .split(",")
     .map((value) => value.trim());
@@ -96,6 +96,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     gatewayProxyToken: secret("GATEWAY_PROXY_TOKEN"),
     matchingToken,
     realtimeToken,
+    tripLookupToken: secret('TRIP_LOOKUP_TOKEN'),
+    matchingLookupToken: secret('MATCHING_LOOKUP_TOKEN'),
+    matchingUrl: env.MATCHING_BASE_URL ? url('MATCHING_BASE_URL') : '',
     vehicleTypes,
     maxVehicles: integer("MAX_VEHICLES", 20, 100),
   };

@@ -3,6 +3,7 @@ import { State } from "../../application/ports/state.port";
 import { DesiredStatus } from "../../domain/driver/status";
 import { DriverError } from "../../domain/value-objects/error";
 export class RedisState implements State {
+  project(id: string, status: 'AVAILABLE' | 'BUSY' | 'OFFLINE' | 'UNKNOWN') { return this.command(async () => { await this.redis.hset(`driver:${id}:state`, 'status', status); }); }
   constructor(
     private readonly redis: Redis,
     private readonly types: readonly string[],

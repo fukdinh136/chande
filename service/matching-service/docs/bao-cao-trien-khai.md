@@ -9,3 +9,9 @@ Kiểm tra tài liệu Markdown và đường dẫn. Các feature runtime sẽ g
 ## M01–M02
 
 Package/lockfile, compiler strict, JWT DRIVER, credential loader, domain và ranking đã triển khai. 4 unit tests pass; typecheck/lint pass. PostgreSQL riêng port 55435 kiểm chứng receipt race/replay/conflict, terminal trước search và reconnect; migration không synchronize hoặc đổi schema service khác.
+
+## M03
+
+Trip có credential riêng cho batch active-driver và lookup matching-state; tách verifier RIDER/DRIVER theo issuer được cấu hình. Driver batch nearby đối soát active Trip/reservation trước khi giữ lock Driver, projection không được suy từ GPS. Routing HTTP adapter dùng API Realtime đã merge, lọc wire fields/freshness và truyền vehicleType; cap 50/batch 25. Mapping CAR_4/CAR_7 giữ mức giá mẫu CAR hiện tại. Tài liệu callback sửa đúng 202.
+
+Local: Trip unit 55, Routing unit 30, Driver unit/contract/e2e 25, Price unit 5 pass; typecheck/lint các service pass. Chưa coi đây là kiểm chứng toàn bộ luồng Docker/Hà Nội.

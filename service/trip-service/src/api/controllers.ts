@@ -50,6 +50,24 @@ export class AssignmentController {
   constructor(@Inject(CONTEXT) private readonly context: TripContext) {}
   @Post(':id/assignment') @HttpCode(202) @tripParam() @body(assignmentBody) @response(202, responseEnvelope(assignmentResponse)) @ApiOperation({ operationId: 'assignTrip' })
   async assign(@Req() req: TripRequest, @Res({ passthrough: true }) res: Response, @Param('id') id: string, @Body() input: unknown) { return result(req, res, await this.context.assignment.execute(parse(uuid, id), parse(assignmentBody, input))); }
+  @Get(':id/matching-state')
+  async state(@Req() req: TripRequest, @Param('id') id: string) {
+    const trip = await this.context.store.transaction(tx => tx.findTrip(parse(uuid, id)));
+    return envelope(req, trip ? { tripId: trip.tripId, status: trip.status, driverId: trip.driverId, version: trip.version } : null);
+  }
+}
+@ApiTags('internal') @Controller('internal/trips')
+export class DriverLookupController {
+  constructor(@Inject(CONTEXT) private readonly context: TripContext) {}
+  @Post('active-drivers/batch') @HttpCode(200)
+  async activeDrivers(@Req() req: TripRequest, @Body() input: unknown) {
+    verifyServiceCredential(req.header('X-Service-Token'), this.context.config.driverLookupToken ?? '');
+    const { driverIds } = parse(z.object({ driverIds: z.array(uuid).min(1).max(100).refine(ids => new Set(ids).size === ids.length) }).strict(), input);
+    const items = await this.context.store.transaction(async tx => {
+      const result = []; for (const driverId of driverIds) { const trip = await tx.active({ sub: driverId, role: 'DRIVER' }); result.push({ driverId, tripId: trip?.tripId ?? null }); } return result;
+    });
+    return envelope(req, { items });
+  }
 }
 @ApiTags('health') @Controller('health')
 export class HealthController {

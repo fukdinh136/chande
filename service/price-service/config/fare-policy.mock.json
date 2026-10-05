@@ -1,8 +1,32 @@
 {
-  "schemaVersion": 1, "currency": "VND", "billingBasis": "distance",
-  "vehicleTypes": {
-    "CAR": { "openingFareVnd": "12000", "includedDistanceMeters": 1000, "pricePerKmVnd": "10000" },
-    "BIKE": { "openingFareVnd": "8000", "includedDistanceMeters": 1000, "pricePerKmVnd": "4000" },
-    "MOCK_BIKE": { "openingFareVnd": "8000", "includedDistanceMeters": 1000, "pricePerKmVnd": "4000" }
-  }
+    "schemaVersion":  1,
+    "currency":  "VND",
+    "billingBasis":  "distance",
+    "vehicleTypes":  {
+                         "CAR":  {
+                                     "openingFareVnd":  "12000",
+                                     "includedDistanceMeters":  1000,
+                                     "pricePerKmVnd":  "10000"
+                                 },
+                         "BIKE":  {
+                                      "openingFareVnd":  "8000",
+                                      "includedDistanceMeters":  1000,
+                                      "pricePerKmVnd":  "4000"
+                                  },
+                         "MOCK_BIKE":  {
+                                           "openingFareVnd":  "8000",
+                                           "includedDistanceMeters":  1000,
+                                           "pricePerKmVnd":  "4000"
+                                       },
+                         "CAR_4":  {
+                                       "openingFareVnd":  "12000",
+                                       "includedDistanceMeters":  1000,
+                                       "pricePerKmVnd":  "10000"
+                                   },
+                         "CAR_7":  {
+                                       "openingFareVnd":  "12000",
+                                       "includedDistanceMeters":  1000,
+                                       "pricePerKmVnd":  "10000"
+                                   }
+                     }
 }

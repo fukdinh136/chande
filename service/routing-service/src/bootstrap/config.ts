@@ -97,7 +97,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, options: { root
       queueSize: integer('QUEUE_MAX_SIZE', 50, 10000), admissionTimeout: integer('QUEUE_ADMISSION_TIMEOUT_MS', 100, 5000), queueWait: integer('ROUTING_JOB_MAX_WAIT_MS', 500, 10000),
       workers: integer('WORKER_POOL_SIZE', 2, 32), rps: integer('RATE_LIMIT_REQUESTS_PER_SECOND', 2, 10000), burst: integer('RATE_LIMIT_BURST', 2, 10000),
       rateWait: integer('RATE_LIMIT_WAIT_TIMEOUT_MS', 250, 10000), elementsPerMinute: integer('RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE', 100, 100000),
-      matrixCandidates: integer('MATRIX_MAX_CANDIDATES', 25, 1000), matrixBatch: integer('MATRIX_BATCH_MAX_ELEMENTS', 25, 1000), shutdownGrace: integer('SHUTDOWN_GRACE_MS', 5000, 60000),
+      matrixCandidates: integer('MATRIX_MAX_CANDIDATES', 50, 1000), matrixBatch: integer('MATRIX_BATCH_MAX_ELEMENTS', 25, 1000), shutdownGrace: integer('SHUTDOWN_GRACE_MS', 5000, 60000),
     },
   };
 }

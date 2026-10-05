@@ -25,6 +25,14 @@ export class JwtVerifier implements IdentityVerifier {
     }
   }
 }
+/** Trusted issuers are configured independently; role is restricted per issuer. */
+export class RoleIdentity implements IdentityVerifier {
+  constructor(private readonly rider: IdentityVerifier, private readonly driver: IdentityVerifier) {}
+  async verify(header: string | undefined): Promise<Principal> {
+    try { const p = await this.rider.verify(header); if (p.role === 'RIDER') return p; } catch (error) { if (error instanceof DomainError && error.code === 'DEPENDENCY_UNAVAILABLE') throw error; }
+    const p = await this.driver.verify(header); if (p.role !== 'DRIVER') throw new DomainError('UNAUTHENTICATED'); return p;
+  }
+}
 export function verifyServiceCredential(value: string | undefined, expected: string): void {
   const actual = Buffer.from(value ?? ''); const secret = Buffer.from(expected);
   if (!secret.length || actual.length !== secret.length || !timingSafeEqual(actual, secret)) throw new DomainError('INVALID_SERVICE_CREDENTIAL');

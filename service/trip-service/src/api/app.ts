@@ -7,10 +7,10 @@ import { json } from 'express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { z } from 'zod';
 import type { TripContext } from '../bootstrap/context';
-import { AssignmentController, CONTEXT, HealthController, MatchingGuard, TripsController, UserGuard } from './controllers';
+import { AssignmentController, DriverLookupController, CONTEXT, HealthController, MatchingGuard, TripsController, UserGuard } from './controllers';
 import { ErrorFilter, type TripRequest } from './http';
 export async function createApi(context: TripContext) {
-  @Module({ controllers: [TripsController, AssignmentController, HealthController], providers: [{ provide: CONTEXT, useValue: context }, UserGuard, MatchingGuard] })
+  @Module({ controllers: [TripsController, AssignmentController, DriverLookupController, HealthController], providers: [{ provide: CONTEXT, useValue: context }, UserGuard, MatchingGuard] })
   class ApiModule {}
   const app = await NestFactory.create<NestExpressApplication>(ApiModule, { logger: ['error', 'warn'], bodyParser: false });
   app.disable('x-powered-by');

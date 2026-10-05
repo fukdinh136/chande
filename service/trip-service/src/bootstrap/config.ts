@@ -5,6 +5,7 @@ export interface Config {
   production: boolean; port: number; workerPort: number; databaseUrl: string;
   poolSize: number; integrationMode: 'mock' | 'real'; vehicleTypes: string[];
   jwksUrl: string; issuer: string; audience: string; cursorKey: string; callbackToken: string;
+  driverLookupToken?: string; driverJwksUrl?: string; driverIssuer?: string;
   routingUrl: string; pricingUrl: string; matchingUrl: string; gatewayUrl: string; notificationUrl: string;
   routingToken: string; pricingToken: string; matchingToken: string; gatewayToken: string; notificationToken: string;
   httpTimeout: number; pollInterval: number; batchSize: number; concurrency: number;
@@ -54,6 +55,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, kind: ProcessKi
     port: integer('PORT', 3001, 65535), workerPort: integer('WORKER_HEALTH_PORT', 3002, 65535), poolSize: integer('DB_POOL_SIZE', 10, 100),
     jwksUrl, issuer: api ? required('AUTH_JWT_ISSUER') : '', audience: api ? required('AUTH_JWT_AUDIENCE') : '',
     cursorKey: secret('CURSOR_SIGNING_KEY', api), callbackToken: secret('MATCHING_CALLBACK_TOKEN', api),
+    driverLookupToken: secret('DRIVER_LOOKUP_TOKEN', false), driverJwksUrl: url('DRIVER_AUTH_JWKS_URL', false), driverIssuer: env.DRIVER_AUTH_JWT_ISSUER,
     routingUrl: url('ROUTING_BASE_URL', api), pricingUrl: url('PRICING_BASE_URL', api),
     matchingUrl: url('MATCHING_BASE_URL', worker), gatewayUrl: url('GATEWAY_EVENTS_BASE_URL', worker), notificationUrl: url('NOTIFICATION_BASE_URL', worker),
     routingToken: secret('ROUTING_TOKEN', api), pricingToken: secret('PRICING_TOKEN', api), matchingToken: secret('MATCHING_TOKEN', worker),

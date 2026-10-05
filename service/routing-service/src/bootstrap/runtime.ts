@@ -10,16 +10,16 @@ import { CalculateEtaMatrix } from '../application/use-cases/matrix';
 import { RecalculateRoute } from '../application/use-cases/recalculate';
 import { MockRealtimeLocations, RealtimeClient } from '../infrastructure/realtime/client';
 import { busy } from '../domain/errors';
+import { HttpRealtimeLocations } from '../infrastructure/realtime/http';
 export class RoutingRuntime implements BeforeApplicationShutdown {
   readonly pool: WorkerPool; readonly route: CalculateRoute; readonly matrix: CalculateEtaMatrix; readonly recalculate: RecalculateRoute;
   private requests = new Set<AbortController>(); private requestDrained: (() => void)[] = [];
   constructor(readonly config: Config, readonly clock: Clock = systemClock, provider?: MapProvider, realtime?: RealtimeLocationPort) {
-    if (config.realtime.mode === 'real' && !realtime) throw new Error('Realtime HTTP contract is not configured');
     const map = provider ?? (config.map.mode === 'mock' ? new MockMapProvider(clock) : new OsrmProvider(config, clock));
     this.pool = new WorkerPool(map, new RateLimiter(config.limits, clock), config.limits, clock);
     this.route = new CalculateRoute(this.pool, clock, config.vehicleTypes);
     this.recalculate = new RecalculateRoute(this.route);
-    this.matrix = new CalculateEtaMatrix(new RealtimeClient(realtime ?? new MockRealtimeLocations(clock), config.realtime, clock), this.pool, clock, config.vehicleTypes, config.limits);
+    this.matrix = new CalculateEtaMatrix(new RealtimeClient(realtime ?? (config.realtime.mode === 'real' ? new HttpRealtimeLocations(config.realtime) : new MockRealtimeLocations(clock)), config.realtime, clock), this.pool, clock, config.vehicleTypes, config.limits);
   }
   track(controller: AbortController): () => void {
     if (!this.pool.stats.accepting || this.requests.size >= this.config.limits.queueSize + this.config.limits.workers) throw busy();
