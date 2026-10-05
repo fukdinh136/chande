@@ -66,9 +66,11 @@ export class DriverContext {
       config.accessTtl,
       config.refreshTtl,
     );
+    const occupancy = config.tripLookupToken && config.matchingLookupToken && config.matchingUrl ? new HttpOccupancy(config.tripUrl, config.tripLookupToken, config.matchingUrl, config.matchingLookupToken, config.httpTimeout) : undefined;
     const policy = new EditPolicy(
       this.store,
       new HttpTripActive(config.tripUrl, config.httpTimeout),
+      occupancy,
     );
     this.profile = new ProfileUseCases(this.store, runtime, policy);
     this.vehicle = new VehicleUseCases(
@@ -84,13 +86,14 @@ export class DriverContext {
       state,
       policy,
       runtime,
+      occupancy,
     );
     this.eligibility = new EligibilityUseCase(
       this.store,
       state,
       config.vehicleTypes,
     );
-    this.batchEligibility = new BatchEligibilityUseCase(this.store, state, config.vehicleTypes, config.tripLookupToken && config.matchingLookupToken && config.matchingUrl ? new HttpOccupancy(config.tripUrl, config.tripLookupToken, config.matchingUrl, config.matchingLookupToken, config.httpTimeout) : undefined);
+    this.batchEligibility = new BatchEligibilityUseCase(this.store, state, config.vehicleTypes, occupancy);
   }
   async onModuleInit() {
     await this.store.assertSchema();

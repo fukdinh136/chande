@@ -20,6 +20,6 @@ export class TripContext {
     this.estimate = new EstimateTrip(store, new RoutingClient(new JsonHttpClient(config.routingUrl, config.routingToken, config.httpTimeout)), new PricingClient(new JsonHttpClient(config.pricingUrl, config.pricingToken, config.httpTimeout)), runtime, config.vehicleTypes);
     this.create = new CreateTrip(store, runtime); this.assignment = new ReceiveAssignment(store, runtime);
     this.get = new GetTrip(store, new HistoryCursor(config.cursorKey)); this.update = new UpdateTrip(store, runtime); this.cancel = new CancelTrip(store, runtime);
-    this.identity = identity ?? (config.driverJwksUrl && config.driverIssuer ? new RoleIdentity(new JwtVerifier(config), new JwtVerifier({ ...config, jwksUrl: config.driverJwksUrl, issuer: config.driverIssuer })) : new JwtVerifier(config));
+    this.identity = identity ?? (config.driverJwksUrl && config.driverIssuer ? new RoleIdentity(new JwtVerifier(config), new JwtVerifier({ ...config, jwksUrl: config.driverJwksUrl, issuer: config.driverIssuer }), config.issuer, config.driverIssuer) : new JwtVerifier(config));
   }
 }

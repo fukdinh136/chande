@@ -1,0 +1,212 @@
+name: chande-matching-local
+x-health: &health
+  interval: 5s
+  timeout: 3s
+  retries: 30
+  start_period: 10s
+x-matching: &matching
+  HOST: 0.0.0.0
+  NODE_ENV: development
+  DATABASE_URL: postgres://matching_local:matching_local@matching-db:5432/matching_local
+  RABBITMQ_URL: amqp://matching_local:matching_local@rabbitmq:5672
+  MATCHING_TRIP_TOKEN: local-trip-matching-token-00000001
+  MATCHING_DRIVER_TOKEN: local-driver-matching-token-000001
+  MATCHING_REALTIME_TOKEN: local-realtime-matching-token-0001
+  ROUTING_BASE_URL: http://routing-api:3004
+  ROUTING_MATCHING_TOKEN: local-matching-routing-token-0001
+  DRIVER_BASE_URL: http://driver-api:3008
+  DRIVER_MATCHING_TOKEN: local-matching-driver-token-00001
+  TRIP_BASE_URL: http://trip-api:3001
+  TRIP_MATCHING_TOKEN: local-matching-callback-token-0001
+  AUTH_JWKS_URL: http://driver-api:3008/.well-known/jwks.json
+  AUTH_JWT_ISSUER: chande-driver-local
+  AUTH_JWT_AUDIENCE: matching-service
+  SWAGGER_ENABLED: 'true'
+x-trip: &trip
+  NODE_ENV: development
+  INTEGRATION_MODE: real
+  DATABASE_URL: postgres://trip_local:trip_local@trip-db:5432/trip_local
+  SUPPORTED_VEHICLE_TYPES: CAR_4,CAR_7
+  AUTH_JWKS_URL: http://trip-mocks:3003/jwks
+  AUTH_JWT_ISSUER: chande-local
+  AUTH_JWT_AUDIENCE: trip-service
+  DRIVER_AUTH_JWKS_URL: http://driver-api:3008/.well-known/jwks.json
+  DRIVER_AUTH_JWT_ISSUER: chande-driver-local
+  CURSOR_SIGNING_KEY: local-only-matching-cursor-key-0001
+  MATCHING_CALLBACK_TOKEN: local-matching-callback-token-0001
+  DRIVER_LOOKUP_TOKEN: local-driver-trip-lookup-token-001
+  ROUTING_BASE_URL: http://routing-api:3004
+  PRICING_BASE_URL: http://price-api:3005
+  MATCHING_BASE_URL: http://matching-api:3007
+  GATEWAY_EVENTS_BASE_URL: http://trip-mocks:3003
+  NOTIFICATION_BASE_URL: http://trip-mocks:3003
+  ROUTING_TOKEN: local-trip-routing-token-00000001
+  PRICING_TOKEN: local-trip-pricing-token-00000001
+  MATCHING_TOKEN: local-trip-matching-token-00000001
+  GATEWAY_EVENTS_TOKEN: local-gateway
+  NOTIFICATION_TOKEN: local-notification
+  SWAGGER_ENABLED: 'true'
+services:
+  matching-db:
+    image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    environment: {POSTGRES_USER: matching_local, POSTGRES_PASSWORD: matching_local, POSTGRES_DB: matching_local}
+    volumes: [matching-data:/var/lib/postgresql]
+    ports: ['127.0.0.1:55436:5432']
+    healthcheck: {<<: *health, test: [CMD-SHELL, 'pg_isready -U matching_local -d matching_local']}
+  driver-db:
+    image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    environment: {POSTGRES_USER: driver_local, POSTGRES_PASSWORD: driver_local, POSTGRES_DB: driver_local}
+    volumes: [driver-data:/var/lib/postgresql, './test/fixtures/driver-local.sql:/docker-entrypoint-initdb.d/driver-local.sql:ro']
+    healthcheck: {<<: *health, test: [CMD-SHELL, 'pg_isready -U driver_local -d driver_local']}
+  trip-db:
+    image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    environment: {POSTGRES_USER: trip_local, POSTGRES_PASSWORD: trip_local, POSTGRES_DB: trip_local}
+    volumes: [trip-data:/var/lib/postgresql]
+    healthcheck: {<<: *health, test: [CMD-SHELL, 'pg_isready -U trip_local -d trip_local']}
+  redis:
+    image: redis:8-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+    command: [redis-server, --appendonly, 'yes']
+    volumes: [redis-data:/data]
+    healthcheck: {<<: *health, test: [CMD, redis-cli, ping]}
+  rabbitmq:
+    image: rabbitmq:4-management@sha256:8dd6e3570ddaa2ef82a6c3a8950e79c1f73893adfbdddbc374fc1f1ac8a0f5dd
+    environment: {RABBITMQ_DEFAULT_USER: matching_local, RABBITMQ_DEFAULT_PASS: matching_local, RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '+S 2:2 +A 4'}
+    volumes: [rabbit-data:/var/lib/rabbitmq]
+    healthcheck: {<<: *health, test: [CMD, rabbitmq-diagnostics, -q, ping]}
+  matching-migrate:
+    build: .
+    image: chande-matching:local
+    command: [node, dist/migrate.js]
+    environment: *matching
+    depends_on: {matching-db: {condition: service_healthy}}
+  matching-api:
+    build: .
+    image: chande-matching:local
+    init: true
+    read_only: true
+    environment: *matching
+    ports: ['127.0.0.1:3007:3007']
+    depends_on: {matching-migrate: {condition: service_completed_successfully}}
+    healthcheck: {<<: *health, test: [CMD, node, -e, "fetch('http://localhost:3007/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]}
+  matching-worker:
+    image: chande-matching:local
+    init: true
+    read_only: true
+    command: [node, dist/worker.js]
+    environment: *matching
+    stop_grace_period: 60s
+    depends_on: {matching-api: {condition: service_healthy}, trip-api: {condition: service_healthy}, routing-api: {condition: service_healthy}, realtime-api: {condition: service_healthy}, rabbitmq: {condition: service_healthy}}
+    healthcheck: {<<: *health, test: [CMD, node, -e, "fetch('http://localhost:3017/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]}
+  trip-migrate:
+    build: ../trip-service
+    image: chande-matching-trip:local
+    command: [node, dist/migrate.js]
+    environment: *trip
+    depends_on: {trip-db: {condition: service_healthy}}
+  trip-mocks:
+    image: chande-matching-trip:local
+    command: [node, dist/mock.js]
+    environment: {<<: *trip, MOCK_TRIP_API_URL: 'http://trip-api:3001'}
+    volumes: [mock-data:/app/.mock-data]
+    ports: ['127.0.0.1:13003:3003']
+    depends_on: {trip-migrate: {condition: service_completed_successfully}}
+    healthcheck: {<<: *health, test: [CMD, node, -e, "fetch('http://localhost:3003/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]}
+  trip-api:
+    image: chande-matching-trip:local
+    init: true
+    environment: *trip
+    ports: ['127.0.0.1:13001:3001']
+    depends_on: {trip-migrate: {condition: service_completed_successfully}, trip-mocks: {condition: service_healthy}, routing-api: {condition: service_healthy}, price-api: {condition: service_healthy}}
+    healthcheck: {<<: *health, test: [CMD, node, -e, "fetch('http://localhost:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]}
+  trip-worker:
+    image: chande-matching-trip:local
+    init: true
+    command: [node, dist/worker.js]
+    environment: *trip
+    depends_on: {trip-api: {condition: service_healthy}, matching-api: {condition: service_healthy}}
+  driver-api:
+    build: ../driver-service
+    image: chande-matching-driver:local
+    init: true
+    environment:
+      NODE_ENV: development
+      PORT: '3008'
+      DATABASE_URL: postgres://driver_local:driver_local@driver-db:5432/driver_local
+      REDIS_URL: redis://redis:6379/1
+      AUTH_JWT_ISSUER: chande-driver-local
+      AUTH_JWT_AUDIENCES: driver-service,trip-service,realtime-service,matching-service
+      OTP_MODE: mock
+      OTP_MOCK_CODE: '123456'
+      OTP_RESEND_SECONDS: '1'
+      TRIP_MODE: real
+      TRIP_BASE_URL: http://trip-api:3001
+      HTTP_TIMEOUT_MS: '2000'
+      MATCHING_INBOUND_TOKEN: local-matching-driver-token-00001
+      REALTIME_INBOUND_TOKEN: local-realtime-driver-token-00001
+      TRIP_LOOKUP_TOKEN: local-driver-trip-lookup-token-001
+      MATCHING_LOOKUP_TOKEN: local-driver-matching-token-000001
+      MATCHING_BASE_URL: http://matching-api:3007
+    ports: ['127.0.0.1:3008:3008']
+    depends_on: {driver-db: {condition: service_healthy}, redis: {condition: service_healthy}, trip-api: {condition: service_healthy}, matching-api: {condition: service_healthy}}
+    healthcheck: {<<: *health, test: [CMD, node, -e, "fetch('http://localhost:3008/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]}
+  realtime-api:
+    build: ../realtime-service
+    image: chande-matching-realtime:local
+    init: true
+    environment:
+      NODE_ENV: development
+      PORT: '3009'
+      REDIS_URL: redis://redis:6379/2
+      AUTH_JWKS_URL: http://driver-api:3008/.well-known/jwks.json
+      AUTH_JWT_ISSUER: chande-driver-local
+      AUTH_JWT_AUDIENCE: realtime-service
+      DRIVER_BASE_URL: http://driver-api:3008
+      DRIVER_TIMEOUT_MS: '2500'
+      ROUTING_INBOUND_TOKEN: local-routing-realtime-token-0001
+      DRIVER_ELIGIBILITY_TOKEN: local-realtime-driver-token-00001
+      RABBITMQ_URL: amqp://matching_local:matching_local@rabbitmq:5672
+      MATCHING_BASE_URL: http://matching-api:3007
+      MATCHING_REALTIME_TOKEN: local-realtime-matching-token-0001
+    ports: ['127.0.0.1:3009:3009']
+    depends_on: {redis: {condition: service_healthy}, driver-api: {condition: service_healthy}, rabbitmq: {condition: service_healthy}, matching-api: {condition: service_healthy}}
+    healthcheck: {<<: *health, test: [CMD, node, -e, "fetch('http://localhost:3009/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]}
+  routing-api:
+    build: ../routing-service
+    image: chande-matching-routing:local
+    init: true
+    environment:
+      NODE_ENV: development
+      APP_ENV: development
+      HOST: 0.0.0.0
+      PORT: '3004'
+      INTEGRATION_MODE: real
+      REALTIME_INTEGRATION_MODE: real
+      REALTIME_BASE_URL: http://realtime-api:3009
+      REALTIME_TOKEN: local-routing-realtime-token-0001
+      REALTIME_TIMEOUT_MS: '3000'
+      MATRIX_MAX_CANDIDATES: '50'
+      SUPPORTED_VEHICLE_TYPES: CAR_4,CAR_7
+      VEHICLE_PROFILES_FILE: config/vehicle-profiles.osrm.json
+      EXTERNAL_MAP_BASE_URL: http://osrm:5000
+      EXTERNAL_MAP_ALLOW_HTTP: 'true'
+      EXTERNAL_MAP_ALLOWED_HOSTS: osrm
+      ROUTING_TRIP_TOKEN: local-trip-routing-token-00000001
+      ROUTING_MATCHING_TOKEN: local-matching-routing-token-0001
+      ROUTING_GATEWAY_TOKEN: local-gateway-routing-token-00001
+    ports: ['127.0.0.1:13004:3004']
+    networks: [default, osrm]
+  price-api:
+    build: ../price-service
+    image: chande-matching-price:local
+    init: true
+    environment: {NODE_ENV: development, HOST: 0.0.0.0, PRICE_TRIP_TOKEN: local-trip-pricing-token-00000001, SUPPORTED_VEHICLE_TYPES: 'CAR_4,CAR_7', FARE_POLICY_FILE: config/fare-policy.example.json}
+    ports: ['127.0.0.1:13005:3005']
+volumes:
+  matching-data:
+  driver-data:
+  trip-data:
+  mock-data:
+  redis-data:
+  rabbit-data:
+networks:
+  osrm: {external: true, name: chande-osrm}

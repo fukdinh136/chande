@@ -16,3 +16,12 @@ test('consumer delivers only authoritative version to authenticated driver room;
   await consumer.consume({content:Buffer.from('broken'),properties:{}},channel); assert.equal(dead,1);
   await consumer.replay(driverId); assert.equal(emitted.length,1);
 });
+test('Redis/dependency error retries with same deadline; exhausted retry goes to DLQ', async () => {
+  const event={eventId:randomUUID(),offerId:randomUUID(),tripId:randomUUID(),driverId:randomUUID(),version:1,status:'PENDING',type:'DRIVER_TRIP_OFFER',expiresAt:new Date(Date.now()+20000).toISOString()};
+  let ack=0,dead=0,queued;
+  const channel={ack:()=>ack++,nack:()=>dead++,sendToQueue:(queue,content,properties,confirm)=>{queued={queue,event:JSON.parse(content.toString()),properties};confirm(null)}};
+  const consumer=new OfferConsumer({eval:async()=>{throw new Error('Redis offline')}},{rabbitUrl:'',matchingUrl:'',matchingToken:''}); consumer.attach({to:()=>({emit:()=>assert.fail('must not emit')})}); consumer.lookup=async()=>event;
+  await consumer.consume({content:Buffer.from(JSON.stringify(event)),properties:{messageId:event.eventId}},channel);
+  assert.equal(ack,1);assert.equal(queued.queue,'driver.offers.retry.1000');assert.equal(queued.event.expiresAt,event.expiresAt);assert.equal(queued.properties.messageId,event.eventId);
+  await consumer.consume({content:Buffer.from(JSON.stringify(event)),properties:{headers:{'x-offer-retries':10}}},channel);assert.equal(dead,1);
+});

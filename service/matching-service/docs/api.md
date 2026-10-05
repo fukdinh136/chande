@@ -20,6 +20,6 @@ Accept/decline body `{}`. Sai quyền 403; không tồn tại 404; offer đóng/
 
 Search command dùng contract Trip hiện có: commandId/type/tripId/tripVersion/occurredAt/riderId/pickup/destination/vehicleType/route/fare. Cancel và completion giữ terminal marker kể cả không có search.
 
-Event `DRIVER_TRIP_OFFER`: eventId, offerId, driverId, tripId, version, status, expiresAt, pickup, destination, vehicleType, fare. Event cập nhật `DRIVER_TRIP_OFFER_UPDATED` dùng cùng offerId và version tăng. Socket emits `driver.trip.offer` / `driver.trip.offer.updated`; room driverId được lấy từ JWT.
+Rabbit event `DRIVER_TRIP_OFFER`: eventId, offerId, driverId, tripId, version, status, expiresAt. Event cập nhật `DRIVER_TRIP_OFFER_UPDATED` dùng cùng offerId và version tăng. Realtime truy vấn Matching để lấy trạng thái hiện tại và dữ liệu pickup/destination/vehicleType/fare; không dùng payload cũ để hồi sinh offer. Socket emits `driver.trip.offer` / `driver.trip.offer.updated` với `{data:<offer>}`; room driverId được lấy từ JWT. REST decision trả `{offerId,status,accepted}`; decline có accepted=false và status=DECLINED.
 
 Trip bổ sung POST /internal/trips/active-drivers/batch (Driver token) và GET /internal/trips/:id/matching-state (Matching token). Callback POST /internal/trips/:id/assignment trả 202 sau commit.

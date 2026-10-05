@@ -2,7 +2,7 @@
 
 Service nhận GPS tài xế và cung cấp danh sách tài xế gần điểm đón cho Routing của Chande.
 
-Ngày đối chiếu mã nguồn: 06/10/2026. V1 có implementation; chưa nghiệm thu trên Redis, Driver/Routing thật hoặc thiết bị.
+Ngày đối chiếu mã nguồn: 06/10/2026. GPS/nearby/offer đã chạy với Redis, Driver/Routing/Matching thật trong Docker local Hà Nội. Thiết bị/background, ingress production và nhiều replica chưa nghiệm thu.
 
 ## Tài liệu
 
@@ -23,11 +23,11 @@ Ngày đối chiếu mã nguồn: 06/10/2026. V1 có implementation; chưa nghi�
 
 Realtime sở hữu GPS và Redis của mình. Driver sở hữu tài khoản, ý định ONLINE/OFFLINE, xe chọn và eligibility; Trip sở hữu chuyến/assignment. Realtime không truy cập PostgreSQL hoặc key Redis riêng của Driver/Trip, không cần Gateway demo. GPS mới không tự đổi ONLINE thành AVAILABLE.
 
-Không triển khai Matching/offer/accept, reservation, chat, push, tuyến đường/ETA hoặc theo dõi chuyến theo tripId. V1 cung cấp nền tảng vị trí; chưa hoàn thành US8 theo dõi chuyến realtime và không có API vị trí cho Rider.
+Matching sở hữu search/offer/accept/reservation. Realtime đã bổ sung RabbitMQ consumer để giao offer/cập nhật qua Socket.IO, room từ JWT và replay trạng thái khi reconnect. Chat, push và theo dõi vị trí cho Rider chưa thuộc triển khai này. Xem [Matching](../matching-service/README.md).
 
 ## Công nghệ và cấu trúc
 
-Package hiện khai báo Node.js >=24 <25, NestJS 11, TypeScript ^5.7, Socket.IO ^4.8.4, ioredis ^5.11.1, jose ^6, class-validator/class-transformer và dotenv. Đây là range trong [package.json](package.json), chưa có lockfile Realtime để xác nhận phiên bản cài thực tế. Môi trường local trong Deploy dùng Redis 7.4; app hiện là Expo SDK57. Realtime không có ORM/migration.
+Package khai báo Node.js >=24 <25, NestJS 11, TypeScript ^5.7, Socket.IO ^4.8.4, ioredis ^5.11.1, jose ^6, amqplib, Zod, class-validator/class-transformer và dotenv; phiên bản khóa trong package-lock.json. Stack Matching local dùng Redis 8. Realtime không có ORM/migration.
 
 ```text
 service/realtime-service/
@@ -52,14 +52,14 @@ service/realtime-service/
 | GPS 10 giây | App use-driver-gps.ts, SocketLocationClient; LocationGateway | Có mã foreground và ACK; chưa kiểm thử thiết bị/background |
 | Freshness 30 giây | LocationPolicy, Redis Lua, loadConfig | Đã áp dụng; tuổi đạt ngưỡng đã bị loại; cấu hình chỉ cho giảm xuống dưới/tới 30.000 ms |
 | Nearby 2 km / 50 | NearbyPolicy, FindNearby, NearbyController | Đã áp dụng trong mã; 50 là hằng số, không phải biến môi trường |
-| JWT/JWKS và service credential | JwksTokenVerifier, DriverSocketGuard, RoutingServiceGuard | Có mã kiểm tra; chưa xác minh liên thông với issuer/service thật |
+| JWT/JWKS và service credential | JwksTokenVerifier, DriverSocketGuard, RoutingServiceGuard | Đã liên thông JWT Driver và credential Routing trong smoke Docker |
 | Eligibility theo lô | DriverEligibilityClient và POST nội bộ Driver | Có hai phía; trạng thái UNKNOWN trả lỗi, không tự coi AVAILABLE |
-| Redis ordering/cleanup | RedisLocationRepository, location.scripts.ts | Có Lua nguyên tử đối với request khác; chưa kiểm chứng Redis/multi-process |
+| Redis ordering/cleanup | RedisLocationRepository, location.scripts.ts | Redis thật chạy trong smoke; multi-replica chưa nghiệm thu |
 | Health | HealthController | Có live và ready; ready chỉ PING Redis |
-| Routing consumer / production ingress | Không có implementation trong Realtime | Contract cần bên Routing/Gateway chính thức xác nhận; chưa triển khai ingress/registry credential |
-| Operational AVAILABLE/BUSY | Projection do Driver cung cấp | Nguồn đối soát active Trip/freshness còn cần chốt; snapshot có thể cũ, không phải assignment lease |
-| Kiểm thử chạy thật | Không có test suite Realtime trong cây hiện tại | Chưa có bằng chứng nghiệm thu runtime; quy trình kiểm tra ở Deploy |
+| Routing client / production ingress | Routing có HTTP Realtime adapter | Nearby/matrix đã chạy thật; ingress production chưa nghiệm thu |
+| Operational AVAILABLE/BUSY | Driver đối soát active Trip và reservation Matching | BUSY/AVAILABLE đã kiểm tra trong smoke; snapshot không thay thế reservation DB |
+| Offer delivery/reconnect | Rabbit consumer, Redis version/tombstone, Matching lookup | 2 consumer tests và smoke WebSocket/reconnect pass; không reset deadline |
 
 Key Driver legacy drivers:geo:* còn có thao tác cleanup tương thích; Realtime dùng namespace riêng realtime:{gps}:*. Không tự đổi consumer cũ hay dual-write. Chi tiết khác biệt và hợp đồng còn chờ ở [Kiến trúc](docs/kien-truc.md) và [API](docs/api.md).
 
-Hướng dẫn chạy, GPS CLI, Postman, app foreground và tiêu chí kiểm chứng được duy trì tại [Deploy](docs/deploy.md). Chưa có lockfile và dependency riêng được cài; cần xác minh lint/typecheck/build bằng môi trường Realtime riêng trước khi nghiệm thu.
+Hướng dẫn GPS CLI/Postman/app foreground ở [Deploy](docs/deploy.md). Stack offer, startup/shutdown và requeue ở [runbook Matching](../matching-service/docs/deploy.md); bằng chứng thực chạy ở [báo cáo Matching](../matching-service/docs/bao-cao-trien-khai.md). Lockfile, build/lint và consumer tests đã được kiểm tra trong môi trường Realtime riêng.

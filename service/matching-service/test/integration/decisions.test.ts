@@ -27,7 +27,27 @@ test('durable decisions: replay, competing decline, lost callback ACK and termin
     await new AssignDriver(repo, clients).execute(cmd.tripId); assert.equal((await repo.getSearch(cmd.tripId))?.status, 'CANCELLED'); assert.equal(calls, 1);
     const c = { config: { tokens: { trip: 'trip', driver: 'driver', realtime: 'realtime' }, swagger: false } as Config, repo, commands, decisions, identity: { verify: async () => driverId } };
     const app = await createApi(c); await app.listen(0, '127.0.0.1');
-    try { const root = await app.getUrl(); const r = await fetch(root + '/internal/matching/reservations/batch', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Service-Token': 'trip' }, body: JSON.stringify({ driverIds: [driverId] }) }); assert.equal(r.status, 401); const got = await fetch(root + '/matching/offers/' + o.offerId); assert.equal(got.status, 200); assert.equal((await got.json()).data.status, 'REVOKED'); } finally { await app.close(); }
-    assert.ok(context); // Exported factory remains usable by main.
+    try { const root = await app.getUrl(); const r = await fetch(root + '/internal/matching/reservations/batch', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Service-Token': 'trip' }, body: JSON.stringify({ driverIds: [driverId] }) }); assert.equal(r.status, 401); const got = await fetch(root + '/matching/offers/' + o.offerId); assert.equal(got.status, 200); assert.equal((await got.json()).data.status, 'REVOKED'); const forged = await fetch(root + '/matching/offers/' + o.offerId + '/accept', { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':randomUUID()}, body:JSON.stringify({driverSnapshot:{fullName:'fake'}}) }); assert.equal(forged.status,400); } finally { await app.close(); }
+    assert.ok(context);
+    const next = { ...cmd, tripId: randomUUID(), commandId: randomUUID() }; state = { tripId: next.tripId, status: 'SEARCHING', driverId: null, version: 2 }; let attempts = 0, eligibilityCalls = 0;
+    const uncertain: Clients = { ...clients, driver: async (...args) => { eligibilityCalls++; return clients.driver(...args); }, assign: async () => { if (++attempts === 1) throw new Error('network before visible commit'); state = { ...state, driverId, status: 'ASSIGNED' }; } };
+    await commands.search(next); await new MatchDriver(repo, uncertain).execute(next.tripId); const nextOffer = (await repo.activeOffer(driverId))!;
+    await decisions.execute(nextOffer.offerId, driverId, randomUUID(), 'accept'); const assignment = new AssignDriver(repo, uncertain);
+    await assert.rejects(assignment.execute(next.tripId), /network/); assert.equal((await repo.reservations([driverId]))[0]?.tripId, next.tripId);
+    const previousCalls = eligibilityCalls; uncertain.driver = async () => { throw new Error('driver changed after uncertain callback'); };
+    await assignment.execute(next.tripId); assert.equal(eligibilityCalls, previousCalls); assert.equal((await repo.getSearch(next.tripId))?.status, 'ASSIGNED'); assert.equal(attempts, 2);
+    await commands.stop(randomUUID(), next.tripId, {}, 'COMPLETED');
+    const third = { ...cmd, tripId: randomUUID(), commandId: randomUUID() }, secondDriver = randomUUID();
+    const selecting: Clients = { ...clients, matrix: async () => [driverId,secondDriver].map((id,index) => ({ driverId:id, observedAt:new Date().toISOString(),status:'OK',durationSeconds:10+index,distanceMeters:100 })), driver: async (id,type) => ({ ...await clients.driver(id,type), driverId:id }) };
+    await commands.search(third); const matcher = new MatchDriver(repo, selecting); await matcher.execute(third.tripId); const first = (await repo.activeOffer(driverId))!, declineKey = randomUUID();
+    const declined = await decisions.execute(first.offerId,driverId,declineKey,'decline'); assert.equal(declined.status,'DECLINED'); assert.deepEqual(await decisions.execute(first.offerId,driverId,declineKey,'decline'),declined);
+    await matcher.execute(third.tripId); assert.equal((await repo.activeOffer(secondDriver))?.tripId,third.tripId); assert.equal(await repo.activeOffer(driverId),null);
+    await commands.stop(randomUUID(),third.tripId,{},'CANCELLED');
+    const fourth = { ...cmd, tripId:randomUUID(), commandId:randomUUID() }; state = { tripId:fourth.tripId,status:'SEARCHING',driverId:null,version:2 };
+    let entered!: () => void, release!: () => void; const inFlight = new Promise<void>(r => { entered=r; }), reply = new Promise<void>(r=>{release=r;});
+    const racing: Clients = { ...clients, assign:async()=>{entered();await reply;} };
+    await commands.search(fourth); await new MatchDriver(repo,racing).execute(fourth.tripId); const raced=(await repo.activeOffer(driverId))!; await decisions.execute(raced.offerId,driverId,randomUUID(),'accept');
+    const callback = new AssignDriver(repo,racing).execute(fourth.tripId); await inFlight; await commands.stop(randomUUID(),fourth.tripId,{},'CANCELLED'); state={...state,status:'CANCELLED'}; release(); await callback;
+    assert.equal((await repo.getSearch(fourth.tripId))?.status,'CANCELLED'); assert.equal((await repo.reservations([driverId]))[0]?.tripId,null);
   } finally { await db.destroy(); }
 });

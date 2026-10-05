@@ -1,6 +1,6 @@
 # Báo cáo triển khai Routing Service
 
-Ngày: 06/10/2026. Cập nhật theo từng feature; kết quả kiểm thử dưới đây dùng fixture/mock, không xác nhận dataset/profile OSRM thật.
+Ngày: 06/10/2026. Cập nhật theo từng feature; bảng F00–F10 bên dưới ghi kết quả fixture/mock tại thời điểm triển khai. Kết quả OSRM Hà Nội và Realtime thật được bổ sung ở các mục cuối.
 
 | Feature | Kết quả | Kiểm thử | Commit |
 | --- | --- | --- | --- |
@@ -27,19 +27,19 @@ Ngày: 06/10/2026. Cập nhật theo từng feature; kết quả kiểm thử d�
 - Linux container restart rồi estimate thành công; SIGTERM stop 806 ms, exit 0. Container thử được xóa; không sửa/xóa Trip containers hoặc volumes. Compose đã validate bằng token test với `config --quiet`.
 - Tài liệu được kiểm tra UTF-8, local links và JSON examples. GitHub workflow đã tạo; không đồng nhất checks local với trạng thái workflow remote.
 
-OpenAPI: `/docs` và `/openapi.json`, ngoài production. Dữ liệu estimate đúng hai trường trong data. Runtime hiện có log startup/failure chung; structured operation logs/metrics và production sizing còn cần bổ sung. OSRM real smoke/benchmark và Realtime HTTP adapter chưa hoàn thành do thiếu đầu vào.
+OpenAPI: `/docs` và `/openapi.json`, ngoài production. Dữ liệu estimate đúng hai trường trong data. Runtime hiện có log startup/failure chung; structured operation logs/metrics và production sizing còn cần bổ sung. Thời điểm F10 chưa có OSRM real smoke và HTTP Realtime adapter; hiện cả hai đã chạy trong stack Matching local.
 
 Queue đầy trả `ROUTING_BUSY` ngay, nằm trong admission budget; không tạo hàng đợi chờ admission ngoài capacity. Queue age vẫn bị giới hạn riêng. Limiter chạy trong worker, mọi retry cần permit mới.
 
 Shutdown pool ở `beforeApplicationShutdown`, trước khi Nest đóng HTTP adapter; sau grace abort các job còn lại. Body trên 64 KiB trả 413 `INVALID_REQUEST`. OpenAPI `/docs` và `/openapi.json` chỉ bật ngoài production khi cấu hình cho phép.
 
-Matrix dùng deadline chung gồm lookup và mọi batch, không sort/chọn driver và không nhận candidates từ Matching. Empty thành công, dependency lỗi không thành empty; quá cap không cắt danh sách. Runtime chặn `REALTIME_INTEGRATION_MODE=real` nếu chưa có wire adapter đã xác nhận; không tự fallback mock. Số HTTP request đang xử lý cũng bị giới hạn bằng queue size + worker count, bao gồm lookup ngoài map queue.
+Matrix dùng deadline chung gồm lookup và mọi batch, không sort/chọn driver và không nhận candidates từ Matching. Empty thành công, dependency lỗi không thành empty; quá cap không cắt danh sách. Mode real khởi tạo HTTP Realtime adapter, không tự fallback mock. Số HTTP request đang xử lý cũng bị giới hạn bằng queue size + worker count, bao gồm lookup ngoài map queue.
 
 ## Đầu vào tích hợp còn thiếu
 
-Cập nhật 06/10/2026: [OSRM CAR Hà Nội tự host](osrm-ha-noi.md) đã chạy thật qua Route/Table, API Routing và quote/journey Trip. Bộ Routing hiện đạt 43 tests. Giới hạn OSRM bên dưới là tình trạng trước đợt cấu hình Hà Nội; profile xe máy, dataset cập nhật/hosting và Realtime wire vẫn còn.
+Cập nhật 06/10/2026: [OSRM CAR Hà Nội tự host](osrm-ha-noi.md) đã chạy thật qua Route/Table, API Routing và quote/journey Trip. Bộ Routing đạt 43 tests tại đợt cấu hình OSRM. Profile xe máy, dataset cập nhật/hosting và sizing production vẫn còn.
 
-- Realtime: method/path, authentication và response thật. Chưa tự đặt contract wire; chỉ triển khai port/mock trước.
+- Realtime wire đã đối chiếu runtime và triển khai HTTP adapter trong feature Matching M03.
 - OSRM: endpoint, dataset/version/algorithm và profile xe máy đã kiểm chứng. `BIKE` chưa bật; không thay bằng profile ô tô.
 - Một process/replica; cấu hình mặc định chưa được benchmark production.
 
@@ -48,3 +48,7 @@ Các file `.env` và `config/vehicle-profiles.json` local giữ nguyên và đư
 ## Tích hợp Trip + Price — 06/10/2026
 
 Trip Compose đã gọi Routing API cùng Price API qua HTTP; xem [báo cáo tích hợp](../../trip-service/docs/tich-hop-routing-price.md). Image có thêm `config/vehicle-profiles.mock.json` để bật CAR/BIKE/MOCK_BIKE explicit trong local; file profile OSRM local giữ nguyên. BIKE trong fixture không xác nhận profile xe máy cho OSRM thật.
+
+## Tích hợp Matching + Realtime — 06/10/2026
+
+Adapter HTTP map latitude/longitude/recordedAt, giữ freshness 30 giây, truyền vehicleType và cap 50/batch 25. CAR_4/CAR_7 dùng cùng graph OSRM ô tô Hà Nội. 30 unit tests/typecheck/lint pass ở đợt Matching; smoke real GPS → matrix → offer → Trip cũng pass cho cả hai loại xe. Xem [báo cáo Matching](../../matching-service/docs/bao-cao-trien-khai.md) và [runbook](../../matching-service/docs/deploy.md); không suy kết quả smoke thành benchmark production.

@@ -27,6 +27,8 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 | Routing Service | [Báo cáo triển khai](../service/routing-service/docs/bao-cao-trien-khai.md) | Feature/commit/checks và giới hạn tích hợp thật |
 | Price Service | [Thiết kế v1](../service/price-service/README.md) | Giá mở cửa CAR/BIKE, config sửa được, công thức và contract tương thích Trip |
 | Price Service | [API và deploy](../service/price-service/docs/api.md) | Runtime NestJS, token, request/response, lỗi, policy và Docker |
+| Matching Service | [Mục lục](../service/matching-service/README.md) | Nghiệp vụ, C3, API/routes, deploy và kế hoạch mời tài xế tuần tự |
+| Matching Service | [Báo cáo triển khai](../service/matching-service/docs/bao-cao-trien-khai.md) | Feature/commit, kiểm thử, Docker và smoke CAR_4/CAR_7 Hà Nội |
 
 ## Cách sử dụng
 

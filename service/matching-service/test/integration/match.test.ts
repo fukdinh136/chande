@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { source, Repository } from '../../src/infrastructure/persistence';
 import { Commands } from '../../src/application/commands';
 import { MatchDriver } from '../../src/application/match';
+import { OfferExpiry } from '../../src/application/expiry';
 import type { Clients } from '../../src/application/ports';
 import type { Command } from '../../src/domain/models';
 export const command = (): Command => ({ commandId: randomUUID(), tripId: randomUUID(), type: 'matching.search.requested', tripVersion: 2, occurredAt: new Date().toISOString(), riderId: randomUUID(), pickup: { lat: 21.0285, lng: 105.8542 }, destination: { lat: 21.0272, lng: 105.8355 }, vehicleType: 'CAR_4', route: { distanceMeters: 2546, durationSeconds: 258 }, fare: { currency: 'VND', amount: '27460' } });
@@ -19,7 +20,7 @@ test('concurrent trips hold one driver; empty matrix stays SEARCHING; expired ne
     const winner = held[0]!.tripId!, loser = winner === a.tripId ? b.tripId : a.tripId;
     assert.equal((await repo.getSearch(loser))?.status, 'SEARCHING'); assert.equal((await repo.getSearch(loser))?.offerId, null);
     await repo.transaction(async tx => { const s = (await tx.search(winner))!, o = (await tx.offer(s.offerId!))!; o.expiresAt = new Date(0).toISOString(); await tx.db.query('UPDATE matching_offers SET expires_at=$2,data=$3 WHERE id=$1', [o.offerId, o.expiresAt, o]); });
-    await match.execute(winner); await match.execute(winner); assert.equal((await repo.getSearch(winner))?.offerId, null); assert.equal((await repo.getSearch(winner))?.status, 'SEARCHING');
+    await new OfferExpiry(repo).tick(); await match.execute(winner); assert.equal((await repo.getSearch(winner))?.offerId, null); assert.equal((await repo.getSearch(winner))?.status, 'SEARCHING');
     await commands.stop(randomUUID(), loser, {}, 'CANCELLED');
   } finally { await db.destroy(); }
 });

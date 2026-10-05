@@ -1,6 +1,6 @@
 # Kế hoạch phát triển Routing Service
 
-Ngày cập nhật: 06/10/2026. F00–F09 đã triển khai; F11 đã có port/mock nhưng HTTP adapter thật chờ contract. F10 có Docker/CI/local Compose và smoke mock; real smoke/benchmark chờ OSRM endpoint/profile. [Báo cáo triển khai](bao-cao-trien-khai.md) ghi checks/commit và giới hạn, bảng dưới đây giữ kế hoạch/acceptance gốc để đối chiếu.
+Ngày cập nhật: 06/10/2026. F00–F09 và F11 đã triển khai, gồm HTTP Realtime adapter thật. F10 có Docker/CI/local Compose, smoke mock và OSRM Hà Nội real qua stack Matching CAR_4/CAR_7. Benchmark production và profile BIKE còn chờ. [Báo cáo triển khai](bao-cao-trien-khai.md) ghi checks/commit và giới hạn; bảng dưới đây giữ kế hoạch/acceptance gốc để đối chiếu.
 
 ## 1. Đã xác nhận và đề xuất cần validate
 

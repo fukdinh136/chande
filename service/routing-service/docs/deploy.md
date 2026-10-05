@@ -2,7 +2,7 @@
 
 OSRM tự host Hà Nội đã có cấu hình riêng: [runbook](osrm-ha-noi.md). Backend CAR, graph MLD và overlay Trip được chạy local; các phần hosting/HA, Realtime wire và profile xe máy trong kế hoạch production vẫn cần hoàn thiện.
 
-Ngày cập nhật: 06/10/2026. App/lockfile/Dockerfile và Compose mock đã tạo; Docker smoke trên Linux đạt. Production chưa nghiệm thu: Realtime HTTP adapter thật chờ contract, OSRM endpoint/dataset/profile và sizing chưa chốt. Không tải dataset bản đồ trong triển khai này.
+Ngày cập nhật: 06/10/2026. App/lockfile/Dockerfile và Compose mock đã tạo; Docker smoke trên Linux đạt. HTTP Realtime adapter và OSRM ô tô Hà Nội đã chạy trong [stack Matching local](../../matching-service/docs/deploy.md). Dataset/profile ô tô được ghi ở [OSRM Hà Nội](osrm-ha-noi.md). Profile BIKE, production sizing và hosting chưa nghiệm thu.
 
 ## 1. Topology phase 1 đề xuất
 

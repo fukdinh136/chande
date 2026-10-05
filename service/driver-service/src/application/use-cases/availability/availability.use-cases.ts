@@ -7,12 +7,14 @@ import { Store } from "../../ports/unit-of-work.port";
 import { State } from "../../ports/state.port";
 import { Runtime } from "../../ports/runtime.port";
 import { EditPolicy } from "../vehicle/edit.policy";
+import { Occupancy } from '../../ports/occupancy.port';
 export class AvailabilityUseCases {
   constructor(
     private readonly store: Store,
     private readonly state: State,
     private readonly policy: EditPolicy,
     private readonly runtime: Runtime,
+    private readonly occupancy?: Occupancy,
   ) {}
   select(id: string, vehicleId: string, authorization: string) {
     return this.store.coordinate(id, async () => {
@@ -95,6 +97,11 @@ export class AvailabilityUseCases {
         : null;
       if (cache.vehicleId && !vehicle?.isActive)
         await this.state.clearSelection(driver.id, cache.vehicleId);
+      if (this.occupancy) {
+        const busy = (await this.occupancy.lookup([driver.id])).get(driver.id);
+        cache.realtimeStatus = busy ? 'BUSY' : driver.desiredStatus === 'ONLINE' && profileEligible(driver) && vehicle?.isActive ? 'AVAILABLE' : 'OFFLINE';
+        await this.state.project?.(driver.id, cache.realtimeStatus as 'AVAILABLE' | 'BUSY' | 'OFFLINE');
+      }
       return {
         desiredStatus: desiredStatus(driver.desiredStatus),
         selectedVehicleId: vehicle?.isActive ? vehicle.id : null,
@@ -102,6 +109,7 @@ export class AvailabilityUseCases {
         realtimeSync: "APPLIED",
       };
     } catch {
+      await this.state.project?.(driver.id, 'UNKNOWN').catch(() => {});
       return this.pending(driver);
     }
   }

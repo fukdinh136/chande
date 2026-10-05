@@ -38,7 +38,7 @@ if (-not (Test-Path -LiteralPath '.env')) {
 | DRIVER_LOCK_WAIT_MS | 10000; tối đa 60000, acquire advisory lock, không gồm FIFO local |
 | DRIVER_STATUS_MODE | intent hoặc bỏ trống; mode account bị từ chối |
 | AUTH_JWT_ISSUER | Bắt buộc, khớp claim chính xác |
-| AUTH_JWT_AUDIENCES | driver-service,trip-service,realtime-service; bắt buộc có driver-service |
+| AUTH_JWT_AUDIENCES | driver-service,trip-service,realtime-service,matching-service; bắt buộc có driver-service |
 | AUTH_SIGNING_KEY_FILE | Private RSA PEM; bắt buộc production, không đưa vào Git |
 | AUTH_KEY_ID | driver-local mặc định; dev không key file sinh key/kid mới sau restart |
 | ACCESS_TOKEN_TTL_SECONDS | 900 |
@@ -53,6 +53,8 @@ if (-not (Test-Path -LiteralPath '.env')) {
 | HTTP_TIMEOUT_MS | 5000 |
 | MATCHING_INBOUND_TOKEN | Bắt buộc, server-only |
 | REALTIME_INBOUND_TOKEN | Optional; bật batch bằng credential riêng >=32 ký tự, khác Matching token |
+| TRIP_LOOKUP_TOKEN | Credential riêng gọi batch active-driver Trip; bắt buộc khi bật đối soát occupancy |
+| MATCHING_LOOKUP_TOKEN, MATCHING_BASE_URL | Credential và origin Matching cho batch reservation; cấu hình cùng TRIP_LOOKUP_TOKEN |
 | SUPPORTED_VEHICLE_TYPES | BIKE,CAR_4,CAR_7 |
 | MAX_VEHICLES | 20 |
 | GATEWAY_PROXY_TOKEN | Optional trusted official proxy, để trống cho direct |
@@ -89,11 +91,11 @@ Dockerfile build context service/driver-service (từ root: docker build -f serv
 
 ## 4. Trust Trip và Realtime
 
-Driver HttpTripActive chuyển Authorization người dùng vào GET TRIP_BASE_URL/trips/active; không credential service, không lookup driverId. Trip cần AUTH_JWKS_URL trỏ /.well-known/jwks.json của Driver, AUTH_JWT_ISSUER khớp Driver và audience trip-service. Sample Trip hiện dùng /jwks và issuer chande-local; owner/vận hành Trip phải cấu hình phù hợp. Không sửa code Trip để bù khác biệt.
+Driver HttpTripActive chuyển Authorization người dùng vào GET TRIP_BASE_URL/trips/active. Trip hỗ trợ verifier Driver riêng qua DRIVER_AUTH_JWKS_URL/DRIVER_AUTH_JWT_ISSUER, audience trip-service; không đổi verifier RIDER. HttpOccupancy dùng credential riêng cho POST /internal/trips/active-drivers/batch và POST /internal/matching/reservations/batch, không gửi JWT người dùng vào các batch nội bộ.
 
 Realtime: AUTH_JWKS_URL/issuer tương tự, audience realtime-service; DRIVER_ELIGIBILITY_TOKEN bằng REALTIME_INBOUND_TOKEN, khác ROUTING_INBOUND_TOKEN. [Deploy Realtime](../../realtime-service/docs/deploy.md) có GPS/nearby/CLI và điều kiện riêng.
 
-Nguồn operational AVAILABLE/BUSY, freshness và đối soát active Trip cần Matching/Trip/Gateway chính thức xác nhận. GPS mới/ONLINE không tự AVAILABLE. Khi nguồn đó chưa có, nearby có thể trả ELIGIBILITY_UNDETERMINED; không HSET giả hoặc suy ra hết chuyến từ TTL.
+Driver đã đối soát active Trip và reservation Matching để project AVAILABLE/BUSY/OFFLINE trong Redis do Driver sở hữu. Dependency lỗi project UNKNOWN hoặc trả lỗi; GPS mới/ONLINE không tự AVAILABLE. Cả API availability và quyền đổi xe đọc occupancy; không HSET từ Matching hoặc suy ra hết chuyến từ TTL. [Stack Matching Hà Nội](../../matching-service/docs/deploy.md) đã kiểm chứng BUSY khi giữ offer, AVAILABLE sau terminal với database fixture riêng; không thay thế xác nhận schema production.
 
 ## 5. App Driver
 

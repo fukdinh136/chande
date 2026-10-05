@@ -1,6 +1,6 @@
 # Thiết kế API Routing Service
 
-Ngày cập nhật: 06/10/2026. R01–R04 đã triển khai và kiểm thử qua NestJS HTTP; R01 được kiểm tra bằng Trip client/use case thật. R02–R04 vẫn cần consumer validate nghiệp vụ tích hợp. REST JSON cho phase 1; chưa có gRPC. Realtime HTTP adapter thật chờ wire contract, mock đã nối đầy đủ luồng ETA.
+Ngày cập nhật: 06/10/2026. R01–R04 đã triển khai và kiểm thử qua NestJS HTTP; R01 được kiểm tra bằng Trip client/use case thật. R02–R04 vẫn cần consumer validate nghiệp vụ tích hợp. REST JSON cho phase 1; chưa có gRPC. Realtime HTTP adapter đã nối nearby API hiện có và nghiệm thu ETA qua OSRM Hà Nội.
 
 ## 1. Quy ước chung
 
@@ -74,7 +74,7 @@ Polyline value là placeholder; runtime dùng precision 6. Nếu `includeSteps=t
 
 ## 4. R03 — POST /routes/matrix
 
-Caller: Matching. Routing nhận điểm đón và profile loại xe cần tính, tự gọi Realtime Client lấy vị trí tài xế trong bán kính 2 km rồi tính ETA đến điểm đón. Request không nhận danh sách candidates/locations từ Matching. Luồng lựa chọn/mời tài xế bên trong Matching được thiết kế sau.
+Caller: Matching. Routing nhận điểm đón và profile loại xe cần tính, tự gọi Realtime Client lấy vị trí tài xế trong bán kính 2 km rồi tính ETA đến điểm đón. Request không nhận danh sách candidates/locations từ Matching. Matching đã triển khai lựa chọn/mời tuần tự, reservation và quyết định tài xế.
 
 ```json
 {
@@ -121,7 +121,7 @@ Realtime lỗi/timeout/schema sai làm request thất bại; không trả empty 
 
 Batch size là minimum của MATRIX_BATCH_MAX_ELEMENTS và RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE. Limiter kiểm tra budget khả dụng trước từng attempt; quá budget chờ hữu hạn hoặc lỗi, không âm thầm giảm snapshot. Giới hạn server/capability cần kiểm chứng và cấu hình batch phù hợp; không tự detect khi startup. Matrix là N×1, không mở NxM tùy ý.
 
-Realtime lookup, queue, limiter, OSRM attempts/batches và aggregation cùng chia sẻ deadline 4 giây; không reset deadline sau khi nhận vị trí. R03 đã được triển khai với Realtime port/mock; estimate R01 của Trip giữ nguyên.
+Realtime lookup, queue, limiter, OSRM attempts/batches và aggregation cùng chia sẻ deadline 4 giây; không reset deadline sau khi nhận vị trí. R03 đã được triển khai với Realtime HTTP adapter thật và mock; estimate R01 của Trip giữ nguyên.
 
 ## 5. R04 — POST /routes/recalculate
 
@@ -180,7 +180,7 @@ Không bật `fallback_speed`; không dùng đường chim bay cho cell không c
 
 Kiểm tra HTTP và code JSON; không coi HTTP 200 là đủ. `NoRoute`/`NoSegment` → NO_ROUTE; `NoTable` → NO_ROUTE cấp request; `NotImplemented` → UNSUPPORTED_CAPABILITY; `TooBig` → PROVIDER_CONFIGURATION_ERROR cần chỉnh batch/server limit; Invalid* sau input đã validate → PROVIDER_CONFIGURATION_ERROR. Unknown code/schema → INVALID_PROVIDER_RESPONSE. Network/429/5xx retry hữu hạn theo deadline; auth proxy 401/403 không retry. Không trả message provider nguyên văn.
 
-Profile trong URL không tự chọn lại dataset đã build; mapping endpoint/profile ở [cấu hình](cau-hinh.md) phải được acceptance cho loại xe. Capability Table distance phải kiểm tra với version/algorithm đang deploy; không tự chạy N route fallback khi thiếu distance vì sẽ đổi tải/latency. Đã test wire contract bằng fake HTTP server; chưa gọi OSRM thật hoặc xác minh dataset/profile triển khai.
+Profile trong URL không tự chọn lại dataset đã build; mapping endpoint/profile ở [cấu hình](cau-hinh.md) phải được acceptance cho loại xe. Capability Table distance phải kiểm tra với version/algorithm đang deploy; không tự chạy N route fallback khi thiếu distance vì sẽ đổi tải/latency. Đã test wire bằng fixture và smoke OSRM CAR Hà Nội thật; xem osrm-ha-noi.md và báo cáo Matching. BIKE real vẫn cần profile đã kiểm chứng.
 
 ## 8. Realtime Client — outbound contract
 

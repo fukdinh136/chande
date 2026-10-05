@@ -27,8 +27,17 @@ export class JwtVerifier implements IdentityVerifier {
 }
 /** Trusted issuers are configured independently; role is restricted per issuer. */
 export class RoleIdentity implements IdentityVerifier {
-  constructor(private readonly rider: IdentityVerifier, private readonly driver: IdentityVerifier) {}
+  constructor(private readonly rider: IdentityVerifier, private readonly driver: IdentityVerifier, private readonly riderIssuer?: string, private readonly driverIssuer?: string) {}
   async verify(header: string | undefined): Promise<Principal> {
+    if (this.riderIssuer && this.driverIssuer) {
+      if (!header || !/^Bearer [^\s]+$/.test(header)) throw new DomainError('UNAUTHENTICATED');
+      let issuer: unknown; try { const jose = await import('jose'); issuer = jose.decodeJwt(header.slice(7)).iss; } catch { throw new DomainError('UNAUTHENTICATED'); }
+      // Unverified issuer selects a trusted verifier only; signatures/claims still must verify.
+      const role = issuer === this.driverIssuer ? 'DRIVER' : issuer === this.riderIssuer ? 'RIDER' : null;
+      if (!role) throw new DomainError('UNAUTHENTICATED');
+      const principal = await (role === 'DRIVER' ? this.driver : this.rider).verify(header);
+      if (principal.role !== role) throw new DomainError('UNAUTHENTICATED'); return principal;
+    }
     try { const p = await this.rider.verify(header); if (p.role === 'RIDER') return p; } catch (error) { if (error instanceof DomainError && error.code === 'DEPENDENCY_UNAVAILABLE') throw error; }
     const p = await this.driver.verify(header); if (p.role !== 'DRIVER') throw new DomainError('UNAUTHENTICATED'); return p;
   }

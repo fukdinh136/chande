@@ -1,6 +1,6 @@
 # Kiến trúc Routing Service và component C3
 
-Ngày cập nhật: 06/10/2026. Runtime đã triển khai theo các lớp bên dưới; OSRM adapter được test bằng fake HTTP, Realtime có port/mock và chờ wire adapter thật. Stack: **Node.js 24 + TypeScript 5.9 + NestJS 11 + Express**, Zod 4, `fetch`/`AbortController`; domain/application độc lập với NestJS. Kết quả thực tế trong [báo cáo](bao-cao-trien-khai.md).
+Ngày cập nhật: 06/10/2026. Runtime đã triển khai theo các lớp bên dưới; OSRM adapter được test bằng fake HTTP, Realtime có port/mock và HTTP adapter thật đã tích hợp. Stack: **Node.js 24 + TypeScript 5.9 + NestJS 11 + Express**, Zod 4, `fetch`/`AbortController`; domain/application độc lập với NestJS. Kết quả thực tế trong [báo cáo](bao-cao-trien-khai.md).
 
 ## 1. Ranh giới runtime
 
@@ -9,7 +9,7 @@ Phase 1 dùng một API process/một replica: controller, application, bounded 
 ```mermaid
 flowchart LR
     Trip["Trip Service"] -->|REST summary| API["Routing API process<br/>Node.js + TypeScript + NestJS<br/>Queue + async worker pool"]
-    Matching["Matching Service<br/>Chọn và mời tài xế thiết kế sau"] -. REST ETA matrix .-> API
+    Matching["Matching Service<br/>Mời tài xế tuần tự 20 giây"] -. REST ETA matrix .-> API
     Gateway["API Gateway"] -->|REST route hoặc recalculate| API
     API -->|HTTP private hoặc HTTPS| Map["OSRM backend / authenticated proxy"]
     API -->|Realtime Client: vị trí driver trong 2000 m| Realtime["Realtime Service"]
@@ -20,7 +20,7 @@ flowchart LR
 ```mermaid
 flowchart TB
     Trip["Trip Service<br/>External container"]
-    Matching["Matching Service<br/>Chọn và mời tài xế thiết kế sau"]
+    Matching["Matching Service<br/>Mời tài xế tuần tự 20 giây"]
     Gateway["API Gateway<br/>External container"]
     Map["OSRM backend / proxy<br/>Separate process, dataset/profile"]
     Realtime["Realtime Service<br/>Vị trí driver và truy vấn radius"]
@@ -53,7 +53,7 @@ flowchart TB
         Pool -. resolve hoặc reject Promise .-> Dispatcher
     end
     Trip -->|POST /internal/routes/estimate| Controller
-    Matching -. POST /routes/matrix dự kiến .-> Controller
+    Matching -. POST /routes/matrix .-> Controller
     Gateway -->|POST /routes hoặc /routes/recalculate| Controller
     Client -->|GET Route hoặc Table| Map
     RealtimeClient -->|Query center và radius 2000 m| Realtime
@@ -62,7 +62,7 @@ flowchart TB
 
 Application trả kết quả của dispatcher về controller trong cùng HTTP request. Đây là chiều trả kết quả cần bổ sung cho hình gốc: queue không khiến API trả 202 rồi bỏ request đang chờ. Endpoint Trip luôn trả 200 summary hoặc lỗi; chuyển thành durable job/202 trong phase sau sẽ cần một contract khác.
 
-Realtime Client là bổ sung theo yêu cầu người dùng sau C3 gốc. Calculate ETA Matrix gọi port để lấy vị trí driver quanh pickup trong radius 2000 m, sau đó gửi origins/pickup vào OSRM matrix pipeline. Matching gọi API bằng điểm đón/profile xe, nhận ETA theo driverId; việc chọn/mời tài xế bên trong Matching thiết kế sau. [Realtime Client](realtime-client.md) mô tả dependency này.
+Realtime Client là bổ sung theo yêu cầu người dùng sau C3 gốc. Calculate ETA Matrix gọi port để lấy vị trí driver quanh pickup trong radius 2000 m, sau đó gửi origins/pickup vào OSRM matrix pipeline. Matching gọi API bằng điểm đón/profile xe, nhận ETA theo driverId; Matching chọn/mời qua service/matching-service. [Realtime Client](realtime-client.md) mô tả dependency này.
 
 ## 3. Trách nhiệm và nghiệm thu từng component
 
@@ -107,7 +107,7 @@ service/routing-service/
       pipeline/pool.ts         # dispatcher + bounded queue + async worker pool
       pipeline/limiter.ts       # token bucket + sliding element budget
       map/                     # OSRM adapter + mock + polyline6
-      realtime/client.ts       # validating client + mock; real wire adapter còn chờ
+      realtime/client.ts       # validating client + mock; realtime/http.ts là wire adapter thật
     bootstrap/                 # settings, composition, singleton runtime/lifecycle
   test/                        # unit, contract, integration, concurrency, lifecycle
   scripts/                     # compile/run test helpers như Trip

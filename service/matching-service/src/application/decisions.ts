@@ -25,10 +25,13 @@ export class AssignDriver {
     // Reconcile first: a previous callback can already have committed or Trip may be terminal.
     const state = await this.clients.trip(tripId);
     if (state.status !== 'SEARCHING') { await this.reconcile(o, state.status, state.driverId); return; }
-    const driver = await this.clients.driver(o.driverId, o.command.vehicleType);
-    if (!driver.profileEligible || driver.desiredStatus !== 'ONLINE' || driver.vehicleId !== o.assignment.vehicleId || hash(driver.driverSnapshot) !== hash(o.assignment.driverSnapshot) || hash(driver.vehicleSnapshot) !== hash(o.assignment.vehicleSnapshot)) { await this.reject(o); return; }
+    if (!o.assignmentAttempted) {
+      const driver = await this.clients.driver(o.driverId, o.command.vehicleType);
+      if (!driver.profileEligible || driver.desiredStatus !== 'ONLINE' || driver.vehicleId !== o.assignment.vehicleId || hash(driver.driverSnapshot) !== hash(o.assignment.driverSnapshot) || hash(driver.vehicleSnapshot) !== hash(o.assignment.vehicleSnapshot)) { await this.reject(o); return; }
+    }
     // Local terminal can arrive during HTTP reads. No callback after observing it.
-    const current = await this.repo.getSearch(tripId); if (current?.status !== 'ASSIGNMENT_PENDING') return;
+    const allowed = await this.repo.transaction(async tx => { const s = await tx.search(tripId); if (s?.status !== 'ASSIGNMENT_PENDING' || s.offerId !== o.offerId) return false; const current = await tx.offer(o.offerId); if (!current || current.status !== 'ASSIGNMENT_PENDING') return false; current.assignmentAttempted = true; await tx.saveOffer(current); return true; });
+    if (!allowed) return;
     try { await this.clients.assign(tripId, o.assignment); }
     catch (error) {
       const latest = await this.clients.trip(tripId);

@@ -1,6 +1,6 @@
 # Cấu hình Routing và OSRM
 
-Ngày cập nhật: 06/10/2026. Provider **OSRM đã được người dùng chọn**. Config loader đã triển khai ở [config.ts](../src/bootstrap/config.ts) và kiểm thử: Node.js 24 + TypeScript 5.9 + NestJS 11, Zod 4 và dotenv/`process.env`. Không ghi đè file local. Runtime chặn real Realtime khi chưa có adapter wire được xác nhận.
+Ngày cập nhật: 06/10/2026. Provider **OSRM đã được người dùng chọn**. Config loader đã triển khai ở [config.ts](../src/bootstrap/config.ts) và kiểm thử: Node.js 24 + TypeScript 5.9 + NestJS 11, Zod 4 và dotenv/`process.env`. Không ghi đè file local. Real Realtime dùng HTTP adapter đã đối chiếu runtime; credential outbound riêng.
 
 Người dùng đã chọn tự host Docker cho Hà Nội. [Runbook OSRM Hà Nội](osrm-ha-noi.md) có pipeline tải/cắt/preprocess, profile CAR, env example riêng và overlay Trip. `.env`/`vehicle-profiles.json` hiện có được giữ nguyên; cấu hình real dùng `vehicle-profiles.osrm.json` và `INTEGRATION_MODE=real` tường minh.
 
@@ -52,7 +52,7 @@ Docker dùng DNS service, ví dụ `http://osrm:5000`, thay vì localhost của 
 | Queue | `QUEUE_MAX_SIZE=50`, `QUEUE_ADMISSION_TIMEOUT_MS=100`, `ROUTING_JOB_MAX_WAIT_MS=500` | Bounded; timeout enqueue khác tuổi job |
 | Workers | `WORKER_POOL_SIZE=2` | Tối đa hai job async đang xử lý trong một Node process; mọi job dùng chung queue/limiter singleton |
 | Request limit | `RATE_LIMIT_REQUESTS_PER_SECOND=2`, `RATE_LIMIT_BURST=2`, `RATE_LIMIT_WAIT_TIMEOUT_MS=250` | Mọi attempt xin permit; defaults bảo vệ tải server riêng, không phải quyền gọi public demo |
-| Matrix limit | `RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE=100`, `MATRIX_MAX_CANDIDATES=25`, `MATRIX_BATCH_MAX_ELEMENTS=25` | Cap số driver locations từ Realtime; vượt cap trả ROUTING_BUSY trước map call, không cắt; budget N×1 và giới hạn server/URL/N+1 tọa độ |
+| Matrix limit | `RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE=100`, `MATRIX_MAX_CANDIDATES=50`, `MATRIX_BATCH_MAX_ELEMENTS=25` | Cap số driver locations từ Realtime; vượt cap trả ROUTING_BUSY trước map call, không cắt; budget N×1 và giới hạn server/URL/N+1 tọa độ |
 | Shutdown | `SHUTDOWN_GRACE_MS=5000` | Đóng admission, drain hữu hạn rồi fail/cancel việc còn lại |
 | Realtime mode / URL | `REALTIME_INTEGRATION_MODE=mock`, `REALTIME_BASE_URL` trống | Mode riêng OSRM; real cần endpoint và wire contract được xác nhận |
 | Realtime credential | `REALTIME_TOKEN` hoặc `REALTIME_TOKEN_FILE` | Credential outbound riêng; không dùng map key/inbound token; auth mapping theo Realtime contract |

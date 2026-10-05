@@ -30,7 +30,7 @@ export class MatchDriver {
         const now = await tx.now(); if (now - Date.parse(c.observedAt) > 30000) return false;
         const o: Offer = { offerId: randomUUID(), tripId, driverId: c.driverId, version: 1, status: 'PENDING', createdAt: new Date(now).toISOString(), expiresAt: new Date(now + 20000).toISOString(), command: search.command!, assignment: { eventId: randomUUID(), driverId: c.driverId, vehicleId: eligible.vehicleId!, driverSnapshot: eligible.driverSnapshot!, vehicleSnapshot: eligible.vehicleSnapshot! } };
         await tx.saveOffer(o); if (!await tx.reserve(o)) throw new Error('RESERVATION_CONFLICT');
-        s.offerId = o.offerId; await tx.saveSearch(s, 1000); await tx.enqueue(o); return true;
+        s.offerId = o.offerId; s.attempts = 0; await tx.saveSearch(s, 1000); await tx.enqueue(o); return true;
       });
       if (created) return;
     }

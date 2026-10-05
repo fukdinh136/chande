@@ -10,7 +10,7 @@ export type SearchStatus = 'SEARCHING' | 'ASSIGNMENT_PENDING' | 'ASSIGNED' | 'CA
 export type OfferStatus = 'PENDING' | 'ASSIGNMENT_PENDING' | 'ASSIGNED' | 'DECLINED' | 'EXPIRED' | 'REJECTED' | 'REVOKED';
 export interface Search { tripId: string; status: SearchStatus; command: Command | null; offerId: string | null; attempts: number }
 export interface Assignment { eventId: string; driverId: string; vehicleId: string; driverSnapshot: { fullName: string; avatarUrl: string | null }; vehicleSnapshot: { vehicleType: string; licensePlate: string; brand: string | null; color: string | null } }
-export interface Offer { offerId: string; tripId: string; driverId: string; version: number; status: OfferStatus; createdAt: string; expiresAt: string; assignment: Assignment; command: Command }
+export interface Offer { offerId: string; tripId: string; driverId: string; version: number; status: OfferStatus; createdAt: string; expiresAt: string; assignment: Assignment; command: Command; assignmentAttempted?: boolean }
 export interface Candidate { driverId: string; observedAt: string; status: 'OK' | 'NO_ROUTE'; distanceMeters: number | null; durationSeconds: number | null }
 export const terminal = (s: SearchStatus) => s === 'CANCELLED' || s === 'COMPLETED';
 export const held = (s: OfferStatus) => ['PENDING', 'ASSIGNMENT_PENDING', 'ASSIGNED'].includes(s);

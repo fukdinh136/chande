@@ -4,7 +4,7 @@ COPY package*.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build && npm prune --omit=dev --ignore-scripts
+RUN npm run build && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /srv/driver

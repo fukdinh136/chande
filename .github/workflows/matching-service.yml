@@ -1,0 +1,42 @@
+name: Matching Service
+on:
+  push:
+    paths: ['service/matching-service/**', 'service/realtime-service/**', 'service/driver-service/**', 'service/trip-service/**', 'service/routing-service/**', 'service/price-service/**', '.github/workflows/matching-service.yml']
+  pull_request:
+    paths: ['service/matching-service/**', 'service/realtime-service/**', 'service/driver-service/**', 'service/trip-service/**', 'service/routing-service/**', 'service/price-service/**', '.github/workflows/matching-service.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env: {POSTGRES_USER: matching_test, POSTGRES_PASSWORD: matching_test, POSTGRES_DB: matching_test}
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U matching_test" --health-interval 5s --health-timeout 3s --health-retries 20
+      rabbit:
+        image: rabbitmq:4-management
+        env: {RABBITMQ_DEFAULT_USER: matching_test, RABBITMQ_DEFAULT_PASS: matching_test}
+        ports: ['5672:5672']
+        options: --health-cmd "rabbitmq-diagnostics -q ping" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MATCHING_TEST_DATABASE_URL: postgres://matching_test:matching_test@localhost:5432/matching_test
+      MATCHING_TEST_RABBIT_URL: amqp://matching_test:matching_test@localhost:5672
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24.15.0', cache: npm, cache-dependency-path: service/matching-service/package-lock.json}
+      - run: npm ci
+        working-directory: service/matching-service
+      - run: npm run typecheck && npm run lint && npm test && npm run test:integration && npm run build
+        working-directory: service/matching-service
+      - run: npm ci && npm test && npm run typecheck && npm run lint
+        working-directory: service/realtime-service
+      - run: npm ci && npm test && npm run typecheck && npm run lint && npm run check:schema
+        working-directory: service/driver-service
+      - run: npm ci && npm test && npm run typecheck && npm run lint
+        working-directory: service/routing-service
+      - run: npm ci && npm test && npm run typecheck && npm run lint
+        working-directory: service/price-service
+      - run: docker build -t chande-matching:ci service/matching-service
+      - run: docker build -t chande-realtime:ci service/realtime-service
