@@ -13,12 +13,13 @@ export function ActiveTripScreen() {
   const commands = useTripCommands();
   const resource = useFocusedResource(useCallback((signal: AbortSignal) => runtime.trip.active(signal), [runtime]), runtime.trip.enabled, runtime.config.pollIntervalMs);
   const [reason, setReason] = useState('');
+  const refresh = resource.refresh;
   useEffect(() => {
     // Wire adapters only invalidate REST data. Never trust an unversioned socket payload as Trip state.
     return runtime.realtime.subscribe((notice) => {
-      if (notice.kind === 'reconnected' || notice.kind === 'trip-invalidated') resource.refresh();
+      if (notice.kind === 'reconnected' || notice.kind === 'trip-invalidated') refresh();
     });
-  }, [runtime, resource.refresh]);
+  }, [runtime, refresh]);
   const trip = resource.data;
   const next = trip ? nextStatus(trip) : null;
   const blocked = commands.busy || commands.restoring || !!commands.pending || resource.loading || !!resource.error;

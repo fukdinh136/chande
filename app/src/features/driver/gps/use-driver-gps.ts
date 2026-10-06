@@ -26,7 +26,7 @@ export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => P
     return () => listener.remove();
   }, []);
   useEffect(() => {
-    if (!enabled || !focused || !foreground) { setMessage('Định vị đang tạm dừng.'); return; }
+    if (!enabled || !focused || !foreground) return;
     let disposed = false, busy = false;
     let timer: ReturnType<typeof setInterval> | undefined;
     let client: SocketLocationClient | undefined;
@@ -70,5 +70,5 @@ export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => P
     })();
     return () => { disposed = true; controller.abort(); halt(); };
   }, [enabled, focused, foreground, token]);
-  return { message, lastAcceptedAt };
+  return { message: enabled && focused && foreground ? message : 'Định vị đang tạm dừng.', lastAcceptedAt };
 }

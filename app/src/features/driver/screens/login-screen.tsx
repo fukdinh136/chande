@@ -12,7 +12,7 @@ export function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [challenge, setChallenge] = useState<(OtpChallenge & { phone: string; issuedAt: number }) | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const mutation = useMutation();
   useEffect(() => {
     if (!challenge) return;
