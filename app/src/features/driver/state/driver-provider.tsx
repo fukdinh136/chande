@@ -4,6 +4,7 @@ import { errorText } from '../http/errors';
 import { connectDriverRuntime, type DriverRuntime } from './runtime';
 import {Redirect} from 'expo-router';
 import {appRole} from '../../backend/app-role';
+import {useForeground} from '../hooks/use-focused-resource';
 
 const Context = createContext<DriverRuntime | null>(null);
 export function DriverProvider({ children }: PropsWithChildren) {
@@ -30,13 +31,16 @@ function SessionEffects() {
   const { commands, trip, realtime } = useDriverRuntime();
   const { session } = useDriverSession();
   const driverId = session?.driver.driverId ?? null;
+  const foreground=useForeground();
   useEffect(() => {
     trip.clear();
     void commands.initialize(driverId);
+  }, [commands, driverId, trip]);
+  useEffect(()=>{
     // Realtime invalidates REST data; availability remains owned by Driver.
-    if (driverId) void realtime.connect().catch(() => {});
+    if (driverId&&foreground) void realtime.connect().catch(() => {});
     return () => realtime.disconnect();
-  }, [commands, driverId, realtime, trip]);
+  },[driverId,foreground,realtime]);
   return null;
 }
 export function useDriverRuntime() {

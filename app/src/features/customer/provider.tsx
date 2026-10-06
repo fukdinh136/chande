@@ -8,6 +8,7 @@ import {UserSession} from '../backend/user-session';
 import {TripEvents} from '../backend/trip-events';
 import {Redirect} from 'expo-router';
 import {appRole} from '../backend/app-role';
+import {useForeground} from '../driver/hooks/use-focused-resource';
 import {Screen,Notice,Busy} from '../driver/components/ui';
 export interface CustomerRuntime{base:string;user:UserApi;session:UserSession;trips:CustomerTripApi;routes:PreviewApi;events:TripEvents}
 const Context=createContext<CustomerRuntime|null>(null);
@@ -26,6 +27,6 @@ function ConnectedCustomer({children}:PropsWithChildren){
   if(!runtime)return <Screen title="Kết nối Customer"><Busy visible={!error}/><Notice>{error instanceof Error?error.message:'Đang nhận Gateway local…'}</Notice></Screen>;
   return <Context.Provider value={runtime}><CustomerEvents/>{children}</Context.Provider>;
 }
-function CustomerEvents(){const runtime=useCustomer(),state=useCustomerSession(),actorId=state.session?.profile.id;useEffect(()=>{if(actorId)runtime.events.start();return()=>runtime.events.stop()},[runtime,actorId]);return null}
+function CustomerEvents(){const runtime=useCustomer(),state=useCustomerSession(),actorId=state.session?.profile.id,foreground=useForeground();useEffect(()=>{if(actorId&&foreground)runtime.events.start();return()=>runtime.events.stop()},[runtime,actorId,foreground]);return null}
 export function useCustomer(){const value=useContext(Context);if(!value)throw new Error('CustomerProvider required');return value}
 export function useCustomerSession(){const {session}=useCustomer();return useSyncExternalStore(session.subscribe,session.getSnapshot,session.getSnapshot)}

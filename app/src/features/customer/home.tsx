@@ -1,4 +1,4 @@
-import {useCallback,useEffect,useMemo,useState,useSyncExternalStore} from 'react';
+import {useCallback,useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
 import {Redirect} from 'expo-router';
 import {randomUUID} from 'expo-crypto';
 import {ThemedText} from '@/components/themed-text';
@@ -11,6 +11,7 @@ import {DurableCommand,type Command} from '../backend/durable-command';
 import {commandStorage} from '../backend/command-storage';
 import {useCustomer,useCustomerSession} from './provider';
 import {CustomerAccount} from './account';
+import {useForeground} from '../driver/hooks/use-focused-resource';
 export function CustomerHome(){
   const state=useCustomerSession();if(state.restoring)return <Screen title="Customer"><Busy visible/></Screen>;
   if(!state.session)return <Redirect href="/customer/login"/>;
@@ -18,16 +19,19 @@ export function CustomerHome(){
 }
 function Booking({actorId,name}:{actorId:string;name:string}){
   const runtime=useCustomer();
+  const foreground=useForeground(),read=useRef({busy:false,revision:0});
   const commands=useMemo(()=>new DurableCommand(commandStorage('customer',runtime.base,actorId)),[actorId,runtime.base]);
   const command=useSyncExternalStore(commands.subscribe,commands.getSnapshot,commands.getSnapshot);
   const [coords,setCoords]=useState(['21.0285','105.8542','21.0272','105.8355']);
   const [vehicle,setVehicle]=useState<'CAR_4'|'CAR_7'>('CAR_4'),[quote,setQuote]=useState<Quote|null>(null),[current,setCurrent]=useState<Trip|null>(null),[history,setHistory]=useState<Trip[]>([]),[cursor,setCursor]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[now,setNow]=useState(()=>Date.now());
   const [checked,setChecked]=useState(false),[detail,setDetail]=useState(''),[account,setAccount]=useState(false);
   const refresh=useCallback(async(signal?:AbortSignal)=>{
-    try{const r=await runtime.session.authorized(t=>runtime.trips.active(t,signal));if(!signal?.aborted){setCurrent(activeTrip(r.data));setChecked(true)}}catch(e){if(!signal?.aborted)setError(e instanceof Error?e.message:'Không đọc được chuyến')}
+    if(read.current.busy||signal?.aborted)return;read.current.busy=true;const revision=read.current.revision;
+    try{const r=await runtime.session.authorized(t=>runtime.trips.active(t,signal));if(!signal?.aborted&&revision===read.current.revision){const next=activeTrip(r.data);setCurrent(previous=>previous&&next&&previous.tripId===next.tripId&&previous.version>next.version?previous:next);setChecked(true)}}catch(e){if(!signal?.aborted&&revision===read.current.revision)setError(e instanceof Error?e.message:'Không đọc được chuyến')}finally{read.current.busy=false}
   },[runtime]);
   useEffect(()=>runtime.events.subscribe(()=>{void refresh()}),[runtime,refresh]);
-  useEffect(()=>{const c=new AbortController();void commands.restore().catch(e=>setError(String(e)));void Promise.resolve().then(()=>refresh(c.signal));const timer=setInterval(()=>{void refresh(c.signal)},5000),clock=setInterval(()=>setNow(Date.now()),1000);return()=>{c.abort();clearInterval(timer);clearInterval(clock)}},[commands,refresh]);
+  useEffect(()=>{void commands.restore().catch(e=>setError(String(e)))},[commands]);
+  useEffect(()=>{if(!foreground)return;const c=new AbortController();void Promise.resolve().then(()=>refresh(c.signal));const timer=setInterval(()=>{void refresh(c.signal)},5000),clock=setInterval(()=>setNow(Date.now()),1000);return()=>{c.abort();clearInterval(timer);clearInterval(clock)}},[foreground,refresh]);
   const run=async(work:()=>Promise<void>)=>{setBusy(true);setError('');try{await work()}catch(e){setError(e instanceof Error?e.message:'Không thực hiện được')}finally{setBusy(false)}};
   const estimate=()=>run(async()=>{
     setQuote(null);const pickup=point({lat:Number(coords[0]),lng:Number(coords[1])}),destination=point({lat:Number(coords[2]),lng:Number(coords[3])});
@@ -38,7 +42,7 @@ function Booking({actorId,name}:{actorId:string;name:string}){
       if(cmd.operation==='create')return runtime.trips.create(t,id(cmd.body.quoteId),cmd.key);
       if(cmd.operation==='cancel'&&typeof cmd.body.version==='number'&&typeof cmd.body.reason==='string')return runtime.trips.cancel(t,id(cmd.body.tripId),cmd.body.version,cmd.body.reason,cmd.key);
       throw new Error('INVALID_COMMAND');
-    }));setCurrent(trip(r.data));setQuote(null);await refresh();
+    }));read.current.revision++;setCurrent(trip(r.data));setQuote(null);await refresh();
   });
   const loadHistory=(more:boolean)=>run(async()=>{
     const r=await runtime.session.authorized(t=>runtime.trips.history(t,more?cursor??undefined:undefined)),page=tripPage(r.data);setHistory(old=>more?[...old,...page.items.filter(t=>!old.some(p=>p.tripId===t.tripId))]:page.items);setCursor(page.nextCursor);
