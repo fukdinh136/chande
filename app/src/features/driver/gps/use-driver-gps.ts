@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
-import { useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
 import { realtimeBaseUrl } from './config';
 import { SocketLocationClient } from './socket-location-client';
@@ -15,18 +14,16 @@ const explanation: Record<string, string> = {
   GPS_DISCONNECTED: 'GPS chưa kết nối. Đang chờ kết nối lại.',
   RATE_LIMITED: 'GPS gửi quá nhanh. Đang chờ chu kỳ tiếp theo.',
 };
-export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => Promise<string>) {
-  const [focused, setFocused] = useState(false);
+export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => Promise<string>, gatewayBase?:string|null) {
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [message, setMessage] = useState('GPS chưa bật.');
   const [lastAcceptedAt, setLastAcceptedAt] = useState<string | null>(null);
-  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
   useEffect(() => {
     const listener = AppState.addEventListener('change', state => setForeground(state === 'active'));
     return () => listener.remove();
   }, []);
   useEffect(() => {
-    if (!enabled || !focused || !foreground) return;
+    if (!enabled || !foreground) return;
     let disposed = false, busy = false;
     let timer: ReturnType<typeof setInterval> | undefined;
     let client: SocketLocationClient | undefined;
@@ -56,7 +53,7 @@ export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => P
     };
     void (async () => {
       try {
-        const base = realtimeBaseUrl();
+        const base = process.env.EXPO_PUBLIC_DRIVER_REALTIME_BASE_URL ? realtimeBaseUrl() : gatewayBase ?? realtimeBaseUrl();
         const permission = await Location.requestForegroundPermissionsAsync();
         if (disposed) return;
         if (!permission.granted) { publish('Bạn chưa cấp quyền vị trí. Không gửi GPS.'); return; }
@@ -69,6 +66,6 @@ export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => P
       }
     })();
     return () => { disposed = true; controller.abort(); halt(); };
-  }, [enabled, focused, foreground, token]);
-  return { message: enabled && focused && foreground ? message : 'Định vị đang tạm dừng.', lastAcceptedAt };
+  }, [enabled, foreground, token, gatewayBase]);
+  return { message: enabled && foreground ? message : 'Định vị đang tạm dừng.', lastAcceptedAt };
 }

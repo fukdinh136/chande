@@ -16,9 +16,9 @@ export function GpsCard({ desiredStatus, selectedVehicleId }: { desiredStatus?: 
     if (!session || session.driver.driverId !== driverId) throw new Error('UNAUTHENTICATED');
     return session.accessToken;
   }, [runtime, driverId]);
-  const gps = useDriverGps(requested && allowed, token);
+  const gps = useDriverGps(requested && allowed, token,runtime.config.gatewayBase);
   return <Card>
-    <Notice>Gửi vị trí khoảng 10 giây/lần khi màn hình tài xế đang mở.</Notice>
+    <Notice>GPS foreground khoảng 10 giây/lần, duy trì khi mở lời mời hoặc chuyến.</Notice>
     <Action label={requested ? 'Tắt GPS' : 'Bật GPS'} disabled={!requested && !allowed} onPress={() => setRequested(value => !value)} />
     {!allowed && <Notice>Cần đăng nhập, chọn xe và bật nhận cuốc để gửi vị trí.</Notice>}
     <Notice>{gps.message}</Notice>
