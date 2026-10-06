@@ -24,7 +24,7 @@ function Booking({actorId,name}:{actorId:string;name:string}){
   const command=useSyncExternalStore(commands.subscribe,commands.getSnapshot,commands.getSnapshot);
   const [coords,setCoords]=useState(['21.0285','105.8542','21.0272','105.8355']);
   const [vehicle,setVehicle]=useState<'CAR_4'|'CAR_7'>('CAR_4'),[quote,setQuote]=useState<Quote|null>(null),[current,setCurrent]=useState<Trip|null>(null),[history,setHistory]=useState<Trip[]>([]),[cursor,setCursor]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[now,setNow]=useState(()=>Date.now());
-  const [checked,setChecked]=useState(false),[detail,setDetail]=useState(''),[account,setAccount]=useState(false);
+  const [checked,setChecked]=useState(false),[detail,setDetail]=useState(''),[account,setAccount]=useState(false),[clockOffset,setClockOffset]=useState(0);
   const refresh=useCallback(async(signal?:AbortSignal)=>{
     if(read.current.busy||signal?.aborted)return;read.current.busy=true;const revision=read.current.revision;
     try{const r=await runtime.session.authorized(t=>runtime.trips.active(t,signal));if(!signal?.aborted&&revision===read.current.revision){const next=activeTrip(r.data);setCurrent(previous=>previous&&next&&previous.tripId===next.tripId&&previous.version>next.version?previous:next);setChecked(true)}}catch(e){if(!signal?.aborted&&revision===read.current.revision)setError(e instanceof Error?e.message:'Không đọc được chuyến')}finally{read.current.busy=false}
@@ -35,7 +35,7 @@ function Booking({actorId,name}:{actorId:string;name:string}){
   const run=async(work:()=>Promise<void>)=>{setBusy(true);setError('');try{await work()}catch(e){setError(e instanceof Error?e.message:'Không thực hiện được')}finally{setBusy(false)}};
   const estimate=()=>run(async()=>{
     setQuote(null);const pickup=point({lat:Number(coords[0]),lng:Number(coords[1])}),destination=point({lat:Number(coords[2]),lng:Number(coords[3])});
-    const r=await runtime.session.authorized(t=>runtime.trips.estimate(t,pickup,destination,vehicle));setQuote(decodeQuote(r.data));
+    const r=await runtime.session.authorized(t=>runtime.trips.estimate(t,pickup,destination,vehicle));setClockOffset(r.serverDate===null?0:r.serverDate-Date.now());setQuote(decodeQuote(r.data));
   });
   const execute=(c:Command)=>run(async()=>{
     const r=await commands.run(c,async cmd=>runtime.session.authorized(t=>{
@@ -55,7 +55,7 @@ function Booking({actorId,name}:{actorId:string;name:string}){
       {['Vĩ độ đón','Kinh độ đón','Vĩ độ đến','Kinh độ đến'].map((label,i)=><Field key={label} label={label} value={coords[i]} keyboardType="numbers-and-punctuation" editable={!locked} onChangeText={v=>{setCoords(a=>a.map((s,j)=>j===i?v:s));setQuote(null)}}/>)}
       {(['CAR_4','CAR_7'] as const).map(v=><Action key={v} label={`${v} ${vehicle===v?'✓':''}`} disabled={locked} onPress={()=>{setVehicle(v);setQuote(null)}}/>)}
       <Action label="Ước tính giá" disabled={locked} onPress={()=>{void estimate()}}/><Notice>Địa chỉ hiện chọn bằng tọa độ. BIKE và tìm địa chỉ chờ backend hỗ trợ.</Notice>
-      {quote&&<><ThemedText>{quote.amount} VND</ThemedText><Notice>{quote.distance} m · {quote.duration} giây · Quote còn khoảng {Math.max(0,Math.ceil((Date.parse(quote.expiresAt)-now)/1000))}s</Notice><Action label="Đặt xe" disabled={locked||Date.parse(quote.expiresAt)<=now} onPress={()=>{void execute({key:randomUUID(),operation:'create',body:{quoteId:quote.quoteId}})}}/></>}
+      {quote&&<><ThemedText>{quote.amount} VND</ThemedText><Notice>{quote.distance} m · {quote.duration} giây · Quote còn khoảng {Math.max(0,Math.ceil((Date.parse(quote.expiresAt)-now-clockOffset)/1000))}s</Notice><Action label="Đặt xe" disabled={locked||Date.parse(quote.expiresAt)<=now+clockOffset} onPress={()=>{void execute({key:randomUUID(),operation:'create',body:{quoteId:quote.quoteId}})}}/></>}
     </Card>
     {command.pending&&<Card><Notice>Kết quả lệnh {command.pending.operation} chưa rõ. Retry giữ nguyên quote/version và khóa, kể cả quote hết hạn sau lần gửi đầu.</Notice><Action label="Thử lại lệnh đang chờ" disabled={busy||command.busy} onPress={()=>{void execute(command.pending!)}}/></Card>}
     <Action label="Đọc lại chuyến hiện tại" disabled={busy} onPress={()=>{void refresh()}}/>
