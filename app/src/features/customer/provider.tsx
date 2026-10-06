@@ -6,10 +6,16 @@ import {BackendHttp} from '../backend/http';
 import {UserApi,CustomerTripApi,PreviewApi} from '../backend/clients';
 import {UserSession} from '../backend/user-session';
 import {TripEvents} from '../backend/trip-events';
+import {Redirect} from 'expo-router';
+import {appRole} from '../backend/app-role';
 import {Screen,Notice,Busy} from '../driver/components/ui';
 export interface CustomerRuntime{base:string;user:UserApi;session:UserSession;trips:CustomerTripApi;routes:PreviewApi;events:TripEvents}
 const Context=createContext<CustomerRuntime|null>(null);
 export function CustomerProvider({children}:PropsWithChildren){
+  if(appRole()==='driver')return <Redirect href="/driver"/>;
+  return <ConnectedCustomer>{children}</ConnectedCustomer>;
+}
+function ConnectedCustomer({children}:PropsWithChildren){
   const [runtime,setRuntime]=useState<CustomerRuntime|null>(null),[error,setError]=useState<unknown>(null);
   useEffect(()=>{const control=new AbortController();void(async()=>{
     const base=await discover({development:__DEV__,platform:Platform.OS==='android'?'android':'web',explicit:process.env.EXPO_PUBLIC_BACKEND_ORIGIN,signal:control.signal});if(control.signal.aborted)return;

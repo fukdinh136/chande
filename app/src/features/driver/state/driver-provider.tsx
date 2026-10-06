@@ -2,9 +2,15 @@ import { createContext, useContext, useEffect, useState, useSyncExternalStore, t
 import { Screen, Notice, Busy } from '../components/ui';
 import { errorText } from '../http/errors';
 import { connectDriverRuntime, type DriverRuntime } from './runtime';
+import {Redirect} from 'expo-router';
+import {appRole} from '../../backend/app-role';
 
 const Context = createContext<DriverRuntime | null>(null);
 export function DriverProvider({ children }: PropsWithChildren) {
+  if(appRole()==='customer')return <Redirect href="/customer"/>;
+  return <ConnectedDriver>{children}</ConnectedDriver>;
+}
+function ConnectedDriver({children}:PropsWithChildren){
   const [initial,setInitial] = useState<{runtime:DriverRuntime|null;error:unknown;connecting:boolean}>({runtime:null,error:null,connecting:true});
   useEffect(() => {
     const control = new AbortController();
