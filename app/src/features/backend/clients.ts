@@ -4,6 +4,12 @@ export interface UserTokens {accessToken:string;refreshToken:string;expiresIn:nu
 export interface PlaceInput {label:string;addressText:string;lat:number;lng:number;makeDefault:boolean}
 export type OfferStatus='PENDING'|'ASSIGNMENT_PENDING'|'ASSIGNED'|'DECLINED'|'EXPIRED'|'REJECTED'|'REVOKED';
 export interface Point {lat:number;lng:number;address?:string}
+export interface Quote {quoteId:string;expiresAt:string;amount:string;distance:number;duration:number}
+export function quote(value:unknown):Quote {
+  const q=record(value),f=record(q.fare),r=record(q.route);
+  if(f.currency!=='VND'||!Number.isFinite(Date.parse(text(q.expiresAt)))||typeof r.distanceMeters!=='number'||!Number.isSafeInteger(r.distanceMeters)||r.distanceMeters<0||typeof r.durationSeconds!=='number'||!Number.isSafeInteger(r.durationSeconds)||r.durationSeconds<0)throw new BackendError('INVALID_RESPONSE');
+  return {quoteId:id(q.quoteId),expiresAt:text(q.expiresAt),amount:money(f.amount),distance:r.distanceMeters,duration:r.durationSeconds};
+}
 export interface Offer {offerId:string;tripId:string;driverId:string;version:number;status:OfferStatus;expiresAt:string;pickup:Point;destination:Point;vehicleType:string;fare:{currency:'VND';amount:string}}
 function text(v:unknown):string{if(typeof v!=='string')throw new BackendError('INVALID_RESPONSE');return v}
 function positive(v:unknown):number{if(typeof v!=='number'||!Number.isSafeInteger(v)||v<1)throw new BackendError('INVALID_RESPONSE');return v}

@@ -1,6 +1,10 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{load}=require('../scripts/test-client.cjs');
-const {offer,UserApi,OfferApi,CustomerTripApi,PreviewApi}=load('src/features/backend/clients.ts');
+const {offer,quote,UserApi,OfferApi,CustomerTripApi,PreviewApi}=load('src/features/backend/clients.ts');
 const uuid='11111111-1111-4111-8111-111111111111';
+test('quote reads nested Trip route and preserves VND as string; wrong shape fails closed',()=>{
+  const raw={quoteId:uuid,expiresAt:new Date().toISOString(),fare:{currency:'VND',amount:'27460'},route:{distanceMeters:2546,durationSeconds:180}};
+  assert.equal(quote(raw).distance,2546);assert.equal(quote(raw).amount,'27460');assert.throws(()=>quote({...raw,route:null}));assert.throws(()=>quote({...raw,fare:{currency:'USD',amount:'20'}}));
+});
 test('offer validates state/expiry/money and rejects invented/malformed data',()=>{
   const raw={offerId:uuid,tripId:uuid,driverId:uuid,version:1,status:'PENDING',expiresAt:new Date().toISOString(),pickup:{lat:21,lng:105},destination:{lat:21,lng:106},vehicleType:'CAR_4',fare:{currency:'VND',amount:'9223372036854775807'}};
   assert.equal(offer(raw).fare.amount,raw.fare.amount);assert.equal(offer(null),null);assert.throws(()=>offer({...raw,status:'MATCHED'}));assert.throws(()=>offer({...raw,expiresAt:'yesterday'}));
