@@ -41,3 +41,7 @@ example
 # generated native folders
 /ios
 /android
+
+# Cache/build Gradle của module native cục bộ (IDE tạo khi mở modules/*/android)
+modules/*/android/.gradle/
+modules/*/android/build/
