@@ -44,4 +44,12 @@ Báo cáo validation 455 tests trước đó là snapshot trước tích hợp, 
 
 Commits: `4f38084` — Gateway proxy/security/CORS; `01f87ba` — Docker/Kubernetes, smoke, restart, CI và Dockerfile. Tài liệu/validation được commit riêng sau hai feature runtime.
 
-Runbook và cách chạy lại: [deploy backend](deploy-backend.md). Contract hiện tại: [bảng liên service](hop-dong-lien-service.md). CI kết quả remote được ghi riêng khi kiểm tra được workflow của commit đã push.
+## CI và GitHub
+
+Backend Integration **success** cho `dec0cb1`: [workflow](https://github.com/fukdinh136/chande/actions/runs/37391359011), gồm Gateway/User Maven verify, topology/docs checks và Docker build Java images. Run đầu dừng ở Initialize containers do quote healthcheck Redis; `dec0cb1` sửa quote đúng parser Actions rồi chạy thành công, không đổi runtime deployment.
+
+Các workflow của `b95440b` cũng **success**: [Trip](https://github.com/fukdinh136/chande/actions/runs/37391127371), [Matching](https://github.com/fukdinh136/chande/actions/runs/37391141674), [Routing](https://github.com/fukdinh136/chande/actions/runs/37391127492), [Price](https://github.com/fukdinh136/chande/actions/runs/37391127152). CI không chạy graph Hà Nội/Kubernetes Desktop; hai smoke deployment và restart là bằng chứng local riêng.
+
+Ba feature/docs commits và bản sửa CI đã push main. Private manifests, credentials, PEM, env và OSRM data không commit. Kiểm tra cuối ingress Docker/Kubernetes đều 200; Docker containers healthy, 15 deployment Ready, PVC Bound, migration jobs Complete.
+
+Runbook: [deploy backend](deploy-backend.md). Contract: [bảng liên service](hop-dong-lien-service.md).
