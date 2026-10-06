@@ -29,6 +29,7 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 | Price Service | [API và deploy](../service/price-service/docs/api.md) | Runtime NestJS, token, request/response, lỗi, policy và Docker |
 | Matching Service | [Mục lục](../service/matching-service/README.md) | Nghiệp vụ, C3, API/routes, deploy và kế hoạch mời tài xế tuần tự |
 | Matching Service | [Báo cáo triển khai](../service/matching-service/docs/bao-cao-trien-khai.md) | Feature/commit, kiểm thử, Docker và smoke CAR_4/CAR_7 Hà Nội |
+| App (Frontend) | [Frontend Chande](../app/docs/frontend.md) | App khách theo thiết kế Stitch, dẫn đường tài xế bằng MapLibre Navigation SDK, cấu hình, build và việc còn lại |
 
 ## Cách sử dụng
 
