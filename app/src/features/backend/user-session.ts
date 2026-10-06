@@ -1,0 +1,18 @@
+import {BackendError} from './http';
+import {UserApi,type UserTokens,type UserProfile} from './clients';
+export interface RefreshStorage{read():Promise<string|null>;write(value:string|null):Promise<void>}
+export interface UserState{session:(UserTokens&{profile:UserProfile})|null;restoring:boolean;error:unknown}
+export class UserSession{
+  private state:UserState={session:null,restoring:true,error:null};private epoch=0;private expiresAt=0;private listeners=new Set<()=>void>();private rotation:Promise<UserTokens>|null=null;private writes:Promise<void>=Promise.resolve();
+  constructor(private readonly api:UserApi,private readonly storage:RefreshStorage){}
+  getSnapshot=()=>this.state;subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn)}};
+  private publish(patch:Partial<UserState>){this.state={...this.state,...patch};for(const fn of this.listeners)fn()}
+  private persist(value:string|null){const job=this.writes.catch(()=>{}).then(()=>this.storage.write(value));this.writes=job;return job}
+  private async install(tokens:UserTokens,epoch:number){const profile=await this.api.profile(tokens.accessToken);if(epoch!==this.epoch)throw new BackendError('CANCELLED');await this.persist(tokens.refreshToken);if(epoch!==this.epoch)throw new BackendError('CANCELLED');this.expiresAt=Date.now()+tokens.expiresIn*1000;this.publish({session:{...tokens,profile},restoring:false,error:null})}
+  async login(phone:string,password:string){const epoch=++this.epoch,tokens=await this.api.login(phone,password);try{await this.install(tokens,epoch)}catch(error){await this.api.logout(tokens.refreshToken).catch(()=>{});throw error}}
+  async restore(){const epoch=this.epoch;try{const token=await this.storage.read();if(token){const tokens=await this.api.refresh(token);try{await this.install(tokens,epoch)}catch(error){await this.api.logout(tokens.refreshToken).catch(()=>{});throw error}}}catch(error){if(epoch===this.epoch){await this.persist(null);this.publish({session:null,error})}}finally{if(epoch===this.epoch)this.publish({restoring:false})}}
+  private refresh(){if(this.rotation)return this.rotation;const previous=this.state.session,epoch=this.epoch;if(!previous)throw new BackendError('UNAUTHENTICATED',401);const job=(async()=>{try{const next=await this.api.refresh(previous.refreshToken);if(epoch===this.epoch){try{await this.install(next,epoch)}catch(error){if(epoch!==this.epoch)return next;await this.api.logout(next.refreshToken).catch(()=>{});throw error}}return next}catch(error){if(epoch===this.epoch){this.epoch++;this.publish({session:null,error});await this.persist(null)}throw error}})();this.rotation=job;void job.finally(()=>{if(this.rotation===job)this.rotation=null}).catch(()=>{});return job}
+  async token(){if(!this.state.session)throw new BackendError('UNAUTHENTICATED',401);if(this.expiresAt-Date.now()<30000)await this.refresh();if(!this.state.session)throw new BackendError('UNAUTHENTICATED',401);return this.state.session.accessToken}
+  async authorized<T>(work:(token:string)=>Promise<T>){const epoch=this.epoch;let result:T;try{result=await work(await this.token())}catch(error){if(epoch!==this.epoch)throw new BackendError('CANCELLED');if(!(error instanceof BackendError)||error.status!==401)throw error;await this.refresh();result=await work(await this.token())}if(epoch!==this.epoch)throw new BackendError('CANCELLED');return result}
+  async logout(){const previous=this.state.session,rotation=this.rotation;this.epoch++;this.publish({session:null,restoring:false});await this.persist(null);const newest=await rotation?.catch(()=>null);const token=newest?.refreshToken??previous?.refreshToken;if(token)await this.api.logout(token)}
+}
