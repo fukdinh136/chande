@@ -27,7 +27,7 @@ export function createDriverRuntime(connectedConfig?: HttpConfig) {
   };
 }
 export async function connectDriverRuntime(signal: AbortSignal) {
-  if (process.env.EXPO_PUBLIC_DRIVER_HTTP_MODE || process.env.EXPO_PUBLIC_DRIVER_BASE_URL) return createDriverRuntime();
+  if (!process.env.EXPO_PUBLIC_BACKEND_ORIGIN && (process.env.EXPO_PUBLIC_DRIVER_HTTP_MODE || process.env.EXPO_PUBLIC_DRIVER_BASE_URL)) return createDriverRuntime();
   const base = await discover({ development:__DEV__, platform:Platform.OS==='android'?'android':'web', explicit:process.env.EXPO_PUBLIC_BACKEND_ORIGIN, signal });
   return createDriverRuntime({mode:'gateway',driverBase:base,tripBase:base,gatewayBase:base,gatewayPrefix:'/api/v1',timeoutMs:10000,pollIntervalMs:5000});
 }
