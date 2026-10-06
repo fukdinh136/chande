@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "app",
+    "name": "Chande",
     "slug": "app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,7 +8,8 @@
     "scheme": "app",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.chande.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +18,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.chande.app"
     },
     "web": {
       "output": "static",
@@ -37,10 +39,19 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Chande cần vị trí khi bạn bật GPS để tìm tài xế gần điểm đón.",
+          "locationWhenInUsePermission": "Chande dùng vị trí để đặt điểm đón, gửi vị trí tài xế khi nhận cuốc và dẫn đường.",
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": false
+        }
+      ],
+      [
+        "@maplibre/maplibre-react-native",
+        {
+          "android": {
+            "nativeVersion": "13.6.1",
+            "nativeVariant": "opengl"
+          }
         }
       ],
       [

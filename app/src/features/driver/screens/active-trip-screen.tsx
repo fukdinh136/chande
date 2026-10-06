@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { nextStatus } from '../contracts/models';
 import { useDriverRuntime, useTripCommands } from '../state/driver-provider';
@@ -38,6 +38,8 @@ export function ActiveTripScreen() {
       {trip && <>
         <TripCard trip={trip} />
         <Link href={{ pathname: '/driver/trips/[id]', params: { id: trip.tripId } }}><ThemedText type="linkPrimary">Chi tiết và lịch sử trạng thái</ThemedText></Link>
+        {(trip.status === 'ASSIGNED' || trip.status === 'IN_PROGRESS') && <Action
+          label={trip.status === 'ASSIGNED' ? 'Dẫn đường đến điểm đón' : 'Dẫn đường đến điểm trả'} onPress={() => router.push('/driver/navigation')} />}
         {next && <Action label={actions[next]} disabled={blocked} onPress={() => { void refreshAfter(() => commands.manager.advance(trip)); }} />}
         {['CREATED', 'SEARCHING', 'ASSIGNED', 'DRIVER_ARRIVED'].includes(trip.status) && <>
           <Field label="Lý do hủy (1–500 ký tự)" value={reason} onChangeText={setReason} multiline editable={!blocked} />

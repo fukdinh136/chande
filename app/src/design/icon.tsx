@@ -6,6 +6,11 @@ import { colors } from './tokens';
 const ICONS = {
   add: 'plus',
   airport_shuttle: 'bus.fill',
+  alt_route: 'arrow.triangle.branch',
+  check_circle: 'checkmark.circle.fill',
+  radio_button_unchecked: 'circle',
+  visibility: 'eye',
+  visibility_off: 'eye.slash',
   arrow_back: 'chevron.left',
   bolt: 'bolt.fill',
   call: 'phone.fill',

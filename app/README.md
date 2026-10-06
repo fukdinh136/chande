@@ -1,3 +1,15 @@
+# Chande — app khách và app tài xế
+
+App Expo dùng chung cho khách (màn hình mặc định `/`) và tài xế (`/driver`). Kiến trúc, cấu hình `.env.local`, MapLibre Navigation SDK và cách build: [docs/frontend.md](docs/frontend.md).
+
+```bash
+npm install
+cp rider.env.example .env.local
+npx expo run:android
+```
+
+---
+
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).

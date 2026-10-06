@@ -1,18 +1,26 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { useAppFonts } from '@/design/fonts';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function TabLayout() {
+// App khách ở nhóm (rider) là màn hình mặc định "/"; app tài xế giữ nguyên ở /driver.
+export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const fontsReady = useAppFonts();
+  useEffect(() => {
+    if (fontsReady) void SplashScreen.hideAsync();
+  }, [fontsReady]);
+  if (!fontsReady) return null;
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(rider)" />
+        <Stack.Screen name="driver" />
+      </Stack>
     </ThemeProvider>
   );
 }
