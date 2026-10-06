@@ -1,56 +1,34 @@
-# Welcome to your Expo app 👋
+# Velox Customer / Driver — kết nối backend
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+| Thuộc tính | Giá trị |
+| --- | --- |
+| Service | Customer App / Driver App |
+| Rà soát | 2026-10-06 |
+| Quy ước | [Format và số liệu](../docs/quy-uoc-tai-lieu.md) |
 
-## Get started
+Expo57 / React Native0.86.3 / React19.2.3 / TypeScript6.0.3, Android demo. [Báo cáo kết nối](../docs/frontend/bao-cao-ket-noi.md) ghi feature/commit, API smoke thật, CI, runbook và giới hạn nghiệm thu. [Thiết kế đích](../docs/frontend/README.md) mô tả UI Stitch, API và kiến trúc/native còn cần hoàn thiện.
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```powershell
+npm.cmd ci
+npm.cmd test
+npm.cmd run typecheck
+npm.cmd run lint
+$env:APP_VARIANT='customer' # hoặc driver
+$env:EXPO_PUBLIC_LOCAL_DEMO='true'
+npx.cmd expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Development tự tìm Gateway local Docker18080 hoặc Kubernetes18081. Android emulator dùng10.0.2.2; web/adb reverse dùnglocalhost. Xem các biến public ở [.env.integration.example](.env.integration.example); không ghi đè env local hoặc đưa service credentials vào app. URL EXPO_PUBLIC_BACKEND_ORIGIN explicit được ưu tiên; production cần HTTPS explicit.
 
-### Other setup steps
+Hai CNG variants: com.chande.customer và com.chande.driver, scheme và entry guards riêng; chạy đúng Metro/variant với dev build tương ứng. Combined mặc định dùng để kiểm tra hai role trong source chung. Không chỉnh android/ios generated thủ công. Native APK chưa build pass do ổ C thiếu dung lượng tải NDK; Android bundle đã pass. MapLibre/native navigation, map pin và restyle Stitch chưa triển khai xong.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Live API tests (tạo Customer test và dùng Driver fixture local, không chạy production):
 
-## Learn more
+```powershell
+$env:APP_INTEGRATION='1'
+$env:APP_BACKEND_URL='http://127.0.0.1:18080'
+npm.cmd test
+Remove-Item Env:APP_INTEGRATION
+```
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Mặc định11 unit pass /3 live skip; bật integration thì14pass trên backend local đầy đủ. Booking smoke xác nhận OSRM Hà Nội → quote → GPS/offer WebSocket → accept/replay → Trip ASSIGNED → cancel và release reservation. Đây là API/client evidence, không phải Android UI e2e.
