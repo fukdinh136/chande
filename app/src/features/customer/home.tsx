@@ -10,6 +10,7 @@ import {point,quote as decodeQuote,type Quote} from '../backend/clients';
 import {DurableCommand,type Command} from '../backend/durable-command';
 import {commandStorage} from '../backend/command-storage';
 import {useCustomer,useCustomerSession} from './provider';
+import {CustomerAccount} from './account';
 export function CustomerHome(){
   const state=useCustomerSession();if(state.restoring)return <Screen title="Customer"><Busy visible/></Screen>;
   if(!state.session)return <Redirect href="/customer/login"/>;
@@ -21,7 +22,7 @@ function Booking({actorId,name}:{actorId:string;name:string}){
   const command=useSyncExternalStore(commands.subscribe,commands.getSnapshot,commands.getSnapshot);
   const [coords,setCoords]=useState(['21.0285','105.8542','21.0272','105.8355']);
   const [vehicle,setVehicle]=useState<'CAR_4'|'CAR_7'>('CAR_4'),[quote,setQuote]=useState<Quote|null>(null),[current,setCurrent]=useState<Trip|null>(null),[history,setHistory]=useState<Trip[]>([]),[cursor,setCursor]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[now,setNow]=useState(()=>Date.now());
-  const [checked,setChecked]=useState(false),[detail,setDetail]=useState('');
+  const [checked,setChecked]=useState(false),[detail,setDetail]=useState(''),[account,setAccount]=useState(false);
   const refresh=useCallback(async(signal?:AbortSignal)=>{
     try{const r=await runtime.session.authorized(t=>runtime.trips.active(t,signal));if(!signal?.aborted){setCurrent(activeTrip(r.data));setChecked(true)}}catch(e){if(!signal?.aborted)setError(e instanceof Error?e.message:'Không đọc được chuyến')}
   },[runtime]);
@@ -44,6 +45,8 @@ function Booking({actorId,name}:{actorId:string;name:string}){
   });
   const locked=busy||command.busy||!command.ready||!!command.pending||!checked||!!current&&!isTerminal(current);
   return <Screen title="Velox · Đặt xe Hà Nội">
+    <Action label={account?'Đóng hồ sơ / địa chỉ':'Hồ sơ / địa chỉ đã lưu'} disabled={locked} onPress={()=>setAccount(v=>!v)}/>
+    {account&&!locked&&<CustomerAccount select={(p,kind)=>{setCoords(old=>kind==='pickup'?[String(p.lat),String(p.lng),old[2],old[3]]:[old[0],old[1],String(p.lat),String(p.lng)]);setQuote(null);setAccount(false)}}/>}
     <Notice>Xin chào {name}</Notice><Card><ThemedText>Điểm đón → Điểm đến</ThemedText>
       {['Vĩ độ đón','Kinh độ đón','Vĩ độ đến','Kinh độ đến'].map((label,i)=><Field key={label} label={label} value={coords[i]} keyboardType="numbers-and-punctuation" editable={!locked} onChangeText={v=>{setCoords(a=>a.map((s,j)=>j===i?v:s));setQuote(null)}}/>)}
       {(['CAR_4','CAR_7'] as const).map(v=><Action key={v} label={`${v} ${vehicle===v?'✓':''}`} disabled={locked} onPress={()=>{setVehicle(v);setQuote(null)}}/>)}
