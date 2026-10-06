@@ -23,7 +23,9 @@ export class BackendHttp {
     const controller=new AbortController();let timedOut=false; const cancel=()=>controller.abort();r.signal?.addEventListener('abort',cancel,{once:true});if(r.signal?.aborted)cancel();
     const timer=setTimeout(()=>{timedOut=true;controller.abort()},this.timeout);
     try {
-      const response=await this.fetcher(url.toString(),{method:r.method??'GET',signal:controller.signal,redirect:'error',credentials:'omit',headers:{Accept:'application/json',...(r.body===undefined?{}:{'Content-Type':'application/json'}),...(r.token?{Authorization:'Bearer '+r.token}:{}),...(r.key?{'Idempotency-Key':id(r.key)}:{}),...(r.requestId?{'X-Request-Id':id(r.requestId)}:{})},...(r.body===undefined?{}:{body:JSON.stringify(r.body)})});
+      // Window.fetch rejects a class instance as its receiver in browsers.
+      const fetcher=this.fetcher;
+      const response=await fetcher(url.toString(),{method:r.method??'GET',signal:controller.signal,redirect:'error',credentials:'omit',headers:{Accept:'application/json',...(r.body===undefined?{}:{'Content-Type':'application/json'}),...(r.token?{Authorization:'Bearer '+r.token}:{}),...(r.key?{'Idempotency-Key':id(r.key)}:{}),...(r.requestId?{'X-Request-Id':id(r.requestId)}:{})},...(r.body===undefined?{}:{body:JSON.stringify(r.body)})});
       let payload: unknown=null;
       if(response.status!==204){try{payload=await response.json()}catch{throw new BackendError('INVALID_RESPONSE',response.status)}}
       if(!response.ok){

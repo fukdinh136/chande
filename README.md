@@ -8,6 +8,8 @@
 
 Tám service backend trong `service/`; ứng dụng Expo trong `app/`. [Mục lục tài liệu](docs/README.md), [hợp đồng/số liệu chung](docs/hop-dong-lien-service.md) và [báo cáo validation](docs/bao-cao-validation.md).
 
+Demo hiện tại chạy backend Kubernetes local và Customer/Driver web tại cổng 8081. Xem [rà soát mức độ hoàn thiện, tài khoản test và kết quả chạy demo](docs/bao-cao-demo-kubernetes.md).
+
 | Service | Vai trò | Tài liệu |
 | --- | --- | --- |
 | API Gateway | JWT, proxy REST và WebSocket trip events | [README](service/api-gateway/README.md) |

@@ -64,7 +64,10 @@ export class OsrmProvider implements MapProvider {
       if (!rich.success) throw invalidProvider();
       result.navigation = rich.data.routes[0]!;
       decodePolyline(result.navigation.geometry);
-      for (const leg of result.navigation.legs) for (const step of leg.steps) decodePolyline(step.geometry);
+      for (const leg of result.navigation.legs) for (const step of leg.steps) {
+        // OSRM encodes the zero-distance arrival as a single coordinate.
+        decodePolyline(step.geometry, step.maneuver.type === 'arrive' && step.distance === 0 ? 1 : 2);
+      }
     }
     if (input.full) {
       if (!source.geometry) throw invalidProvider(); decodePolyline(source.geometry);

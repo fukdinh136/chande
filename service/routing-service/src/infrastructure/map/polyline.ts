@@ -1,6 +1,6 @@
 import type { Location } from '../../domain/models';
 import { invalidProvider } from '../../domain/errors';
-export function decodePolyline(value: string): Location[] {
+export function decodePolyline(value: string, minimumPoints: 1 | 2 = 2): Location[] {
   let index = 0; let lat = 0; let lng = 0; const result: Location[] = [];
   const next = () => {
     let bits = 0; let shift = 0; let byte: number;
@@ -17,7 +17,7 @@ export function decodePolyline(value: string): Location[] {
     if (Math.abs(point.lat) > 90 || Math.abs(point.lng) > 180) throw invalidProvider();
     result.push(point);
   }
-  if (result.length < 2) throw invalidProvider(); return result;
+  if (result.length < minimumPoints) throw invalidProvider(); return result;
 }
 export function encodePolyline(points: Location[]): string {
   let lat = 0; let lng = 0; let result = '';

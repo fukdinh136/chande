@@ -46,6 +46,7 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 - [Quy ước format](quy-uoc-tai-lieu.md): UTF-8, metadata, headings/bảng/code/link và nguồn số liệu.
 - [Hợp đồng liên service](hop-dong-lien-service.md): defaults/overrides, đơn vị, danh mục xe, giá, auth/routes và các khoảng trống tích hợp.
 - [Báo cáo validation](bao-cao-validation.md): commands, kết quả hiện tại, phạm vi thật/mock và lỗi tài liệu đã sửa.
+- [Rà soát và demo Kubernetes](bao-cao-demo-kubernetes.md): lần chạy hiện tại, tài khoản test lưu DB, Customer/Driver web, các lỗi sửa và giới hạn Android/production.
 - [Deploy backend](deploy-backend.md): Docker/Kubernetes local, ingress, secrets/PVC, startup/restart và smoke.
 - [Báo cáo tích hợp backend](bao-cao-tich-hop-backend.md): Gateway kết nối backend thật, deployment và kết quả hai môi trường.
 - [Thiết kế frontend Android](frontend/README.md): hai app Customer/Driver, UI Stitch, public APIs, kiến trúc và MapLibre Navigation gate/skip.

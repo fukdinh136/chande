@@ -35,6 +35,32 @@ test('OSRM Table sources are drivers, destination is pickup; nulls are NO_ROUTE'
     res.end(JSON.stringify({ code: 'Ok', distances: [[10.1], [null]], durations: [[2], [null]] }));
   }, async p => assert.deepEqual(await p.matrix({ origins: [origin, destination], destination: origin, vehicleType: 'CAR' }, context()), [{ status: 'OK', distanceMeters: 11, durationSeconds: 2 }, { status: 'NO_ROUTE', distanceMeters: null, durationSeconds: null }]));
 });
+
+const navigationFixture = () => ({
+  code: 'Ok', routes: [{ distance: 10, duration: 2, geometry: encodePolyline([origin, destination]), legs: [{ distance: 10, duration: 2, summary: 'Street', steps: [
+    { distance: 10, duration: 2, name: 'Street', geometry: encodePolyline([origin, destination]), maneuver: { type: 'depart', location: [origin.lng, origin.lat], bearing_before: 0, bearing_after: 90 } },
+    { distance: 0, duration: 0, name: 'Street', geometry: encodePolyline([destination]), maneuver: { type: 'arrive', location: [destination.lng, destination.lat], bearing_before: 90, bearing_after: 0 } },
+  ] }] }],
+});
+test('OSRM navigation preserves the real single-coordinate zero-distance arrival', async () => {
+  await fixture((_, res) => res.end(JSON.stringify(navigationFixture())), async p => {
+    const result = await p.route({ origin, destination, vehicleType: 'CAR', full: true, includeSteps: true, navigation: true }, context());
+    const arrival = result.navigation!.legs[0]!.steps[1]!;
+    assert.equal(arrival.geometry, encodePolyline([destination]));
+    assert.deepEqual(decodePolyline(arrival.geometry, 1), [destination]);
+    assert.throws(() => decodePolyline(arrival.geometry), /INVALID_PROVIDER_RESPONSE/);
+  });
+});
+test('OSRM navigation rejects single-coordinate travel steps and nonzero-distance arrivals', async () => {
+  for (const invalid of ['depart', 'arrival-distance']) {
+    const body = navigationFixture();
+    if (invalid === 'depart') body.routes[0]!.legs[0]!.steps[0]!.geometry = encodePolyline([origin]);
+    else body.routes[0]!.legs[0]!.steps[1]!.distance = 1;
+    await fixture((_, res) => res.end(JSON.stringify(body)), async p => {
+      await assert.rejects(p.route({ origin, destination, vehicleType: 'CAR', full: true, includeSteps: true, navigation: true }, context()), /INVALID_PROVIDER_RESPONSE/);
+    });
+  }
+});
 test('OSRM codes and HTTP status produce sanitized errors, not success', async () => {
   for (const [status, code, expected] of [[200, 'NoRoute', 'NO_ROUTE'], [400, 'TooBig', 'PROVIDER_CONFIGURATION_ERROR'], [200, 'NotImplemented', 'UNSUPPORTED_CAPABILITY'], [200, 'Unknown', 'INVALID_PROVIDER_RESPONSE'], [401, 'secret', 'PROVIDER_CONFIGURATION_ERROR'], [429, 'secret', 'PROVIDER_UNAVAILABLE']] as const) {
     await fixture((_, res) => { res.statusCode = status; res.end(JSON.stringify({ code, message: 'sensitive' })); }, async p => { await assert.rejects(p.route({ origin, destination, vehicleType: 'CAR', full: false, includeSteps: false }, context()), (e: unknown) => e instanceof Error && e.message === expected); });

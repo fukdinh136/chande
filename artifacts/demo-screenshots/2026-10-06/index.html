@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Velox — Ảnh Customer và Driver</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f5f8fa;color:#0b1c30;font:16px/1.6 system-ui,sans-serif}
+    main{max-width:1280px;margin:auto;padding:36px 24px 64px}h1{font-size:32px;margin:0 0 8px}h2{color:#00685f;margin:32px 0 12px}
+    p{color:#556867;margin:8px 0}a{color:#00685f}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+    figure{margin:0;background:white;border:1px solid #dfe9e7;border-radius:16px;overflow:hidden}
+    figure a{display:block;background:#edf2f3}img{display:block;width:100%;height:320px;object-fit:contain}
+    figcaption{padding:14px 18px;font-weight:600}small{display:block;font-size:13px;font-weight:400;color:#647574;margin-top:4px}
+    @media(max-width:400px){main{padding:24px 12px}.gallery{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Velox Customer &amp; Driver</h1>
+  <p>10 ảnh trực tiếp từ demo web • 06/10/2026 • Backend Kubernetes local</p>
+  <p>Bấm ảnh để mở kích thước gốc. <a href="README.md">Danh sách và thông tin tài khoản demo</a></p>
+  <h2>Customer</h2>
+  <div class="gallery">
+    <figure><a href="01-customer-map-route.jpg"><img src="01-customer-map-route.jpg" alt="Customer: bản đồ Hà Nội và tuyến đường OSRM"></a><figcaption>Bản đồ &amp; tuyến đường<small>Điểm đón/đến, tuyến từ backend, zoom và chọn vị trí.</small></figcaption></figure>
+    <figure><a href="02-customer-quote-vehicle.jpg"><img src="02-customer-quote-vehicle.jpg" alt="Customer: chọn loại xe và xem báo giá"></a><figcaption>Chọn xe &amp; báo giá<small>Standard/XL, giá, quãng đường và hạn giữ giá.</small></figcaption></figure>
+    <figure><a href="03-customer-account-addresses.jpg"><img src="03-customer-account-addresses.jpg" alt="Customer: hồ sơ tài khoản test"></a><figcaption>Tài khoản &amp; địa chỉ<small>Khách Demo Velox, hồ sơ và địa chỉ yêu thích.</small></figcaption></figure>
+    <figure><a href="04-customer-history.jpg"><img src="04-customer-history.jpg" alt="Customer: lịch sử chuyến đi"></a><figcaption>Lịch sử chuyến đi<small>Dữ liệu demo được đọc từ backend.</small></figcaption></figure>
+    <figure><a href="09-customer-trip-detail.jpg"><img src="09-customer-trip-detail.jpg" alt="Customer: chi tiết và lịch sử trạng thái chuyến"></a><figcaption>Chi tiết hành trình<small>Các mốc tạo chuyến, tìm tài xế và hủy.</small></figcaption></figure>
+  </div>
+  <h2>Driver</h2>
+  <div class="gallery">
+    <figure><a href="07-driver-home-availability.jpg"><img src="07-driver-home-availability.jpg" alt="Driver: bản đồ và trạng thái nhận chuyến"></a><figcaption>Trạng thái nhận chuyến<small>Fixture CAR_7 đang OFFLINE, có xe đang chọn.</small></figcaption></figure>
+    <figure><a href="05-driver-profile.jpg"><img src="05-driver-profile.jpg" alt="Driver: thông tin hồ sơ tài xế"></a><figcaption>Hồ sơ tài xế<small>Họ tên, giấy phép và ảnh đại diện.</small></figcaption></figure>
+    <figure><a href="06-driver-vehicles.jpg"><img src="06-driver-vehicles.jpg" alt="Driver: danh sách và quản lý phương tiện"></a><figcaption>Quản lý phương tiện<small>Xe CAR_7, chọn xe, chỉnh sửa và đăng ký.</small></figcaption></figure>
+    <figure><a href="08-driver-history.jpg"><img src="08-driver-history.jpg" alt="Driver: lịch sử chuyến từ kiểm thử tích hợp"></a><figcaption>Lịch sử chuyến<small>Các chuyến demo đã hủy và giá chuyến.</small></figcaption></figure>
+    <figure><a href="10-driver-offers.jpg"><img src="10-driver-offers.jpg" alt="Driver: màn hình lời mời hiện chưa có offer"></a><figcaption>Lời mời chuyến<small>Trạng thái thật tại lúc chụp: chưa có lời mời.</small></figcaption></figure>
+  </div>
+  <p>Đây là bản web preview. Android native và navigation trên thiết bị còn cần nghiệm thu.</p>
+</main>
+</body>
+</html>
