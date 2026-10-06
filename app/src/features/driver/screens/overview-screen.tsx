@@ -6,7 +6,6 @@ import { useFocusedResource } from '../hooks/use-focused-resource';
 import { useMutation } from '../hooks/use-mutation';
 import { Action, Busy, Card, ErrorNotice, Notice, Screen } from '../components/ui';
 import { TripCard } from '../components/trip-card';
-import { GpsCard } from '../gps/gps-card';
 
 export function OverviewScreen() {
   const runtime = useDriverRuntime();
@@ -21,6 +20,7 @@ export function OverviewScreen() {
       <Link href="/driver/vehicles"><ThemedText type="linkPrimary">Phương tiện</ThemedText></Link>
       <Link href="/driver/trip"><ThemedText type="linkPrimary">Chuyến hiện tại</ThemedText></Link>
       <Link href="/driver/history"><ThemedText type="linkPrimary">Lịch sử chuyến</ThemedText></Link>
+      <Link href="/driver/offers"><ThemedText type="linkPrimary">Lời mời / nhận cuốc</ThemedText></Link>
       <Card>
         <ThemedText>Ý định nhận cuốc: {intent.data?.desiredStatus ?? 'Chưa đọc được'}</ThemedText>
         <Notice>Trạng thái vận hành: {intent.data?.realtimeStatus ?? 'UNKNOWN'}</Notice>
@@ -33,7 +33,6 @@ export function OverviewScreen() {
           onPress={() => { void mutation.run(async () => { intent.replace(await runtime.driver.setAvailability('OFFLINE')); refresh(); }); }} />
         <Busy visible={intent.loading || mutation.busy} /><ErrorNotice error={intent.error || mutation.error} />
       </Card>
-      <GpsCard desiredStatus={intent.error ? undefined : intent.data?.desiredStatus} selectedVehicleId={intent.data?.selectedVehicleId} />
       <Action label="Đọc lại trạng thái" onPress={refresh} disabled={intent.loading || active.loading || mutation.busy} />
       {!runtime.trip.enabled ? <Notice>Trip chưa được cấu hình. Hồ sơ, xe và ý định nhận cuốc vẫn dùng API Driver; thao tác đổi xe cần backend xác minh Trip.</Notice> : <>
         <Busy visible={active.loading} /><ErrorNotice error={active.error} />

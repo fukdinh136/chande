@@ -1,21 +1,21 @@
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
-import { Screen, Notice } from '../components/ui';
+import { Screen, Notice, Busy } from '../components/ui';
 import { errorText } from '../http/errors';
-import { createDriverRuntime, type DriverRuntime } from './runtime';
+import { connectDriverRuntime, type DriverRuntime } from './runtime';
 
 const Context = createContext<DriverRuntime | null>(null);
 export function DriverProvider({ children }: PropsWithChildren) {
-  const [initial] = useState(() => {
-    try { return { runtime: createDriverRuntime(), error: null }; }
-    catch (error) { return { runtime: null, error }; }
-  });
+  const [initial,setInitial] = useState<{runtime:DriverRuntime|null;error:unknown;connecting:boolean}>({runtime:null,error:null,connecting:true});
   useEffect(() => {
-    if (initial.runtime) void initial.runtime.session.restore();
-  }, [initial]);
+    const control = new AbortController();
+    void connectDriverRuntime(control.signal).then(runtime=>{if(!control.signal.aborted){setInitial({runtime,error:null,connecting:false});void runtime.session.restore();}}).catch(error=>{if(!control.signal.aborted)setInitial({runtime:null,error,connecting:false});});
+    return ()=>control.abort();
+  }, []);
+  if (initial.connecting) return <Screen title="Kết nối backend"><Busy visible/><Notice>Đang kiểm tra Gateway local đã triển khai…</Notice></Screen>;
   if (!initial.runtime) return (
     <Screen title="Cấu hình Driver">
       <Notice>{errorText(initial.error)}</Notice>
-      <Notice>Sao chép driver.env.example thành .env.local trong app, điền URL và khởi động lại Expo.</Notice>
+      <Notice>Bật backend local hoặc đặt EXPO_PUBLIC_BACKEND_ORIGIN rồi khởi động lại Expo. Android emulator tự kiểm tra 10.0.2.2; máy thật cần adb reverse hoặc URL đã cấu hình.</Notice>
     </Screen>
   );
   return <Context.Provider value={initial.runtime}><SessionEffects />{children}</Context.Provider>;
@@ -27,7 +27,7 @@ function SessionEffects() {
   useEffect(() => {
     trip.clear();
     void commands.initialize(driverId);
-    // No-op until a confirmed realtime adapter is supplied; never marks presence online.
+    // Realtime invalidates REST data; availability remains owned by Driver.
     if (driverId) void realtime.connect().catch(() => {});
     return () => realtime.disconnect();
   }, [commands, driverId, realtime, trip]);
