@@ -12,6 +12,7 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 
 | Service | Tài liệu | Nội dung |
 | --- | --- | --- |
+| Frontend Android | [Báo cáo kết nối](frontend/bao-cao-ket-noi.md) | Customer/Driver client và màn hình, từng feature/commit, live booking smoke, CI và giới hạn APK/native |
 | Trip Service | [Nghiệp vụ Trip Service](../service/trip-service/docs/nghiep-vu.md) | Phạm vi v1, ranh giới service, quy tắc, vòng đời chuyến, luồng nghiệp vụ, component và tiêu chí validate |
 | Trip Service | [Kiến trúc](../service/trip-service/docs/kien-truc.md) | Lớp/port/adapter, dữ liệu, transaction và luồng outbox |
 | Trip Service | [Sơ đồ C4](../service/trip-service/docs/c4.md) | Context, container, component và code diagram theo triển khai hiện tại |
@@ -47,6 +48,7 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 - [Báo cáo validation](bao-cao-validation.md): commands, kết quả hiện tại, phạm vi thật/mock và lỗi tài liệu đã sửa.
 - [Deploy backend](deploy-backend.md): Docker/Kubernetes local, ingress, secrets/PVC, startup/restart và smoke.
 - [Báo cáo tích hợp backend](bao-cao-tich-hop-backend.md): Gateway kết nối backend thật, deployment và kết quả hai môi trường.
+- [Thiết kế frontend Android](frontend/README.md): hai app Customer/Driver, UI Stitch, public APIs, kiến trúc và MapLibre Navigation gate/skip.
 - Kiểm tra tự động tại root: `node scripts/validate-docs.cjs`.
 
 ## Cách sử dụng
