@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <activity
+      android:name="expo.modules.chandenavigation.ChandeNavigationActivity"
+      android:exported="false"
+      android:launchMode="singleTop"
+      android:theme="@style/ChandeNavigationActivityTheme" />
+  </application>
+</manifest>

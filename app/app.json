@@ -42,6 +42,12 @@
           "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": false
         }
+      ],
+      [
+        "./modules/chande-navigation/app.plugin.js",
+        {
+          "mapStyleUrl": "https://tiles.openfreemap.org/styles/liberty"
+        }
       ]
     ],
     "experiments": {

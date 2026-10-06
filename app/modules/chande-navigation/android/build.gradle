@@ -1,0 +1,46 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.chandenavigation'
+version = '0.1.0'
+
+// MapLibre Native phải trùng bản @maplibre/maplibre-react-native đang dùng: cùng một tiến trình chỉ được có
+// một bản org.maplibre.android.*. Plugin Expo của maplibre-react-native ghi các giá trị này vào gradle.properties.
+def mapLibreVersion = findProperty('org.maplibre.reactnative.nativeVersion') ?: '13.6.1'
+def mapLibreVariant = findProperty('org.maplibre.reactnative.nativeVariant') ?: 'opengl'
+def navigationVersion = findProperty('chande.navigation.sdkVersion') ?: '5.0.0'
+def mapStyleUrl = (findProperty('chande.navigation.mapStyleUrl') ?: 'https://tiles.openfreemap.org/styles/liberty')
+  .toString().replace('&', '&amp;')
+
+android {
+  namespace "expo.modules.chandenavigation"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+    resValue "string", "chande_navigation_map_style", mapStyleUrl
+  }
+  buildFeatures {
+    resValues true
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation "org.maplibre.gl:android-sdk-${mapLibreVariant}:${mapLibreVersion}"
+  // navigation-ui/core kéo theo org.maplibre.gl:android-sdk (biến thể mặc định) → trùng lớp với bản opengl ở trên.
+  implementation("org.maplibre.navigation:navigation-ui-android:${navigationVersion}") {
+    exclude group: 'org.maplibre.gl', module: 'android-sdk'
+  }
+  implementation 'androidx.appcompat:appcompat:1.7.0'
+}
+
+// Navigation SDK 5.x được biên dịch bằng Kotlin 2.4, còn React Native 0.86 dùng Kotlin 2.1.20 (chỉ đọc được
+// metadata tới 2.2). Phần gọi SDK viết bằng Java; cờ này để trình biên dịch Kotlin của module vẫn đọc được
+// kotlin-stdlib mới mà SDK kéo theo. Plugin app.plugin.js thêm cờ tương tự cho module :app.
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+  compilerOptions.freeCompilerArgs.add('-Xskip-metadata-version-check')
+}

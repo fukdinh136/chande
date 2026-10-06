@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bảng màu "Velox" của thiết kế Stitch -->
+    <color name="chande_navigation_primary">#00685F</color>
+    <color name="chande_navigation_primary_container">#008378</color>
+    <color name="chande_navigation_on_primary">#FFFFFF</color>
+    <color name="chande_navigation_primary_fixed">#89F5E7</color>
+    <color name="chande_navigation_surface">#FFFFFF</color>
+    <color name="chande_navigation_on_surface">#0B1C30</color>
+    <color name="chande_navigation_on_surface_variant">#3D4947</color>
+    <color name="chande_navigation_outline_variant">#BCC9C6</color>
+    <color name="chande_navigation_route">#0D9488</color>
+    <color name="chande_navigation_route_shield">#00685F</color>
+    <color name="chande_navigation_surface_dark">#0F172A</color>
+    <color name="chande_navigation_on_surface_dark">#EAF1FF</color>
+
+    <style name="ChandeNavigationActivityTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/chande_navigation_primary</item>
+    </style>
+
+    <style name="ChandeNavigationRoute" parent="NavigationMapRoute">
+        <item name="routeColor">@color/chande_navigation_route</item>
+        <item name="routeShieldColor">@color/chande_navigation_route_shield</item>
+        <item name="upcomingManeuverArrowColor">@color/chande_navigation_surface</item>
+        <item name="upcomingManeuverArrowBorderColor">@color/chande_navigation_primary</item>
+    </style>
+
+    <style name="ChandeNavigationViewLight" parent="NavigationViewLight">
+        <item name="navigationViewPrimary">@color/chande_navigation_surface</item>
+        <item name="navigationViewSecondary">@color/chande_navigation_on_surface</item>
+        <item name="navigationViewAccent">@color/chande_navigation_primary</item>
+        <item name="navigationViewPrimaryText">@color/chande_navigation_on_surface</item>
+        <item name="navigationViewSecondaryText">@color/chande_navigation_on_surface_variant</item>
+        <item name="navigationViewDivider">@color/chande_navigation_outline_variant</item>
+        <item name="navigationViewBannerBackground">@color/chande_navigation_primary</item>
+        <item name="navigationViewBannerPrimaryText">@color/chande_navigation_on_primary</item>
+        <item name="navigationViewBannerSecondaryText">@color/chande_navigation_primary_fixed</item>
+        <item name="navigationViewBannerManeuverPrimary">@color/chande_navigation_on_primary</item>
+        <item name="navigationViewBannerManeuverSecondary">@color/chande_navigation_primary_fixed</item>
+        <item name="navigationViewProgress">@color/chande_navigation_primary_container</item>
+        <item name="navigationViewRouteStyle">@style/ChandeNavigationRoute</item>
+        <item name="navigationViewMapStyle">@string/chande_navigation_map_style</item>
+    </style>
+
+    <style name="ChandeNavigationViewDark" parent="NavigationViewDark">
+        <item name="navigationViewPrimary">@color/chande_navigation_surface_dark</item>
+        <item name="navigationViewSecondary">@color/chande_navigation_on_surface_dark</item>
+        <item name="navigationViewAccent">@color/chande_navigation_primary_fixed</item>
+        <item name="navigationViewPrimaryText">@color/chande_navigation_on_surface_dark</item>
+        <item name="navigationViewBannerBackground">@color/chande_navigation_primary</item>
+        <item name="navigationViewBannerPrimaryText">@color/chande_navigation_on_primary</item>
+        <item name="navigationViewBannerSecondaryText">@color/chande_navigation_primary_fixed</item>
+        <item name="navigationViewBannerManeuverPrimary">@color/chande_navigation_on_primary</item>
+        <item name="navigationViewBannerManeuverSecondary">@color/chande_navigation_primary_fixed</item>
+        <item name="navigationViewProgress">@color/chande_navigation_primary_fixed</item>
+        <item name="navigationViewRouteStyle">@style/ChandeNavigationRoute</item>
+        <item name="navigationViewMapStyle">@string/chande_navigation_map_style</item>
+    </style>
+</resources>
