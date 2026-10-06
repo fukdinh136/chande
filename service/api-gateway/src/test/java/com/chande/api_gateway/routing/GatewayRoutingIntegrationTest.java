@@ -321,6 +321,10 @@ class GatewayRoutingIntegrationTest {
 
     @Test
     void offersAreDriverOnlyAndRoutingCredentialCannotBeSpoofed() throws Exception {
+        assertThat(send("POST", "/api/v1/routes/navigation", TOKENS.rider(RIDER_ID), "{}", Map.of()).statusCode()).isEqualTo(403);
+        var navigation = send("POST", "/api/v1/routes/navigation", TOKENS.driver(DRIVER_ID), "{}", Map.of("X-Service-Token", "client-spoof"));
+        assertThat(navigation.statusCode()).isEqualTo(200);
+        assertThat(JSON.readTree(navigation.body()).get("serviceToken").asString()).isEqualTo("trusted-routing-server-token");
         assertThat(send("GET", "/api/v1/matching/offers/active", TOKENS.rider(RIDER_ID), null, Map.of()).statusCode()).isEqualTo(403);
         var response = send("POST", "/api/v1/routes", TOKENS.rider(RIDER_ID), "{}", Map.of("X-Service-Token", "client-spoof"));
         assertThat(response.statusCode()).isEqualTo(200);

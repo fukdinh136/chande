@@ -67,7 +67,7 @@ gateway:
       # Server credential is injected only for these Gateway-scoped Routing APIs.
       routing-service:
         instances: ${ROUTING_SERVICE_URLS:http://localhost:3004}
-        paths: /routes, /routes/recalculate
+        paths: /routes, /routes/recalculate, /routes/navigation
         max-concurrent-requests: 128
         service-token: ${ROUTING_GATEWAY_TOKEN:}
       matching-service:

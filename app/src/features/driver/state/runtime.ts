@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 import { FetchTransport } from '../http/transport';
 import { UnconfiguredRealtimeClient } from '../realtime/realtime-client';
 import {GatewayRealtimeClient} from '../realtime/gateway-realtime-client';
+import {gatewayOrigin} from '../../backend/connection';
 import { SessionManager } from '../session/session-manager';
 import { DriverStorage } from '../session/storage';
 import { TripCommandManager } from './trip-command-manager';
@@ -27,8 +28,9 @@ export function createDriverRuntime(connectedConfig?: HttpConfig) {
   };
 }
 export async function connectDriverRuntime(signal: AbortSignal) {
-  if (!process.env.EXPO_PUBLIC_BACKEND_ORIGIN && (process.env.EXPO_PUBLIC_DRIVER_HTTP_MODE || process.env.EXPO_PUBLIC_DRIVER_BASE_URL)) return createDriverRuntime();
-  const base = await discover({ development:__DEV__, platform:Platform.OS==='android'?'android':'web', explicit:process.env.EXPO_PUBLIC_BACKEND_ORIGIN, signal });
+  const explicit=await gatewayOrigin();
+  if (!explicit && (process.env.EXPO_PUBLIC_DRIVER_HTTP_MODE || process.env.EXPO_PUBLIC_DRIVER_BASE_URL)) return createDriverRuntime();
+  const base = await discover({ development:__DEV__||process.env.EXPO_PUBLIC_LOCAL_DEMO==='true', platform:Platform.OS==='android'?'android':'web', explicit, signal });
   return createDriverRuntime({mode:'gateway',driverBase:base,tripBase:base,gatewayBase:base,gatewayPrefix:'/api/v1',timeoutMs:10000,pollIntervalMs:5000});
 }
 export type DriverRuntime = ReturnType<typeof createDriverRuntime>;

@@ -1,19 +1,17 @@
-import { DarkTheme, DefaultTheme, ThemeProvider,Stack } from 'expo-router';
+import { DefaultTheme, ThemeProvider,Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
-
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
-import {appRole} from '@/features/backend/app-role';
+import {useEffect} from 'react';
+import {useFonts,Inter_400Regular,Inter_600SemiBold,Inter_700Bold} from '@expo-google-fonts/inter';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const [loaded,error]=useFonts({Inter_400Regular,Inter_600SemiBold,Inter_700Bold});
+  useEffect(()=>{if(loaded||error)void SplashScreen.hideAsync()},[loaded,error]);
+  if(!loaded&&!error)return null;
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      {appRole()==='combined'?<AppTabs />:<Stack screenOptions={{headerShown:false}}/>}
+    <ThemeProvider value={DefaultTheme}>
+      <Stack screenOptions={{headerShown:false}}/>
     </ThemeProvider>
   );
 }

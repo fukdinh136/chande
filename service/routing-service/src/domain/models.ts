@@ -18,9 +18,9 @@ export interface Step extends Summary {
   streetName: string | null; instruction: null;
   maneuver: { type: string; modifier: string | null; location: Location; exit: number | null };
 }
-export interface Route extends Summary { polyline?: { encoding: 'encoded_polyline'; precision: 6; value: string }; steps: Step[] }
+export interface Route extends Summary { polyline?: { encoding: 'encoded_polyline'; precision: 6; value: string }; steps: Step[]; navigation?: import('./navigation').NavigationRoute }
 export type Cell = ({ status: 'OK' } & Summary) | { status: 'NO_ROUTE'; distanceMeters: null; durationSeconds: null };
-export interface RouteRequest { origin: Location; destination: Location; vehicleType: string; full: boolean; includeSteps: boolean }
+export interface RouteRequest { origin: Location; destination: Location; vehicleType: string; full: boolean; includeSteps: boolean; navigation?: boolean }
 export interface MatrixRequest { origins: Location[]; destination: Location; vehicleType: string }
 export type MapJob = { kind: 'route'; input: RouteRequest } | { kind: 'matrix'; input: MatrixRequest };
 export function requireVehicle(vehicle: string, supported: readonly string[]): void {

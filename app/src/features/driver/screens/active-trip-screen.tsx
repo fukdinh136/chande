@@ -6,6 +6,7 @@ import { useDriverRuntime, useTripCommands } from '../state/driver-provider';
 import { useFocusedResource } from '../hooks/use-focused-resource';
 import { TripCard } from '../components/trip-card';
 import { Action, Busy, Card, ErrorNotice, Field, Notice, Screen } from '../components/ui';
+import {NavigationCard} from '../../navigation/navigation-card';
 
 const actions = { DRIVER_ARRIVED: 'Đã đến điểm đón', IN_PROGRESS: 'Bắt đầu chuyến', COMPLETED: 'Hoàn thành chuyến' };
 export function ActiveTripScreen() {
@@ -33,10 +34,11 @@ export function ActiveTripScreen() {
       {commands.restoring && !!commands.error && <Action label="Đọc lại lệnh đã lưu" disabled={commands.busy} onPress={() => { void commands.manager.reloadStoredCommand(); }} />}
       {commands.message && <Notice>{commands.message}</Notice>}
       {commands.pending && <Card>
-        <Notice>Còn lệnh chưa xác định kết quả cho chuyến {commands.pending.tripId}, version {commands.pending.body.version}. Retry giữ nguyên khóa và nội dung.</Notice>
+        <Notice>Thao tác trước chưa có xác nhận. Thử lại để kiểm tra kết quả.</Notice>
         <Action label="Thử lại đúng lệnh đã lưu" disabled={!runtime.trip.enabled || commands.busy || commands.restoring} onPress={() => { void refreshAfter(() => commands.manager.retry()); }} />
       </Card>}
       {trip && <>
+        <NavigationCard trip={trip}/>
         <TripCard trip={trip} />
         <Link href={{ pathname: '/driver/trips/[id]', params: { id: trip.tripId } }}><ThemedText type="linkPrimary">Chi tiết và lịch sử trạng thái</ThemedText></Link>
         {next && <Action label={actions[next]} disabled={blocked} onPress={() => { void refreshAfter(() => commands.manager.advance(trip)); }} />}
@@ -46,8 +48,7 @@ export function ActiveTripScreen() {
         </>}
       </>}
       {resource.checkedAt && !trip && !resource.error && <Notice>Không có chuyến đang hoạt động ở lần đọc gần nhất.</Notice>}
-      <Notice>Polling chỉ chạy khi màn hình có focus và app ở foreground; trở lại màn hình sẽ đọc lại. Không phải GPS realtime hoặc push notification.</Notice>
-      <Notice>{runtime.matching.reason}</Notice><Notice>{runtime.realtime.reason}</Notice>
+
     </Screen>
   );
 }

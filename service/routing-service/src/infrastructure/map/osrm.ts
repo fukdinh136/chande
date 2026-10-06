@@ -5,6 +5,7 @@ import { checkpoint } from '../../application/context';
 import { RoutingError, deadline, invalidProvider } from '../../domain/errors';
 import { locationSchema, measurement, type RouteRequest, type MatrixRequest, type Route, type Cell, type Location } from '../../domain/models';
 import { decodePolyline } from './polyline';
+import { navigationRouteSchema } from '../../domain/navigation';
 const amount = z.number().nonnegative().max(2147483647);
 const stepSchema = z.object({ distance: amount, duration: amount, name: z.string(), maneuver: z.object({ type: z.string().min(1), modifier: z.string().optional(), location: z.tuple([z.number(), z.number()]), exit: z.number().int().positive().optional() }) });
 const routeSchema = z.object({ distance: amount, duration: amount, geometry: z.string().optional(), legs: z.array(z.object({ steps: z.array(stepSchema) })).optional() });
@@ -58,6 +59,13 @@ export class OsrmProvider implements MapProvider {
     const raw = await this.request(input.vehicleType, 'route', query, context);
     const parsed = z.object({ routes: z.array(routeSchema).min(1) }).safeParse(raw); if (!parsed.success) throw invalidProvider();
     const source = parsed.data.routes[0]!; const result: Route = { distanceMeters: measurement(source.distance), durationSeconds: measurement(source.duration), steps: [] };
+    if (input.navigation) {
+      const rich = z.object({ routes: z.array(navigationRouteSchema).min(1) }).safeParse(raw);
+      if (!rich.success) throw invalidProvider();
+      result.navigation = rich.data.routes[0]!;
+      decodePolyline(result.navigation.geometry);
+      for (const leg of result.navigation.legs) for (const step of leg.steps) decodePolyline(step.geometry);
+    }
     if (input.full) {
       if (!source.geometry) throw invalidProvider(); decodePolyline(source.geometry);
       result.polyline = { encoding: 'encoded_polyline', precision: 6, value: source.geometry };

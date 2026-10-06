@@ -83,6 +83,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/trips/**").hasAnyRole(RIDER, DRIVER)
 
                         // Routing Gateway scope excludes estimate/matrix and all internal routes.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/routes/navigation").hasRole(DRIVER)
                         .requestMatchers(HttpMethod.POST, "/api/v1/routes", "/api/v1/routes/recalculate").hasAnyRole(RIDER, DRIVER)
                         .requestMatchers(HttpMethod.GET, "/api/v1/matching/offers/active", "/api/v1/matching/offers/*").hasRole(DRIVER)
                         .requestMatchers(HttpMethod.POST, "/api/v1/matching/offers/*/accept", "/api/v1/matching/offers/*/decline").hasRole(DRIVER)

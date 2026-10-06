@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
 import { Screen, Notice, Busy } from '../components/ui';
-import { errorText } from '../http/errors';
+import {ConnectionSettings} from '../../backend/connection';
 import { connectDriverRuntime, type DriverRuntime } from './runtime';
 import {Redirect} from 'expo-router';
 import {appRole} from '../../backend/app-role';
@@ -21,7 +21,7 @@ function ConnectedDriver({children}:PropsWithChildren){
   if (initial.connecting) return <Screen title="Kết nối backend"><Busy visible/><Notice>Đang kiểm tra Gateway local đã triển khai…</Notice></Screen>;
   if (!initial.runtime) return (
     <Screen title="Cấu hình Driver">
-      <Notice>{errorText(initial.error)}</Notice>
+      <Notice>Chưa kết nối được máy chủ. Kiểm tra địa chỉ và kết nối mạng.</Notice><ConnectionSettings/>
       <Notice>Bật backend local hoặc đặt EXPO_PUBLIC_BACKEND_ORIGIN rồi khởi động lại Expo. Android emulator tự kiểm tra 10.0.2.2; máy thật cần adb reverse hoặc URL đã cấu hình.</Notice>
     </Screen>
   );

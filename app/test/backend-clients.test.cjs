@@ -16,3 +16,6 @@ test('client requests exactly backend public routes, methods, DTO fields and ide
   await new OfferApi(http).decide('driver',uuid,uuid,'accept');
   assert.deepEqual(seen.map(r=>r.method),['PUT','DELETE','POST','POST','POST']);assert.deepEqual(seen[2].body,{quoteId:uuid});assert.equal(seen[2].key,uuid);assert.equal(seen[3].body.currentLocation.lat,21);assert.deepEqual(seen[4].body,{});assert.equal(seen.some(r=>r.path.includes('/internal')),false);
 });
+test('navigation strips SDK/GPS sample metadata from strict Routing coordinates',async()=>{
+  let body;const api=new PreviewApi({send:async r=>{body=r.body;assert.equal(r.path,'/routes/navigation');return {data:null}}});await api.navigation('driver',{lat:21,lng:105,accuracy:5,timestamp:123,speed:10},{lat:22,lng:106,address:'Not Routing data'},'CAR_4');assert.deepEqual(body,{origin:{lat:21,lng:105},destination:{lat:22,lng:106},vehicleType:'CAR_4'});
+});

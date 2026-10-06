@@ -7,7 +7,7 @@ import { useMutation } from '../hooks/use-mutation';
 import { ApiError } from '../http/errors';
 import { Action, Busy, Card, ErrorNotice, Field, Notice, Screen } from '../components/ui';
 
-const blank: VehicleInput = { vehicleType: 'BIKE', licensePlate: '', brandModel: '', color: '' };
+const blank: VehicleInput = { vehicleType: 'CAR_4', licensePlate: '', brandModel: '', color: '' };
 function validate(input: VehicleInput) {
   const value = { vehicleType: input.vehicleType.trim(), licensePlate: input.licensePlate.trim(), brandModel: input.brandModel.trim(), color: input.color.trim() };
   if (!/^[A-Za-z0-9_-]{1,20}$/.test(value.vehicleType) || !value.licensePlate || value.licensePlate.length > 15 || !value.brandModel || value.brandModel.length > 100 || !value.color || value.color.length > 30) throw new ApiError('INVALID_REQUEST');

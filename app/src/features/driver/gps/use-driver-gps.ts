@@ -1,3 +1,5 @@
+import {currentLocation,setLocation} from '../../map/location-store';
+import {Navigation} from '../../navigation/native';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import * as Location from 'expo-location';
@@ -27,9 +29,10 @@ export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => P
     let disposed = false, busy = false;
     let timer: ReturnType<typeof setInterval> | undefined;
     let client: SocketLocationClient | undefined;
+    let watcher: Location.LocationSubscription|undefined;
     const controller = new AbortController();
     const publish = (value: string) => { if (!disposed) setMessage(value); };
-    const halt = () => { if (timer) clearInterval(timer); client?.stop(); };
+    const halt = () => { if (timer) clearInterval(timer); client?.stop(); watcher?.remove(); setLocation(null); };
     const tick = async () => {
       if (disposed || busy) return;
       busy = true;
@@ -39,11 +42,9 @@ export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => P
         if (!permission.granted || !await Location.hasServicesEnabledAsync()) {
           publish('Quyền vị trí bị từ chối hoặc định vị đã tắt. Hãy bật lại rồi tắt/bật GPS trong app.'); halt(); return;
         }
-        const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        if (disposed) return;
-        const accuracy = position.coords.accuracy;
-        if (accuracy === null || !Number.isFinite(accuracy)) { publish('Chưa đo được độ chính xác GPS.'); return; }
-        const receipt = await client!.send({ latitude: position.coords.latitude, longitude: position.coords.longitude,
+        const sample=currentLocation();
+        if(!sample||Date.now()-sample.timestamp>30000){publish('Đang chờ vị trí GPS mới.');return;}
+        const position={coords:{latitude:sample.lat,longitude:sample.lng},timestamp:sample.timestamp},accuracy=sample.accuracy;        const receipt = await client!.send({ latitude: position.coords.latitude, longitude: position.coords.longitude,
           accuracy, recordedAt: new Date(position.timestamp).toISOString() });
         if (!disposed) { setLastAcceptedAt(receipt.receivedAt); publish('Vị trí đã được cập nhật.'); }
       } catch (error) {
@@ -58,6 +59,12 @@ export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => P
         if (disposed) return;
         if (!permission.granted) { publish('Bạn chưa cấp quyền vị trí. Không gửi GPS.'); return; }
         client = new SocketLocationClient(base, () => token(controller.signal), publish, () => { void tick(); });
+        watcher=await Location.watchPositionAsync({accuracy:Location.Accuracy.High,timeInterval:1000,distanceInterval:1},position=>{
+          if(disposed)return;const accuracy=position.coords.accuracy;if(accuracy===null||!Number.isFinite(accuracy))return;
+          const value={lat:position.coords.latitude,lng:position.coords.longitude,accuracy,timestamp:position.timestamp,speed:position.coords.speed??-1,heading:position.coords.heading??-1};
+          setLocation(value);Navigation?.pushLocation(value.lat,value.lng,value.accuracy,value.timestamp,value.speed,value.heading);
+        });
+        if(disposed){watcher.remove();return;}
         client.start();
         timer = setInterval(() => { void tick(); }, 10000);
       } catch (error) {

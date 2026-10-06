@@ -55,6 +55,8 @@ export interface Trip {
   destination: TripLocation;
   vehicleType: string;
   fare: { currency: 'VND'; estimatedAmount: string; finalAmount: string | null };
+  driver?: {fullName:string;avatarUrl:string|null}|null;
+  vehicle?: {licensePlate:string;brand:string|null;color:string|null}|null;
 }
 export interface TripHistoryEntry {
   fromStatus: TripStatus | null;

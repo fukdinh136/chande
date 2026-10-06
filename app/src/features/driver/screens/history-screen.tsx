@@ -21,13 +21,13 @@ export function HistoryScreen() {
       {resource.data?.items.map((trip) => <Link key={trip.tripId} href={{ pathname: '/driver/trips/[id]', params: { id: trip.tripId } }} asChild>
         <Pressable accessibilityRole="button" accessibilityLabel={`Chi tiết chuyến ${trip.tripId}`}><TripCard trip={trip} /></Pressable>
       </Link>)}
-      <Notice>Trang {cursors.length}. Cursor do Trip phát hành, client chỉ chuyển tiếp nguyên giá trị.</Notice>
+      <Notice>Trang {cursors.length}. </Notice>
       <Action label="Trang trước" disabled={resource.loading || cursors.length === 1} onPress={() => setCursors((previous) => previous.slice(0, -1))} />
       <Action label="Trang sau" disabled={resource.loading || !!resource.error || !resource.data?.nextCursor} onPress={() => {
         const next = resource.data?.nextCursor;
         if (next) setCursors((previous) => [...previous, next]);
       }} />
-      <ThemedText type="small">Lịch sử lấy từ Trip, không lưu bản sao tại Gateway demo.</ThemedText>
+      <ThemedText type="small"></ThemedText>
     </Screen>
   );
 }

@@ -5,12 +5,14 @@ import { useFocusedResource } from '../hooks/use-focused-resource';
 import { useMutation } from '../hooks/use-mutation';
 import { ApiError } from '../http/errors';
 import { Action, Busy, ErrorNotice, Field, Notice, Screen } from '../components/ui';
+import {router} from 'expo-router';
 
 export function ProfileScreen() {
   const runtime = useDriverRuntime();
   const profile = useFocusedResource(useCallback((signal: AbortSignal) => runtime.driver.profile(signal), [runtime]));
   return (
     <Screen title="Hồ sơ tài xế" backToDriver>
+      <Action label="Xe và thông tin đăng ký" variant="secondary" onPress={()=>router.push('/driver/vehicles')}/>
       <Busy visible={profile.loading} /><ErrorNotice error={profile.error} />
       <Action label="Tải lại hồ sơ" onPress={profile.refresh} disabled={profile.loading} />
       {profile.data && <ProfileForm key={profile.data.updatedAt} value={profile.data} onSaved={profile.replace} />}
@@ -24,7 +26,7 @@ function ProfileForm({ value, onSaved }: { value: DriverProfile; onSaved: (value
   const [avatarUrl, setAvatarUrl] = useState(value.avatarUrl ?? '');
   const mutation = useMutation();
   return <>
-    <Notice>{value.phoneNumber} · {value.driverId}</Notice>
+    <Notice>{value.phoneNumber}</Notice>
     <Notice>Đổi giấy phép cần OFFLINE và không có chuyến. Số điện thoại không sửa ở màn hình này.</Notice>
     <Field label="Họ tên (1–100 ký tự)" value={fullName} onChangeText={setFullName} editable={!mutation.busy} />
     <Field label="Giấy phép (1–20 ký tự)" value={licenseNumber} onChangeText={setLicenseNumber} autoCapitalize="characters" editable={!mutation.busy} />

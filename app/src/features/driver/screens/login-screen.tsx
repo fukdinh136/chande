@@ -5,6 +5,7 @@ import { ApiError } from '../http/errors';
 import { useDriverRuntime, useDriverSession } from '../state/driver-provider';
 import { useMutation } from '../hooks/use-mutation';
 import { Action, Busy, ErrorNotice, Field, Notice, Screen } from '../components/ui';
+import {ConnectionSettings} from '../../backend/connection';
 
 export function LoginScreen() {
   const runtime = useDriverRuntime();
@@ -47,6 +48,7 @@ export function LoginScreen() {
           }); }} />
       </>}
       <Busy visible={mutation.busy} /><ErrorNotice error={mutation.error} />
+      <ConnectionSettings/>
     </Screen>
   );
 }

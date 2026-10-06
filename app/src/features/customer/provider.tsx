@@ -9,6 +9,7 @@ import {TripEvents} from '../backend/trip-events';
 import {Redirect} from 'expo-router';
 import {appRole} from '../backend/app-role';
 import {useForeground} from '../driver/hooks/use-focused-resource';
+import {gatewayOrigin,ConnectionSettings} from '../backend/connection';
 import {Screen,Notice,Busy} from '../driver/components/ui';
 export interface CustomerRuntime{base:string;user:UserApi;session:UserSession;trips:CustomerTripApi;routes:PreviewApi;events:TripEvents}
 const Context=createContext<CustomerRuntime|null>(null);
@@ -19,12 +20,12 @@ export function CustomerProvider({children}:PropsWithChildren){
 function ConnectedCustomer({children}:PropsWithChildren){
   const [runtime,setRuntime]=useState<CustomerRuntime|null>(null),[error,setError]=useState<unknown>(null);
   useEffect(()=>{const control=new AbortController();void(async()=>{
-    const base=await discover({development:__DEV__,platform:Platform.OS==='android'?'android':'web',explicit:process.env.EXPO_PUBLIC_BACKEND_ORIGIN,signal:control.signal});if(control.signal.aborted)return;
+    const base=await discover({development:__DEV__||process.env.EXPO_PUBLIC_LOCAL_DEMO==='true',platform:Platform.OS==='android'?'android':'web',explicit:await gatewayOrigin(),signal:control.signal});if(control.signal.aborted)return;
     const http=new BackendHttp(base),user=new UserApi(http);let memory:string|null=null;const key='chande.customer.refresh';
     const storage={read:async()=>{const raw=Platform.OS==='web'?memory:await SecureStore.getItemAsync(key);if(!raw)return null;try{const d=JSON.parse(raw);return d.base===base?d.token:null}catch{return null}},write:async(token:string|null)=>{const raw=token?JSON.stringify({base,token}):null;if(Platform.OS==='web')memory=raw;else if(raw)await SecureStore.setItemAsync(key,raw);else await SecureStore.deleteItemAsync(key)}};
     const session=new UserSession(user,storage);setRuntime({base,user,session,trips:new CustomerTripApi(http),routes:new PreviewApi(http),events:new TripEvents(base,()=>session.token())});void session.restore();
   })().catch(e=>{if(!control.signal.aborted)setError(e)});return()=>control.abort()},[]);
-  if(!runtime)return <Screen title="Kết nối Customer"><Busy visible={!error}/><Notice>{error instanceof Error?error.message:'Đang nhận Gateway local…'}</Notice></Screen>;
+  if(!runtime)return <Screen title="Kết nối Velox"><Busy visible={!error}/><Notice>{error?'Chưa kết nối được máy chủ. Kiểm tra địa chỉ và kết nối mạng.':'Đang kết nối…'}</Notice>{!!error&&<ConnectionSettings/>}</Screen>;
   return <Context.Provider value={runtime}><CustomerEvents/>{children}</Context.Provider>;
 }
 function CustomerEvents(){const runtime=useCustomer(),state=useCustomerSession(),actorId=state.session?.profile.id,foreground=useForeground();useEffect(()=>{if(actorId&&foreground)runtime.events.start();return()=>runtime.events.stop()},[runtime,actorId,foreground]);return null}

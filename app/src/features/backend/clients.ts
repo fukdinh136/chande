@@ -60,6 +60,7 @@ export class CustomerTripApi {
 }
 export class PreviewApi {
   constructor(private readonly http:BackendHttp){}
-  route(token:string,origin:Point,destination:Point,vehicleType:string,signal?:AbortSignal){return this.http.send({service:'routing',path:'/routes',method:'POST',body:{origin,destination,vehicleType,includeSteps:true},token,signal})}
-  recalculate(token:string,currentLocation:Point,destination:Point,vehicleType:string,signal?:AbortSignal){return this.http.send({service:'routing',path:'/routes/recalculate',method:'POST',body:{currentLocation,destination,vehicleType,includeSteps:true},token,signal})}
+  navigation(token:string,origin:Point,destination:Point,vehicleType:string,signal?:AbortSignal){return this.http.send({service:'routing',path:'/routes/navigation',method:'POST',body:{origin:{lat:origin.lat,lng:origin.lng},destination:{lat:destination.lat,lng:destination.lng},vehicleType},token,signal})}
+  route(token:string,origin:Point,destination:Point,vehicleType:string,signal?:AbortSignal){return this.http.send({service:'routing',path:'/routes',method:'POST',body:{origin:{lat:origin.lat,lng:origin.lng},destination:{lat:destination.lat,lng:destination.lng},vehicleType,includeSteps:true},token,signal})}
+  recalculate(token:string,currentLocation:Point,destination:Point,vehicleType:string,signal?:AbortSignal){return this.http.send({service:'routing',path:'/routes/recalculate',method:'POST',body:{currentLocation:{lat:currentLocation.lat,lng:currentLocation.lng},destination:{lat:destination.lat,lng:destination.lng},vehicleType,includeSteps:true},token,signal})}
 }
