@@ -1,0 +1,249 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_stack" name="shell-type"><title>Velox</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'background': '#f8f9ff', 'on-error': '#ffffff', 'secondary-fixed': '#dae2fd', 'secondary-container': '#dae2fd', 'inverse-surface': '#213145', 'surface-bright': '#f8f9ff', 'tertiary': '#006b2d', 'on-surface-variant': '#3d4947', 'on-secondary-container': '#5c647a', 'tertiary-fixed': '#71fe91', 'error': '#ba1a1a', 'surface-container-high': '#dce9ff', 'on-background': '#0b1c30', 'secondary-fixed-dim': '#bec6e0', 'surface-tint': '#006a61', 'surface-dim': '#cbdbf5', 'error-container': '#ffdad6', 'tertiary-fixed-dim': '#52e078', 'surface': '#f8f9ff', 'surface-container-low': '#eff4ff', 'secondary': '#565e74', 'on-error-container': '#93000a', 'primary-fixed': '#89f5e7', 'primary': '#00685f', 'outline': '#6d7a77', 'primary-fixed-dim': '#6bd8cb', 'surface-variant': '#d3e4fe', 'on-tertiary-fixed': '#002109', 'on-secondary-fixed-variant': '#3f465c', 'surface-container-highest': '#d3e4fe', 'on-primary-container': '#f4fffc', 'on-tertiary-container': '#f7fff2', 'on-primary-fixed': '#00201d', 'on-surface': '#0b1c30', 'on-secondary': '#ffffff', 'on-tertiary-fixed-variant': '#005321', 'outline-variant': '#bcc9c6', 'tertiary-container': '#00873a', 'on-primary': '#ffffff', 'on-secondary-fixed': '#131b2e', 'on-tertiary': '#ffffff', 'inverse-primary': '#6bd8cb', 'primary-container': '#008378', 'surface-container': '#e5eeff', 'surface-container-lowest': '#ffffff', 'inverse-on-surface': '#eaf1ff', 'on-primary-fixed-variant': '#005049' }, borderRadius: { 'DEFAULT': '1rem', 'lg': '2rem', 'xl': '3rem', 'full': '9999px' }, spacing: { 'gutter': '1rem', 'space-md': '0.75rem', 'space-xs': '0.25rem', 'margin-mobile': '1rem', 'margin': '1.25rem', 'space-lg': '1.25rem', 'space-xl': '1.75rem', 'space-sm': '0.5rem', 'gutter-mobile': '0.75rem' }, fontFamily: { 'display-lg': ['Inter'], 'headline-sm': ['Inter'], 'body-lg': ['Inter'], 'headline-md': ['Inter'], 'headline-lg': ['Inter'], 'label-lg': ['Inter'], 'title-md': ['Inter'], 'headline-lg-mobile': ['Inter'], 'body-sm': ['Inter'], 'label-md': ['Inter'], 'label-sm': ['Inter'], 'body-md': ['Inter'] }, fontSize: { 'display-lg': ['40px', { lineHeight: '48px', letterSpacing: '-0.02em', fontWeight: '700' }], 'headline-sm': ['18px', { lineHeight: '24px', letterSpacing: '-0.005em', fontWeight: '600' }], 'body-lg': ['16px', { lineHeight: '24px', letterSpacing: '0em', fontWeight: '400' }], 'headline-md': ['22px', { lineHeight: '28px', letterSpacing: '-0.01em', fontWeight: '600' }], 'headline-lg': ['32px', { lineHeight: '38px', letterSpacing: '-0.02em', fontWeight: '700' }], 'label-lg': ['14px', { lineHeight: '18px', letterSpacing: '0.01em', fontWeight: '600' }], 'title-md': ['16px', { lineHeight: '22px', letterSpacing: '0em', fontWeight: '600' }], 'headline-lg-mobile': ['26px', { lineHeight: '32px', letterSpacing: '-0.015em', fontWeight: '700' }], 'body-sm': ['12px', { lineHeight: '16px', letterSpacing: '0.01em', fontWeight: '400' }], 'label-md': ['12px', { lineHeight: '16px', letterSpacing: '0.02em', fontWeight: '600' }], 'label-sm': ['10px', { lineHeight: '12px', letterSpacing: '0.04em', fontWeight: '700' }], 'body-md': ['14px', { lineHeight: '20px', letterSpacing: '0em', fontWeight: '400' }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;min-height:100%;background-color:#f8f9ff;}body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,16px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}}::-webkit-scrollbar{display:none;}*{-ms-overflow-style:none;scrollbar-width:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface flex flex-col min-h-screen relative antialiased selection:bg-primary-fixed selection:text-on-primary-fixed"><header class="fixed top-0 inset-x-0 z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin-mobile flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-xs min-w-0"><button aria-label="Back" class="w-11 h-11 -ml-2 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[24px]">arrow_back</span></button><img alt="Velox Ride Logo" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1VLSBS0ICOpOMW8h_imWQUzmxb6YDRDmjdo-KRgC7XfyNkohFfklmF9OZY8ZtXUSd6YCRrxcBTncAk1s2yuvF1eGxlXx0Qa3u-eT-GS8Jj2eDm3Btk6AU5FB1lcwgBAdnj7ICgLGGGuzTmip-h95TNDjxlk_mlbhwcyeLnECWBsNjbYwCNhc8S8AWVicsdL6roeyLWCSutoANsu53vCpcP2RVjKOvTOaKGhqyStTgkOgBUJQHHFYWmwfSI"><div class="flex flex-col min-w-0"><span class="font-label-sm text-label-sm uppercase tracking-wider text-primary font-bold leading-none">Velox</span><h1 class="font-title-md text-title-md text-on-surface truncate leading-tight">Ride Tracking</h1></div></div><div class="flex items-center gap-space-sm flex-shrink-0"><img alt="Profile" class="w-8 h-8 rounded-full object-cover shadow-[0_1px_8px_rgba(0,0,0,0.04)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNquAAGdGMP2bxcL9JuOjd14g7Xdw8zy7PzYtH6QBaSd7ARNQDC1ob6k-2edMFAJRSWvnOR0d0GeHoUwqmdfjlwDylFphUMtxUnc9U2Vdg2jACEmyhTV-YjaMKgSzmGEv-k5drvGjiMaU70XBf4TnA8Vym_WERLo8xGa3xmebT92Z3260nBU8EzpjzBl4v-J_MYBOZhkZoRIGNpDkMKQqAqsG_ypC0dBiHnZk7pG8V7dACkqljkADO"></div></div></header><main class="flex-1 w-full bg-surface pt-16 pb-safe"><div class="flex flex-col w-full relative">
+<!-- Map & Route Visual Canvas Area -->
+<div class="relative w-full h-72 sm:h-80 overflow-hidden bg-surface-container-high">
+<div class="w-full h-full bg-cover bg-center" data-location="Grand Central Terminal to Tech Park" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNDH_1YoZL5MuMiLP0kiFBZ8q01pD4vPtMpEEPx5eSL4UIGoz15stbadHsoTrkZH5xC2IHw6QzgaNy4h_twfVraqTqmk40uIygaPL4bzLzIv1EHiiMOJIuXz4fbaL9xanjVCTlzj9rxx2BSNvYbE_tDrl3WhovIMr68Z7wT2Izd9BdRoNl9yK2t9gs-hBscUj7DG0wcgdwH-VEE7yCw_zbh5oO1y1eCWUb8JFG03rAVrBQ0dHHpY5J')"></div>
+<!-- Map Ambience Gradient Scrim -->
+<div class="absolute inset-0 bg-gradient-to-b from-surface/40 via-transparent to-surface pointer-events-none"></div>
+<!-- Simulated Kinetic Route Overlay SVG -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="routeGrad" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#00685f"></stop>
+<stop offset="100%" stop-color="#008378"></stop>
+</linearGradient>
+<filter height="140%" id="glow" width="140%" x="-20%" y="-20%">
+<feDropShadow dx="0" dy="2" flood-color="#00685f" flood-opacity="0.35" stdDeviation="3"></feDropShadow>
+</filter>
+</defs>
+<!-- Base Shadow Route -->
+<path d="M 60,195 C 130,190 120,95 210,95 S 290,65 330,75" fill="none" opacity="0.8" stroke="#dae2fd" stroke-linecap="round" stroke-width="8"></path>
+<!-- Main High-Contrast Precision Route Line -->
+<path d="M 60,195 C 130,190 120,95 210,95 S 290,65 330,75" fill="none" filter="url(#glow)" stroke="url(#routeGrad)" stroke-dasharray="6 4" stroke-linecap="round" stroke-width="4"></path>
+</svg>
+<!-- Origin Beacon Marker: Grand Central -->
+<div class="absolute left-10 bottom-16 -translate-x-1/2 flex flex-col items-center">
+<div class="relative flex items-center justify-center">
+<span class="absolute w-8 h-8 rounded-full bg-tertiary-fixed-dim/40 animate-ping"></span>
+<div class="w-6 h-6 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[14px]">my_location</span>
+</div>
+</div>
+<div class="mt-1 px-space-xs py-0.5 rounded-full bg-surface-container-lowest/90 backdrop-blur-md shadow-sm">
+<p class="font-label-sm text-label-sm text-on-surface whitespace-nowrap">Grand Central</p>
+</div>
+</div>
+<!-- Destination Pin Marker: Tech Park -->
+<div class="absolute right-10 top-12 translate-x-1/4 flex flex-col items-center">
+<div class="w-7 h-7 rounded-full bg-error text-on-error flex items-center justify-center shadow-lg">
+<span class="material-symbols-outlined text-[16px]">flag</span>
+</div>
+<div class="mt-1 px-space-xs py-0.5 rounded-full bg-surface-container-lowest/90 backdrop-blur-md shadow-sm">
+<p class="font-label-sm text-label-sm text-on-surface whitespace-nowrap">Tech Park T3</p>
+</div>
+</div>
+<!-- Dynamic Route Metric Tag (Floating Level 4 Pill) -->
+<div class="absolute top-4 left-1/2 -translate-x-1/2 px-space-md py-1.5 rounded-full bg-surface-container-lowest/95 backdrop-blur-md shadow-md flex items-center gap-space-xs whitespace-nowrap max-w-[90%]">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+<p class="font-label-md text-label-md text-on-surface truncate">
+<span class="font-bold text-primary">8.4 km</span> • 18 mins <span class="text-on-surface-variant font-normal">(Hwy 101 Express)</span>
+</p>
+</div>
+<!-- Floating Map Controls -->
+<div class="absolute right-margin-mobile bottom-4 flex flex-col gap-space-xs">
+<button aria-label="Re-center route" class="w-10 h-10 rounded-full bg-surface-container-lowest text-on-surface flex items-center justify-center shadow-md active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]">near_me</span>
+</button>
+<button aria-label="Toggle traffic" class="w-10 h-10 rounded-full bg-surface-container-lowest text-on-surface flex items-center justify-center shadow-md active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]">layers</span>
+</button>
+</div>
+</div>
+<!-- Bottom Sheet: Waypoints & Tier Selection -->
+<div class="w-full bg-surface -mt-4 rounded-t-lg shadow-xl relative z-10 px-margin-mobile pt-space-md pb-space-lg flex flex-col gap-space-md">
+<!-- Sheet Drag Handle Metaphor -->
+<div class="w-10 h-1 bg-outline-variant/60 rounded-full mx-auto mb-1"></div>
+<!-- Stacked Waypoint Display Container -->
+<div class="w-full p-space-sm rounded bg-surface-container-low flex flex-col gap-space-xs relative">
+<!-- Pickup Row -->
+<div class="flex items-center gap-space-sm">
+<div class="w-3 h-3 rounded-full bg-tertiary flex-shrink-0 ml-1"></div>
+<div class="flex-1 min-w-0">
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase">Pickup</p>
+<p class="font-title-md text-title-md text-on-surface truncate">Grand Central Terminal, Gate 4</p>
+</div>
+<span class="material-symbols-outlined text-outline text-[18px]">edit_location</span>
+</div>
+<!-- Connecting Dots Metaphor -->
+<div class="w-0.5 h-3 bg-outline-variant ml-2 my-0.5 rounded-full"></div>
+<!-- Destination Row -->
+<div class="flex items-center gap-space-sm">
+<div class="w-3 h-3 rounded bg-error flex-shrink-0 ml-1"></div>
+<div class="flex-1 min-w-0">
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase">Destination</p>
+<p class="font-title-md text-title-md text-on-surface truncate">Tech Park Tower 3, East Plaza</p>
+</div>
+<button class="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">add</span>
+</button>
+</div>
+</div>
+<!-- Tier Selection Section -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-lg text-label-lg text-on-surface">Available Rides</span>
+<span class="font-label-sm text-label-sm text-primary font-bold">Fastest nearby</span>
+</div>
+<!-- Vehicle Options Container -->
+<div class="flex flex-col gap-space-xs" id="vehicle-tier-list">
+<!-- Tier 1: Moto -->
+<div class="tier-card cursor-pointer w-full p-space-sm rounded bg-surface-container-lowest flex items-center justify-between transition-all duration-150 active:scale-[0.99] shadow-sm" data-base-price="6.50" data-tier="moto" onclick="selectTier(this)">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-14 h-12 rounded bg-surface-container-high/60 flex items-center justify-center flex-shrink-0">
+<img class="w-10 h-8 object-contain" data-alt="Minimalist modern electric scooter motorbike side-angle isometric render with teal accents on white background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBd_QI1kkHmhCjXYExzedROAzgAhIBCay5NtzCQw-ypd_Iv9H-BBpDdGlwIAPKN9GfPhVpcCWwbdeDmMENZMINUMRJktNi9JcbN6MrYqNvZ99cGpf3pKNnmi1-RDxaFjY9LH6lh8QArp04KBvf3BYs8EQwDHGBfD83wWFz-p22-z1lb77-WBT23uslKGfl6AXWh2Pw7CUUqaITvUZ9JMIkgN_QhyD4k9u5q56G-iLJdb21tMETfxgTS">
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs">
+<p class="font-title-md text-title-md text-on-surface truncate">Velox Moto</p>
+<span class="px-1.5 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm">Fast</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Solo commuter • Helmet included • 12 min</p>
+</div>
+</div>
+<div class="flex flex-col items-end flex-shrink-0 pl-space-xs">
+<p class="font-title-md text-title-md text-on-surface font-bold">$6.50</p>
+<span class="font-label-sm text-label-sm text-outline line-through">$8.50</span>
+</div>
+</div>
+<!-- Tier 2: Standard Car (Selected Default) -->
+<div class="tier-card is-selected cursor-pointer w-full p-space-sm rounded bg-secondary-fixed/50 flex items-center justify-between transition-all duration-150 active:scale-[0.99] shadow-md" data-base-price="14.20" data-tier="standard" onclick="selectTier(this)">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-14 h-12 rounded bg-primary-container text-on-primary-container flex items-center justify-center flex-shrink-0 relative">
+<img class="w-11 h-9 object-contain" data-alt="Sleek white modern compact electric sedan car render with dark tinted glass on soft studio backdrop" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBET91Fl5aoyA2k8wXukYoaaVQYl2WkSdwSQylF5k2lF4hgoGfTE2PQnrNCDxoXejz5t9GQ7SxbGtVT3bvo4wOjla3ZoxNuduqHSDF6yUdLUB4KA-9qW4FEyVUch5f5G2i3X3SnKZy_76Hpwi6pNTW_mb7LHnKoHcPw38Tq58VmdKQUSTAPgiwpj2eQd_fWwPjInZRKncvmiPm13BaQdOUctllGgugmL9D2UDurnfN9XLGR7gyRhUj8">
+<div class="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-primary text-on-primary flex items-center justify-center tier-checkmark">
+<span class="material-symbols-outlined text-[12px]">check</span>
+</div>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs">
+<p class="font-title-md text-title-md text-on-surface font-bold truncate">Velox Standard</p>
+<span class="px-1.5 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm font-bold">Popular</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">4 seats • High efficiency • 4 min away</p>
+</div>
+</div>
+<div class="flex flex-col items-end flex-shrink-0 pl-space-xs">
+<p class="font-title-md text-title-md text-primary font-bold text-right">$14.20</p>
+<span class="font-label-sm text-label-sm text-tertiary font-medium">Eco Verified</span>
+</div>
+</div>
+<!-- Tier 3: Comfort / XL -->
+<div class="tier-card cursor-pointer w-full p-space-sm rounded bg-surface-container-lowest flex items-center justify-between transition-all duration-150 active:scale-[0.99] shadow-sm" data-base-price="22.00" data-tier="xl" onclick="selectTier(this)">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-14 h-12 rounded bg-surface-container-high/60 flex items-center justify-center flex-shrink-0">
+<img class="w-11 h-9 object-contain" data-alt="Premium obsidian black full-size SUV vehicle automotive render with metallic finish high-end reflection" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmoo1uAWtS76GHnPuGeMCkKxz-ZubFaOdM2l5RFmZWr8kHha1U9nkgWN36xjJ2fjLTSSkoyG1jCHGxbuoY-QXC2PL96EPX_IsWnReSRX9Ss191HOv3tLih8hb-epJWq4-VlomfbXwXWQc8M8HuJuraNmCbg1Bsp9SCbZ4t6GrCx1p1JNJwpcRUwL3aXVZKKPpv6JZaMK2T9jKF0DQC0_3w_5qXZWApa5wh_lxQ1B83LYpdp479hnHQ">
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs">
+<p class="font-title-md text-title-md text-on-surface truncate">Velox Comfort XL</p>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">6 seats • Premium leather • 6 min away</p>
+</div>
+</div>
+<div class="flex flex-col items-end flex-shrink-0 pl-space-xs">
+<p class="font-title-md text-title-md text-on-surface font-bold">$22.00</p>
+<span class="font-label-sm text-label-sm text-outline">Luggage x4</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Fare Adjusters & Promo Applied Block -->
+<div class="flex flex-col gap-space-xs pt-1">
+<!-- Promo Pill Row -->
+<div class="flex items-center justify-between p-space-sm rounded bg-surface-container-lowest shadow-sm">
+<div class="flex items-center gap-space-xs min-w-0">
+<div class="w-7 h-7 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px]">local_offer</span>
+</div>
+<div class="min-w-0">
+<p class="font-label-md text-label-md text-on-surface truncate">WELCOME10 Applied</p>
+<p class="font-body-sm text-body-sm text-tertiary truncate">-$2.00 first ride discount active</p>
+</div>
+</div>
+<button class="font-label-sm text-label-sm text-outline hover:text-on-surface py-1 px-2 rounded hover:bg-surface-container">Remove</button>
+</div>
+<!-- Payment Method Selector -->
+<div class="flex items-center justify-between px-space-sm py-2 rounded bg-surface-container-low">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-8 h-6 rounded bg-surface-container-lowest shadow-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-[18px]">credit_card</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface truncate">Personal Visa <span class="text-on-surface-variant font-normal">•••• 4289</span></p>
+</div>
+<button class="font-label-sm text-label-sm text-primary font-bold hover:underline px-2 py-1">Change</button>
+</div>
+</div>
+<!-- Booking Confirmation Action Area -->
+<div class="flex flex-col gap-space-xs mt-1">
+<button class="w-full h-14 rounded-full bg-primary text-on-primary flex items-center justify-between px-space-lg shadow-lg active:scale-[0.98] transition-all" id="book-btn">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[20px]">bolt</span>
+<span class="font-label-lg text-label-lg font-bold">Confirm Velox Ride</span>
+</div>
+<span class="font-headline-sm text-headline-sm font-bold tracking-tight" id="final-fare">$12.20</span>
+</button>
+<!-- Precision Backend Pipeline Status -->
+<div class="flex items-center justify-center gap-space-xs text-on-surface-variant pt-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+<span class="font-label-sm text-label-sm">API Gateway Route Locks: Fare fixed for next 4:58</span>
+</div>
+</div>
+</div>
+</div>
+<script>
+  function selectTier(card) {
+    const cards = document.querySelectorAll('.tier-card');
+    cards.forEach(c => {
+      c.classList.remove('is-selected', 'bg-secondary-fixed/50', 'shadow-md');
+      c.classList.add('bg-surface-container-lowest', 'shadow-sm');
+      const badge = c.querySelector('.tier-checkmark');
+      if (badge) badge.remove();
+      const priceText = c.querySelector('.flex-col.items-end p');
+      if (priceText) {
+        priceText.classList.remove('text-primary');
+        priceText.classList.add('text-on-surface');
+      }
+    });
+
+    card.classList.remove('bg-surface-container-lowest', 'shadow-sm');
+    card.classList.add('is-selected', 'bg-secondary-fixed/50', 'shadow-md');
+
+    const iconBox = card.querySelector('.w-14.h-12');
+    if (iconBox && !iconBox.querySelector('.tier-checkmark')) {
+      const check = document.createElement('div');
+      check.className = 'absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-primary text-on-primary flex items-center justify-center tier-checkmark';
+      check.innerHTML = '<span class="material-symbols-outlined text-[12px]">check</span>';
+      iconBox.classList.add('relative');
+      iconBox.appendChild(check);
+    }
+
+    const priceText = card.querySelector('.flex-col.items-end p');
+    if (priceText) {
+      priceText.classList.remove('text-on-surface');
+      priceText.classList.add('text-primary');
+    }
+
+    const base = parseFloat(card.getAttribute('data-base-price') || '14.20');
+    const discount = 2.00;
+    const finalPrice = Math.max(0, base - discount).toFixed(2);
+    const fareElement = document.getElementById('final-fare');
+    if (fareElement) {
+      fareElement.textContent = '$' + finalPrice;
+    }
+  }
+</script></main></body></html>

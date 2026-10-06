@@ -1,0 +1,322 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_tab" name="shell-type"><title>Velox</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'background': '#f8f9ff', 'on-error': '#ffffff', 'secondary-fixed': '#dae2fd', 'secondary-container': '#dae2fd', 'inverse-surface': '#213145', 'surface-bright': '#f8f9ff', 'tertiary': '#006b2d', 'on-surface-variant': '#3d4947', 'on-secondary-container': '#5c647a', 'tertiary-fixed': '#71fe91', 'error': '#ba1a1a', 'surface-container-high': '#dce9ff', 'on-background': '#0b1c30', 'secondary-fixed-dim': '#bec6e0', 'surface-tint': '#006a61', 'surface-dim': '#cbdbf5', 'error-container': '#ffdad6', 'tertiary-fixed-dim': '#52e078', 'surface': '#f8f9ff', 'surface-container-low': '#eff4ff', 'secondary': '#565e74', 'on-error-container': '#93000a', 'primary-fixed': '#89f5e7', 'primary': '#00685f', 'outline': '#6d7a77', 'primary-fixed-dim': '#6bd8cb', 'surface-variant': '#d3e4fe', 'on-tertiary-fixed': '#002109', 'on-secondary-fixed-variant': '#3f465c', 'surface-container-highest': '#d3e4fe', 'on-primary-container': '#f4fffc', 'on-tertiary-container': '#f7fff2', 'on-primary-fixed': '#00201d', 'on-surface': '#0b1c30', 'on-secondary': '#ffffff', 'on-tertiary-fixed-variant': '#005321', 'outline-variant': '#bcc9c6', 'tertiary-container': '#00873a', 'on-primary': '#ffffff', 'on-secondary-fixed': '#131b2e', 'on-tertiary': '#ffffff', 'inverse-primary': '#6bd8cb', 'primary-container': '#008378', 'surface-container': '#e5eeff', 'surface-container-lowest': '#ffffff', 'inverse-on-surface': '#eaf1ff', 'on-primary-fixed-variant': '#005049' }, borderRadius: { 'DEFAULT': '1rem', 'lg': '2rem', 'xl': '3rem', 'full': '9999px' }, spacing: { 'gutter': '1rem', 'space-md': '0.75rem', 'space-xs': '0.25rem', 'margin-mobile': '1rem', 'margin': '1.25rem', 'space-lg': '1.25rem', 'space-xl': '1.75rem', 'space-sm': '0.5rem', 'gutter-mobile': '0.75rem' }, fontFamily: { 'display-lg': ['Inter'], 'headline-sm': ['Inter'], 'body-lg': ['Inter'], 'headline-md': ['Inter'], 'headline-lg': ['Inter'], 'label-lg': ['Inter'], 'title-md': ['Inter'], 'headline-lg-mobile': ['Inter'], 'body-sm': ['Inter'], 'label-md': ['Inter'], 'label-sm': ['Inter'], 'body-md': ['Inter'] }, fontSize: { 'display-lg': ['40px', { lineHeight: '48px', letterSpacing: '-0.02em', fontWeight: '700' }], 'headline-sm': ['18px', { lineHeight: '24px', letterSpacing: '-0.005em', fontWeight: '600' }], 'body-lg': ['16px', { lineHeight: '24px', letterSpacing: '0em', fontWeight: '400' }], 'headline-md': ['22px', { lineHeight: '28px', letterSpacing: '-0.01em', fontWeight: '600' }], 'headline-lg': ['32px', { lineHeight: '38px', letterSpacing: '-0.02em', fontWeight: '700' }], 'label-lg': ['14px', { lineHeight: '18px', letterSpacing: '0.01em', fontWeight: '600' }], 'title-md': ['16px', { lineHeight: '22px', letterSpacing: '0em', fontWeight: '600' }], 'headline-lg-mobile': ['26px', { lineHeight: '32px', letterSpacing: '-0.015em', fontWeight: '700' }], 'body-sm': ['12px', { lineHeight: '16px', letterSpacing: '0.01em', fontWeight: '400' }], 'label-md': ['12px', { lineHeight: '16px', letterSpacing: '0.02em', fontWeight: '600' }], 'label-sm': ['10px', { lineHeight: '12px', letterSpacing: '0.04em', fontWeight: '700' }], 'body-md': ['14px', { lineHeight: '20px', letterSpacing: '0em', fontWeight: '400' }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;min-height:100%;background-color:#f8f9ff;}body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,16px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}}::-webkit-scrollbar{display:none;}*{-ms-overflow-style:none;scrollbar-width:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface flex flex-col min-h-screen relative antialiased selection:bg-primary-fixed selection:text-on-primary-fixed"><header class="fixed top-0 inset-x-0 z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin-mobile flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0"><img alt="Velox Ride Logo" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1VLSBS0ICOpOMW8h_imWQUzmxb6YDRDmjdo-KRgC7XfyNkohFfklmF9OZY8ZtXUSd6YCRrxcBTncAk1s2yuvF1eGxlXx0Qa3u-eT-GS8Jj2eDm3Btk6AU5FB1lcwgBAdnj7ICgLGGGuzTmip-h95TNDjxlk_mlbhwcyeLnECWBsNjbYwCNhc8S8AWVicsdL6roeyLWCSutoANsu53vCpcP2RVjKOvTOaKGhqyStTgkOgBUJQHHFYWmwfSI"><div class="flex flex-col min-w-0"><span class="font-label-sm text-label-sm uppercase tracking-wider text-primary font-bold leading-none">Velox</span><h1 class="font-title-md text-title-md text-on-surface truncate leading-tight">Account</h1></div></div><div class="flex items-center gap-space-sm flex-shrink-0"><button aria-label="Notifications" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-[22px]">notifications</span></button><img alt="Profile" class="w-8 h-8 rounded-full object-cover shadow-[0_1px_8px_rgba(0,0,0,0.04)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNquAAGdGMP2bxcL9JuOjd14g7Xdw8zy7PzYtH6QBaSd7ARNQDC1ob6k-2edMFAJRSWvnOR0d0GeHoUwqmdfjlwDylFphUMtxUnc9U2Vdg2jACEmyhTV-YjaMKgSzmGEv-k5drvGjiMaU70XBf4TnA8Vym_WERLo8xGa3xmebT92Z3260nBU8EzpjzBl4v-J_MYBOZhkZoRIGNpDkMKQqAqsG_ypC0dBiHnZk7pG8V7dACkqljkADO"></div></div></header><main class="flex-1 w-full bg-surface pt-16 pb-28"><div class="flex flex-col w-full px-margin-mobile pb-6 space-y-space-lg">
+<!-- Rider Profile Hero Card -->
+<section class="relative overflow-hidden bg-surface-container-lowest rounded-lg p-space-lg shadow-sm">
+<div class="absolute -right-12 -top-12 w-36 h-36 rounded-full bg-primary-fixed/20 pointer-events-none blur-2xl"></div>
+<div class="flex items-center gap-space-md relative z-10">
+<div class="relative flex-shrink-0">
+<img class="w-16 h-16 rounded-full object-cover shadow-sm bg-surface-container" data-alt="Modern close-up lifestyle headshot of Alex Morgan, a friendly urban commuter smiling warmly in natural daylight, wearing a stylish minimalist jacket, shot in clean portrait photography with gentle bokeh and teal accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsHmK8TNkTCjZ3kAdtsTeAUdQIe35DP4MX_aDeep93g-NlXxEcRvD8sF0roAzq9-dw3phTcxJSHceJ_E04dU5oqG2wAEdStUdbOYAAVQ4o7dM71dpSAUhTCwPCKESrOBZbCbZl6trtXODv-D04lk3LDQRnR2V2lUjXtWhIMApyU2d8dYZFV7vEGeNRnnyAc4zwDSu8kYKRWAf09JxtXar7M20v2mz5INOEJL8mcVOXjIM6B9OMAQFC">
+<div class="absolute -bottom-1 -right-1 bg-primary text-on-primary rounded-full p-1 shadow-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px]">verified</span>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-space-xs">
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate">Alex Morgan</h2>
+<span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">star</span>
+            4.95
+          </span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate mt-0.5">+1 (555) 234-8901</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">alex.morgan@email.com</p>
+</div>
+<button aria-label="Edit Profile" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors flex-shrink-0 active:scale-95">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</div>
+<!-- Quick Stats Metric Bar -->
+<div class="grid grid-cols-3 gap-space-xs mt-space-md pt-space-md border-t-0 bg-surface-container-low rounded-xl p-space-sm text-center">
+<div class="flex flex-col items-center">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Rides</span>
+<span class="font-title-md text-title-md text-primary mt-0.5">148</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Member</span>
+<span class="font-title-md text-title-md text-on-surface mt-0.5">Velox+</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">CO₂ Saved</span>
+<span class="font-title-md text-title-md text-tertiary mt-0.5">38kg</span>
+</div>
+</div>
+</section>
+<!-- Section 1: Payment Methods -->
+<section class="space-y-space-sm">
+<div class="flex items-center justify-between px-1">
+<h3 class="font-label-lg text-label-lg text-on-surface uppercase tracking-wider font-bold">Payment Methods</h3>
+<button class="font-label-sm text-label-sm text-primary flex items-center gap-0.5 active:opacity-75">
+<span class="material-symbols-outlined text-[16px]">add_circle</span>
+        Add Card
+      </button>
+</div>
+<div class="bg-surface-container-lowest rounded-lg p-space-sm shadow-sm space-y-space-xs">
+<!-- Card Item: Visa Default -->
+<div class="flex items-center justify-between p-space-sm rounded-xl bg-surface hover:bg-surface-container transition-colors">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-xl bg-secondary-container text-on-secondary-container flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">credit_card</span>
+</div>
+<div class="min-w-0">
+<div class="flex items-center gap-space-xs">
+<span class="font-title-md text-title-md text-on-surface truncate">Visa •••• 4289</span>
+<span class="px-1.5 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm">Default</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Expires 09/27</p>
+</div>
+</div>
+<button class="text-on-surface-variant hover:text-on-surface p-1 rounded-full active:scale-95">
+<span class="material-symbols-outlined text-[20px]">chevron_right</span>
+</button>
+</div>
+<!-- Card Item: Apple Pay -->
+<div class="flex items-center justify-between p-space-sm rounded-xl bg-surface hover:bg-surface-container transition-colors">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-xl bg-inverse-surface text-inverse-on-surface flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">phone_iphone</span>
+</div>
+<div class="min-w-0">
+<span class="font-title-md text-title-md text-on-surface block truncate">Apple Pay</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Linked to wallet</p>
+</div>
+</div>
+<button class="text-on-surface-variant hover:text-on-surface p-1 rounded-full active:scale-95">
+<span class="material-symbols-outlined text-[20px]">chevron_right</span>
+</button>
+</div>
+<!-- Card Item: Cash -->
+<div class="flex items-center justify-between p-space-sm rounded-xl bg-surface hover:bg-surface-container transition-colors">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-xl bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">payments</span>
+</div>
+<div class="min-w-0">
+<span class="font-title-md text-title-md text-on-surface block truncate">Cash</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Pay driver in person</p>
+</div>
+</div>
+<button class="text-on-surface-variant hover:text-on-surface p-1 rounded-full active:scale-95">
+<span class="material-symbols-outlined text-[20px]">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Section 2: Saved Places -->
+<section class="space-y-space-sm">
+<div class="flex items-center justify-between px-1">
+<h3 class="font-label-lg text-label-lg text-on-surface uppercase tracking-wider font-bold">Saved Places</h3>
+<button class="font-label-sm text-label-sm text-primary flex items-center gap-0.5 active:opacity-75">
+<span class="material-symbols-outlined text-[16px]">add_location</span>
+        Add
+      </button>
+</div>
+<div class="bg-surface-container-lowest rounded-lg p-space-sm shadow-sm space-y-space-xs">
+<!-- Home Place -->
+<div class="flex items-center justify-between p-space-sm rounded-xl bg-surface hover:bg-surface-container transition-colors">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-xl bg-primary-fixed text-on-primary-fixed flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">home</span>
+</div>
+<div class="min-w-0">
+<span class="font-title-md text-title-md text-on-surface block truncate">Home</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">42 Elm St, Brookside</p>
+</div>
+</div>
+<button aria-label="Edit Home" class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface active:scale-95">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+</button>
+</div>
+<!-- Work Place -->
+<div class="flex items-center justify-between p-space-sm rounded-xl bg-surface hover:bg-surface-container transition-colors">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-xl bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">business</span>
+</div>
+<div class="min-w-0">
+<span class="font-title-md text-title-md text-on-surface block truncate">Work</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Tech Park Tower 3, Ste 400</p>
+</div>
+</div>
+<button aria-label="Edit Work" class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface active:scale-95">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Section 3: Preferences & Safety -->
+<section class="space-y-space-sm">
+<h3 class="font-label-lg text-label-lg text-on-surface uppercase tracking-wider font-bold px-1">Preferences &amp; Safety</h3>
+<div class="bg-surface-container-lowest rounded-lg p-space-sm shadow-sm space-y-space-xs">
+<!-- Emergency Contacts -->
+<a class="flex items-center justify-between p-space-sm rounded-xl bg-surface hover:bg-surface-container transition-colors" href="#">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-10 h-10 rounded-xl bg-primary-fixed-dim text-on-primary-fixed flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">contact_emergency</span>
+</div>
+<div class="min-w-0">
+<span class="font-title-md text-title-md text-on-surface block truncate">Emergency Contacts</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">2 active contacts configured</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">chevron_right</span>
+</a>
+<!-- Ride Check Toggle -->
+<div class="flex items-center justify-between p-space-sm rounded-xl bg-surface">
+<div class="flex items-center gap-space-md min-w-0 pr-space-sm">
+<div class="w-10 h-10 rounded-xl bg-surface-container-high text-primary flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">shield</span>
+</div>
+<div class="min-w-0">
+<span class="font-title-md text-title-md text-on-surface block truncate">Ride Check Safety</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-tight">Crash detection &amp; unexpected route stop pings</p>
+</div>
+</div>
+<button aria-checked="true" class="relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full bg-primary p-0.5 transition-colors duration-200 ease-in-out focus:outline-none" id="ridecheck-toggle" onclick="toggleSwitch(this)" role="switch">
+<span class="translate-x-5 pointer-events-none inline-block h-6 w-6 transform rounded-full bg-surface-container-lowest shadow-md transition duration-200 ease-in-out"></span>
+</button>
+</div>
+<!-- Push Notifications Toggle -->
+<div class="flex items-center justify-between p-space-sm rounded-xl bg-surface">
+<div class="flex items-center gap-space-md min-w-0 pr-space-sm">
+<div class="w-10 h-10 rounded-xl bg-surface-container-high text-secondary flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">notifications_active</span>
+</div>
+<div class="min-w-0">
+<span class="font-title-md text-title-md text-on-surface block truncate">Push Notifications</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-tight">Driver arrivals, offers, trip receipts</p>
+</div>
+</div>
+<button aria-checked="true" class="relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full bg-primary p-0.5 transition-colors duration-200 ease-in-out focus:outline-none" id="push-toggle" onclick="toggleSwitch(this)" role="switch">
+<span class="translate-x-5 pointer-events-none inline-block h-6 w-6 transform rounded-full bg-surface-container-lowest shadow-md transition duration-200 ease-in-out"></span>
+</button>
+</div>
+</div>
+</section>
+<!-- Section 4: Support & Legal -->
+<section class="space-y-space-sm">
+<h3 class="font-label-lg text-label-lg text-on-surface uppercase tracking-wider font-bold px-1">Support &amp; Legal</h3>
+<div class="bg-surface-container-lowest rounded-lg p-space-sm shadow-sm space-y-space-xs">
+<a class="flex items-center justify-between p-space-sm rounded-xl bg-surface hover:bg-surface-container transition-colors" href="#">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-xl bg-surface-container text-on-surface flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">help_center</span>
+</div>
+<span class="font-title-md text-title-md text-on-surface">Help Center</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">chevron_right</span>
+</a>
+<a class="flex items-center justify-between p-space-sm rounded-xl bg-surface hover:bg-surface-container transition-colors" href="#">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-xl bg-surface-container text-on-surface flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">description</span>
+</div>
+<span class="font-title-md text-title-md text-on-surface">Terms of Service</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">chevron_right</span>
+</a>
+<a class="flex items-center justify-between p-space-sm rounded-xl bg-surface hover:bg-surface-container transition-colors" href="#">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-xl bg-surface-container text-on-surface flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">policy</span>
+</div>
+<span class="font-title-md text-title-md text-on-surface">Privacy Policy</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">chevron_right</span>
+</a>
+</div>
+</section>
+<!-- Section 5: Danger Zone (Log Out) -->
+<section class="pt-space-sm space-y-space-sm">
+<button class="w-full h-14 rounded-full bg-error-container text-on-error-container font-label-lg text-label-lg flex items-center justify-center gap-space-xs transition-transform active:scale-[0.98] shadow-sm hover:brightness-95" id="logout-btn" onclick="openLogoutModal()">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+      Log Out
+    </button>
+<p class="text-center font-label-sm text-label-sm text-on-surface-variant">Velox Ride v4.2.1 • Built for Urban Flow</p>
+</section>
+<!-- Logout Confirmation Bottom Sheet Dialog (Modal) -->
+<div class="fixed inset-0 z-50 bg-on-background/40 backdrop-blur-sm hidden items-end justify-center transition-opacity duration-200" id="logout-modal">
+<div class="bg-surface-container-lowest w-full max-w-lg rounded-t-xl p-space-lg shadow-xl flex flex-col space-y-space-md">
+<div class="w-10 h-1 rounded-full bg-surface-container-highest mx-auto"></div>
+<div class="flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-full bg-error-container text-error flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[26px]">warning</span>
+</div>
+<div class="min-w-0">
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Sign out of Velox?</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Active trips or pre-bookings will remain tracked to your phone number.</p>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-space-sm pt-space-xs">
+<button class="h-12 rounded-full bg-surface-container text-on-surface font-label-lg text-label-lg active:scale-95 transition-transform" onclick="closeLogoutModal()">
+          Cancel
+        </button>
+<button class="h-12 rounded-full bg-error text-on-error font-label-lg text-label-lg active:scale-95 transition-transform shadow-sm" onclick="confirmLogout()">
+          Log Out
+        </button>
+</div>
+</div>
+</div>
+</div>
+<script>
+  function toggleSwitch(button) {
+    const isChecked = button.getAttribute('aria-checked') === 'true';
+    const nextState = !isChecked;
+    button.setAttribute('aria-checked', String(nextState));
+    const dot = button.querySelector('span');
+
+    if (nextState) {
+      button.classList.remove('bg-surface-container-highest');
+      button.classList.add('bg-primary');
+      dot.classList.remove('translate-x-0');
+      dot.classList.add('translate-x-5');
+    } else {
+      button.classList.remove('bg-primary');
+      button.classList.add('bg-surface-container-highest');
+      dot.classList.remove('translate-x-5');
+      dot.classList.add('translate-x-0');
+    }
+  }
+
+  function openLogoutModal() {
+    const modal = document.getElementById('logout-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closeLogoutModal() {
+    const modal = document.getElementById('logout-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  function confirmLogout() {
+    closeLogoutModal();
+    const btn = document.getElementById('logout-btn');
+    if (btn) {
+      btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span> Signing out...';
+      btn.disabled = true;
+      setTimeout(() => {
+        btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">check_circle</span> Session Terminated';
+      }, 1000);
+    }
+  }
+
+  // Set the Account tab icon to active state in navigation
+  (function setNavActive() {
+    const accountLink = document.querySelector('nav a[data-path="account"]');
+    if (accountLink) {
+      accountLink.classList.add('text-primary');
+      accountLink.classList.remove('text-on-surface-variant');
+      const indicator = accountLink.querySelector('.active-indicator');
+      if (indicator) {
+        indicator.classList.remove('opacity-0');
+        indicator.classList.add('opacity-100');
+      }
+    }
+  })();
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.06)]" data-active-classes="text-primary [&amp;_.active-indicator]:opacity-100"><div class="h-16 px-margin flex items-center justify-around"><a class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="home" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">near_me</span><span class="font-label-sm text-label-sm">Home</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a><a class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="activity" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">receipt_long</span><span class="font-label-sm text-label-sm">Activity</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a><a aria-current="page" class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 transition-colors text-primary [&amp;_.active-indicator]:opacity-100" data-path="account" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">person</span><span class="font-label-sm text-label-sm">Account</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a></div></nav></body></html>

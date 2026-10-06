@@ -1,0 +1,278 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_tab" name="shell-type"><title>Velox</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'background': '#f8f9ff', 'on-error': '#ffffff', 'secondary-fixed': '#dae2fd', 'secondary-container': '#dae2fd', 'inverse-surface': '#213145', 'surface-bright': '#f8f9ff', 'tertiary': '#006b2d', 'on-surface-variant': '#3d4947', 'on-secondary-container': '#5c647a', 'tertiary-fixed': '#71fe91', 'error': '#ba1a1a', 'surface-container-high': '#dce9ff', 'on-background': '#0b1c30', 'secondary-fixed-dim': '#bec6e0', 'surface-tint': '#006a61', 'surface-dim': '#cbdbf5', 'error-container': '#ffdad6', 'tertiary-fixed-dim': '#52e078', 'surface': '#f8f9ff', 'surface-container-low': '#eff4ff', 'secondary': '#565e74', 'on-error-container': '#93000a', 'primary-fixed': '#89f5e7', 'primary': '#00685f', 'outline': '#6d7a77', 'primary-fixed-dim': '#6bd8cb', 'surface-variant': '#d3e4fe', 'on-tertiary-fixed': '#002109', 'on-secondary-fixed-variant': '#3f465c', 'surface-container-highest': '#d3e4fe', 'on-primary-container': '#f4fffc', 'on-tertiary-container': '#f7fff2', 'on-primary-fixed': '#00201d', 'on-surface': '#0b1c30', 'on-secondary': '#ffffff', 'on-tertiary-fixed-variant': '#005321', 'outline-variant': '#bcc9c6', 'tertiary-container': '#00873a', 'on-primary': '#ffffff', 'on-secondary-fixed': '#131b2e', 'on-tertiary': '#ffffff', 'inverse-primary': '#6bd8cb', 'primary-container': '#008378', 'surface-container': '#e5eeff', 'surface-container-lowest': '#ffffff', 'inverse-on-surface': '#eaf1ff', 'on-primary-fixed-variant': '#005049' }, borderRadius: { 'DEFAULT': '1rem', 'lg': '2rem', 'xl': '3rem', 'full': '9999px' }, spacing: { 'gutter': '1rem', 'space-md': '0.75rem', 'space-xs': '0.25rem', 'margin-mobile': '1rem', 'margin': '1.25rem', 'space-lg': '1.25rem', 'space-xl': '1.75rem', 'space-sm': '0.5rem', 'gutter-mobile': '0.75rem' }, fontFamily: { 'display-lg': ['Inter'], 'headline-sm': ['Inter'], 'body-lg': ['Inter'], 'headline-md': ['Inter'], 'headline-lg': ['Inter'], 'label-lg': ['Inter'], 'title-md': ['Inter'], 'headline-lg-mobile': ['Inter'], 'body-sm': ['Inter'], 'label-md': ['Inter'], 'label-sm': ['Inter'], 'body-md': ['Inter'] }, fontSize: { 'display-lg': ['40px', { lineHeight: '48px', letterSpacing: '-0.02em', fontWeight: '700' }], 'headline-sm': ['18px', { lineHeight: '24px', letterSpacing: '-0.005em', fontWeight: '600' }], 'body-lg': ['16px', { lineHeight: '24px', letterSpacing: '0em', fontWeight: '400' }], 'headline-md': ['22px', { lineHeight: '28px', letterSpacing: '-0.01em', fontWeight: '600' }], 'headline-lg': ['32px', { lineHeight: '38px', letterSpacing: '-0.02em', fontWeight: '700' }], 'label-lg': ['14px', { lineHeight: '18px', letterSpacing: '0.01em', fontWeight: '600' }], 'title-md': ['16px', { lineHeight: '22px', letterSpacing: '0em', fontWeight: '600' }], 'headline-lg-mobile': ['26px', { lineHeight: '32px', letterSpacing: '-0.015em', fontWeight: '700' }], 'body-sm': ['12px', { lineHeight: '16px', letterSpacing: '0.01em', fontWeight: '400' }], 'label-md': ['12px', { lineHeight: '16px', letterSpacing: '0.02em', fontWeight: '600' }], 'label-sm': ['10px', { lineHeight: '12px', letterSpacing: '0.04em', fontWeight: '700' }], 'body-md': ['14px', { lineHeight: '20px', letterSpacing: '0em', fontWeight: '400' }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;min-height:100%;background-color:#f8f9ff;}body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,16px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}}::-webkit-scrollbar{display:none;}*{-ms-overflow-style:none;scrollbar-width:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface flex flex-col min-h-screen relative antialiased selection:bg-primary-fixed selection:text-on-primary-fixed"><header class="fixed top-0 inset-x-0 z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin-mobile flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0"><img alt="Velox Ride Logo" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1VLSBS0ICOpOMW8h_imWQUzmxb6YDRDmjdo-KRgC7XfyNkohFfklmF9OZY8ZtXUSd6YCRrxcBTncAk1s2yuvF1eGxlXx0Qa3u-eT-GS8Jj2eDm3Btk6AU5FB1lcwgBAdnj7ICgLGGGuzTmip-h95TNDjxlk_mlbhwcyeLnECWBsNjbYwCNhc8S8AWVicsdL6roeyLWCSutoANsu53vCpcP2RVjKOvTOaKGhqyStTgkOgBUJQHHFYWmwfSI"><div class="flex flex-col min-w-0"><span class="font-label-sm text-label-sm uppercase tracking-wider text-primary font-bold leading-none">Velox</span><h1 class="font-title-md text-title-md text-on-surface truncate leading-tight">Home</h1></div></div><div class="flex items-center gap-space-sm flex-shrink-0"><button aria-label="Notifications" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-[22px]">notifications</span></button><img alt="Profile" class="w-8 h-8 rounded-full object-cover shadow-[0_1px_8px_rgba(0,0,0,0.04)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNquAAGdGMP2bxcL9JuOjd14g7Xdw8zy7PzYtH6QBaSd7ARNQDC1ob6k-2edMFAJRSWvnOR0d0GeHoUwqmdfjlwDylFphUMtxUnc9U2Vdg2jACEmyhTV-YjaMKgSzmGEv-k5drvGjiMaU70XBf4TnA8Vym_WERLo8xGa3xmebT92Z3260nBU8EzpjzBl4v-J_MYBOZhkZoRIGNpDkMKQqAqsG_ypC0dBiHnZk7pG8V7dACkqljkADO"></div></div></header><main class="flex-1 w-full bg-surface pt-16 pb-28"><div class="flex flex-col w-full relative">
+<!-- Interactive Map Canvas Viewport -->
+<div class="relative w-full h-[360px] overflow-hidden bg-surface-container-high">
+<!-- Styled Vector Map Visual Base -->
+<div class="absolute inset-0 w-full h-full bg-cover bg-center" data-location="Grand Central Terminal, New York, NY" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNDH_1YoZL5MuMiLP0kiFBZ8q01pD4vPtMpEEPx5eSL4UIGoz15stbadHsoTrkZH5xC2IHw6QzgaNy4h_twfVraqTqmk40uIygaPL4bzLzIv1EHiiMOJIuXz4fbaL9xanjVCTlzj9rxx2BSNvYbE_tDrl3WhovIMr68Z7wT2Izd9BdRoNl9yK2t9gs-hBscUj7DG0wcgdwH-VEE7yCw_zbh5oO1y1eCWUb8JFG03rAVrBQ0dHHpY5J');"></div>
+<div class="absolute inset-0 bg-gradient-to-b from-surface/60 via-transparent to-surface pointer-events-none"></div>
+<!-- Map Route & GPS Visual Elements -->
+<div class="absolute inset-0 pointer-events-none">
+<!-- Pickup Pulse Pin (742 Grand Central Area) -->
+<div class="absolute top-[46%] left-[48%] -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+<span class="absolute w-12 h-12 rounded-full bg-primary/20 animate-ping"></span>
+<span class="absolute w-8 h-8 rounded-full bg-primary/30"></span>
+<span class="relative w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-lg">
+<span class="w-2 h-2 rounded-full bg-on-primary"></span>
+</span>
+<div class="absolute bottom-full mb-2 bg-surface-container-lowest/95 backdrop-blur-md px-2.5 py-1 rounded-full shadow-md flex items-center gap-1.5 whitespace-nowrap">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+<span class="font-label-sm text-label-sm text-on-surface">Pickup: Grand Central</span>
+</div>
+</div>
+<!-- Active Moving Vehicles (Velox Fleet) -->
+<!-- Vehicle 1: Standard Car heading Northeast -->
+<div class="absolute top-[32%] left-[62%] -rotate-45 transition-transform duration-700">
+<div class="w-8 h-8 rounded-full bg-surface-container-lowest shadow-md flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">directions_car</span>
+</div>
+</div>
+<!-- Vehicle 2: Motorbike heading South -->
+<div class="absolute top-[58%] left-[28%] rotate-180 transition-transform duration-700">
+<div class="w-7 h-7 rounded-full bg-surface-container-lowest shadow-md flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[16px]">two_wheeler</span>
+</div>
+</div>
+<!-- Vehicle 3: XL SUV heading East -->
+<div class="absolute top-[22%] left-[24%] rotate-45 transition-transform duration-700">
+<div class="w-8 h-8 rounded-full bg-surface-container-lowest shadow-md flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">airport_shuttle</span>
+</div>
+</div>
+</div>
+<!-- Floating Top Greeting Pill & Quick Controls -->
+<div class="absolute top-3 inset-x-margin-mobile flex items-center justify-between pointer-events-auto">
+<div class="flex items-center gap-2 bg-surface-container-lowest/90 backdrop-blur-md px-3.5 py-2 rounded-full shadow-md">
+<span class="font-label-lg text-label-lg text-on-surface flex items-center gap-1.5">
+          Good morning, Alex! ☀️
+        </span>
+</div>
+<div class="flex items-center gap-2">
+<button aria-label="Safety toolkit" class="w-10 h-10 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-primary shadow-md active:scale-95 transition-transform" id="safetyBtn">
+<span class="material-symbols-outlined text-[20px]">shield</span>
+</button>
+<button aria-label="Recenter map" class="w-10 h-10 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-on-surface shadow-md active:scale-95 transition-transform" id="recenterBtn">
+<span class="material-symbols-outlined text-[20px]">my_location</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bottom Sheet Mobility Console -->
+<div class="relative w-full -mt-6 rounded-t-lg bg-surface-container-lowest shadow-2xl px-margin-mobile pt-3 pb-6 flex flex-col gap-5 z-20">
+<!-- Draggable Tactile Pill Handle -->
+<div class="w-10 h-1 rounded-full bg-outline-variant/60 self-center"></div>
+<!-- Main Destination Search Input Field -->
+<div class="flex flex-col gap-3">
+<div class="relative flex items-center w-full bg-surface-container-low rounded-xl px-3.5 py-3 shadow-sm transition-all focus-within:ring-2 focus-within:ring-primary/20">
+<div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary mr-3 flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</div>
+<input class="bg-transparent w-full text-on-surface font-title-md text-title-md placeholder:text-on-surface-variant/60 outline-none" id="destinationSearch" placeholder="Where to?" type="text" value="Financial District, NY">
+<button aria-label="Clear destination" class="text-on-surface-variant hover:text-on-surface p-1" id="clearSearch">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Quick Route Shortcut Pills -->
+<div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 -mx-margin-mobile px-margin-mobile">
+<button class="shortcut-pill flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container text-on-surface text-body-sm font-body-sm whitespace-nowrap active:scale-95 transition-transform shadow-xs">
+<span class="material-symbols-outlined text-[16px] text-primary">work</span>
+<span>Financial Plaza</span>
+</button>
+<button class="shortcut-pill flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container text-on-surface text-body-sm font-body-sm whitespace-nowrap active:scale-95 transition-transform shadow-xs">
+<span class="material-symbols-outlined text-[16px] text-primary">home</span>
+<span>42 Elm St</span>
+</button>
+<button class="shortcut-pill flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container text-on-surface text-body-sm font-body-sm whitespace-nowrap active:scale-95 transition-transform shadow-xs">
+<span class="material-symbols-outlined text-[16px] text-primary">fitness_center</span>
+<span>Equinox Gym</span>
+</button>
+<button class="shortcut-pill flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container text-on-surface text-body-sm font-body-sm whitespace-nowrap active:scale-95 transition-transform shadow-xs">
+<span class="material-symbols-outlined text-[16px] text-primary">flight</span>
+<span>JFK Airport</span>
+</button>
+</div>
+</div>
+<!-- Quick Vehicle Tier Selector -->
+<div class="flex flex-col gap-2.5">
+<div class="flex items-center justify-between">
+<h2 class="font-title-md text-title-md text-on-surface">Available Fleets Nearby</h2>
+<span class="font-label-sm text-label-sm text-primary flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span> Fast Dispatch
+        </span>
+</div>
+<div class="grid grid-cols-3 gap-2.5">
+<!-- Velox Bike -->
+<div class="tier-card group cursor-pointer relative flex flex-col justify-between p-2.5 rounded-DEFAULT bg-surface-container-low transition-all duration-200 shadow-sm active:scale-98" data-tier="bike">
+<div class="flex items-start justify-between">
+<span class="text-on-surface-variant group-hover:text-primary">
+<span class="material-symbols-outlined text-[26px]">two_wheeler</span>
+</span>
+<span class="font-label-sm text-label-sm text-on-secondary-container bg-surface px-1.5 py-0.5 rounded-full">4m</span>
+</div>
+<div class="mt-3">
+<div class="font-label-md text-label-md text-on-surface">Moto</div>
+<div class="font-title-md text-title-md text-primary">$8.20</div>
+</div>
+</div>
+<!-- Velox Standard (Selected Default) -->
+<div class="tier-card group cursor-pointer relative flex flex-col justify-between p-2.5 rounded-DEFAULT bg-primary-fixed/20 shadow-sm active:scale-98" data-tier="standard">
+<div class="absolute -top-2 right-2 bg-primary text-on-primary font-label-sm text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">Fastest</div>
+<div class="flex items-start justify-between">
+<span class="text-primary">
+<span class="material-symbols-outlined text-[26px]">directions_car</span>
+</span>
+<span class="font-label-sm text-label-sm text-on-primary-fixed-variant bg-primary-fixed/50 px-1.5 py-0.5 rounded-full">3m</span>
+</div>
+<div class="mt-3">
+<div class="font-label-md text-label-md text-on-surface font-semibold">Standard</div>
+<div class="font-title-md text-title-md text-primary font-bold">$14.50</div>
+</div>
+</div>
+<!-- Velox XL -->
+<div class="tier-card group cursor-pointer relative flex flex-col justify-between p-2.5 rounded-DEFAULT bg-surface-container-low transition-all duration-200 shadow-sm active:scale-98" data-tier="xl">
+<div class="flex items-start justify-between">
+<span class="text-on-surface-variant group-hover:text-primary">
+<span class="material-symbols-outlined text-[26px]">airport_shuttle</span>
+</span>
+<span class="font-label-sm text-label-sm text-on-secondary-container bg-surface px-1.5 py-0.5 rounded-full">6m</span>
+</div>
+<div class="mt-3">
+<div class="font-label-md text-label-md text-on-surface">XL 6-Seat</div>
+<div class="font-title-md text-title-md text-on-surface">$22.80</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Recent Destinations Mosaic Section -->
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<h3 class="font-title-md text-title-md text-on-surface">Recent Rides</h3>
+<button class="font-label-md text-label-md text-primary hover:underline">View all</button>
+</div>
+<div class="flex flex-col gap-2">
+<!-- Destination Item 1 -->
+<div class="flex items-center justify-between p-2.5 rounded-DEFAULT bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer group">
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">history</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface truncate">Empire State Building</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">350 5th Ave • 2.4 km away</span>
+</div>
+</div>
+<button aria-label="Rebook Empire State ride" class="w-8 h-8 rounded-full bg-surface hover:bg-primary-fixed/40 flex items-center justify-center text-primary transition-colors flex-shrink-0 ml-2">
+<span class="material-symbols-outlined text-[18px]">replay</span>
+</button>
+</div>
+<!-- Destination Item 2 -->
+<div class="flex items-center justify-between p-2.5 rounded-DEFAULT bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer group">
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">storefront</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface truncate">Chelsea Market Food Hall</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">75 9th Ave • 3.8 km away</span>
+</div>
+</div>
+<button aria-label="Rebook Chelsea Market ride" class="w-8 h-8 rounded-full bg-surface hover:bg-primary-fixed/40 flex items-center justify-center text-primary transition-colors flex-shrink-0 ml-2">
+<span class="material-symbols-outlined text-[18px]">replay</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Driver & Safety Feature Spotlight Banner -->
+<div class="flex items-center justify-between p-3 rounded-DEFAULT bg-secondary-container/40">
+<div class="flex items-center gap-3">
+<img class="w-10 h-10 rounded-full object-cover shadow-sm flex-shrink-0" data-alt="Professional driver smiling warmly inside a clean modern electric car, natural daylight framing with high key soft lighting, wearing smart casual uniform, ultra-high resolution photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQGEWOaysLr_1Y092nI9kPgsgiuXPAVQOfVojCxkG1o_6w3JHsJlFtnpAT6_npi7D9VwQZB8N0N-ZZ6iaS6e8svjuiAXYt1qYIn4YPpVBdYwf7bStB0WFGYX-4HEQJcOR96vT7dADIIyhu85yqEkz8KOWTxAX1gr9xVMgOfwiVN2y0SOqiScPWQCpkDIQde5C821VQH6JXUHBsQc-pzex6iGrEGGWJ4bI4KPAinD3B3nGNBgu4pk9c">
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-label-md text-label-md text-on-surface font-semibold">Velox Green Fleet</span>
+<span class="material-symbols-outlined text-tertiary text-[16px]">eco</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">100% hybrid &amp; electric rides today</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-primary font-bold px-2 py-1 bg-surface-container-lowest rounded-full shadow-xs">ZERO EMISSION</span>
+</div>
+<!-- Primary Action Booking CTA -->
+<div class="pt-1">
+<button class="w-full h-14 rounded-full bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg flex items-center justify-center gap-2 shadow-lg shadow-primary/25 active:scale-98 transition-all" id="setDestinationBtn">
+<span>Set Destination</span>
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  (function initVeloxInteraction() {
+    const tierCards = document.querySelectorAll('.tier-card');
+    const searchInput = document.getElementById('destinationSearch');
+    const clearBtn = document.getElementById('clearSearch');
+    const shortcutPills = document.querySelectorAll('.shortcut-pill');
+    const setDestBtn = document.getElementById('setDestinationBtn');
+    const recenterBtn = document.getElementById('recenterBtn');
+
+    // Tier Card selection toggle
+    tierCards.forEach(card => {
+      card.addEventListener('click', () => {
+        tierCards.forEach(c => {
+          c.classList.remove('bg-primary-fixed/20', 'shadow-sm');
+          c.classList.add('bg-surface-container-low');
+          const title = c.querySelector('.font-title-md');
+          if (title) title.classList.remove('text-primary');
+        });
+        card.classList.remove('bg-surface-container-low');
+        card.classList.add('bg-primary-fixed/20', 'shadow-sm');
+        const activeTitle = card.querySelector('.font-title-md');
+        if (activeTitle) activeTitle.classList.add('text-primary');
+      });
+    });
+
+    // Destination Shortcuts
+    shortcutPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        const text = pill.querySelector('span:last-child').textContent;
+        searchInput.value = text;
+        searchInput.focus();
+      });
+    });
+
+    // Clear search action
+    if (clearBtn && searchInput) {
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        searchInput.focus();
+      });
+    }
+
+    // Micro interaction for primary CTA
+    if (setDestBtn) {
+      setDestBtn.addEventListener('click', () => {
+        const originalText = setDestBtn.innerHTML;
+        setDestBtn.innerHTML = `<span class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span><span>Finding nearest driver...</span>`;
+        setDestBtn.classList.add('opacity-90');
+        setTimeout(() => {
+          setDestBtn.innerHTML = `<span class="material-symbols-outlined text-[20px]">check_circle</span><span>Driver Assigned (2 mins)</span>`;
+          setDestBtn.classList.remove('bg-primary');
+          setDestBtn.classList.add('bg-tertiary');
+        }, 1200);
+      });
+    }
+
+    // Recenter map tactile button feedback
+    if (recenterBtn) {
+      recenterBtn.addEventListener('click', () => {
+        recenterBtn.classList.add('rotate-45');
+        setTimeout(() => {
+          recenterBtn.classList.remove('rotate-45');
+        }, 300);
+      });
+    }
+  })();
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.06)]" data-active-classes="text-primary [&amp;_.active-indicator]:opacity-100"><div class="h-16 px-margin flex items-center justify-around"><a aria-current="page" class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 transition-colors text-primary [&amp;_.active-indicator]:opacity-100" data-path="home" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">near_me</span><span class="font-label-sm text-label-sm">Home</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a><a class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="activity" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">receipt_long</span><span class="font-label-sm text-label-sm">Activity</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a><a class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="account" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">person</span><span class="font-label-sm text-label-sm">Account</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a></div></nav></body></html>

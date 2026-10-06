@@ -1,0 +1,231 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_tab" name="shell-type"><title>Velox</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'background': '#f8f9ff', 'on-error': '#ffffff', 'secondary-fixed': '#dae2fd', 'secondary-container': '#dae2fd', 'inverse-surface': '#213145', 'surface-bright': '#f8f9ff', 'tertiary': '#006b2d', 'on-surface-variant': '#3d4947', 'on-secondary-container': '#5c647a', 'tertiary-fixed': '#71fe91', 'error': '#ba1a1a', 'surface-container-high': '#dce9ff', 'on-background': '#0b1c30', 'secondary-fixed-dim': '#bec6e0', 'surface-tint': '#006a61', 'surface-dim': '#cbdbf5', 'error-container': '#ffdad6', 'tertiary-fixed-dim': '#52e078', 'surface': '#f8f9ff', 'surface-container-low': '#eff4ff', 'secondary': '#565e74', 'on-error-container': '#93000a', 'primary-fixed': '#89f5e7', 'primary': '#00685f', 'outline': '#6d7a77', 'primary-fixed-dim': '#6bd8cb', 'surface-variant': '#d3e4fe', 'on-tertiary-fixed': '#002109', 'on-secondary-fixed-variant': '#3f465c', 'surface-container-highest': '#d3e4fe', 'on-primary-container': '#f4fffc', 'on-tertiary-container': '#f7fff2', 'on-primary-fixed': '#00201d', 'on-surface': '#0b1c30', 'on-secondary': '#ffffff', 'on-tertiary-fixed-variant': '#005321', 'outline-variant': '#bcc9c6', 'tertiary-container': '#00873a', 'on-primary': '#ffffff', 'on-secondary-fixed': '#131b2e', 'on-tertiary': '#ffffff', 'inverse-primary': '#6bd8cb', 'primary-container': '#008378', 'surface-container': '#e5eeff', 'surface-container-lowest': '#ffffff', 'inverse-on-surface': '#eaf1ff', 'on-primary-fixed-variant': '#005049' }, borderRadius: { 'DEFAULT': '1rem', 'lg': '2rem', 'xl': '3rem', 'full': '9999px' }, spacing: { 'gutter': '1rem', 'space-md': '0.75rem', 'space-xs': '0.25rem', 'margin-mobile': '1rem', 'margin': '1.25rem', 'space-lg': '1.25rem', 'space-xl': '1.75rem', 'space-sm': '0.5rem', 'gutter-mobile': '0.75rem' }, fontFamily: { 'display-lg': ['Inter'], 'headline-sm': ['Inter'], 'body-lg': ['Inter'], 'headline-md': ['Inter'], 'headline-lg': ['Inter'], 'label-lg': ['Inter'], 'title-md': ['Inter'], 'headline-lg-mobile': ['Inter'], 'body-sm': ['Inter'], 'label-md': ['Inter'], 'label-sm': ['Inter'], 'body-md': ['Inter'] }, fontSize: { 'display-lg': ['40px', { lineHeight: '48px', letterSpacing: '-0.02em', fontWeight: '700' }], 'headline-sm': ['18px', { lineHeight: '24px', letterSpacing: '-0.005em', fontWeight: '600' }], 'body-lg': ['16px', { lineHeight: '24px', letterSpacing: '0em', fontWeight: '400' }], 'headline-md': ['22px', { lineHeight: '28px', letterSpacing: '-0.01em', fontWeight: '600' }], 'headline-lg': ['32px', { lineHeight: '38px', letterSpacing: '-0.02em', fontWeight: '700' }], 'label-lg': ['14px', { lineHeight: '18px', letterSpacing: '0.01em', fontWeight: '600' }], 'title-md': ['16px', { lineHeight: '22px', letterSpacing: '0em', fontWeight: '600' }], 'headline-lg-mobile': ['26px', { lineHeight: '32px', letterSpacing: '-0.015em', fontWeight: '700' }], 'body-sm': ['12px', { lineHeight: '16px', letterSpacing: '0.01em', fontWeight: '400' }], 'label-md': ['12px', { lineHeight: '16px', letterSpacing: '0.02em', fontWeight: '600' }], 'label-sm': ['10px', { lineHeight: '12px', letterSpacing: '0.04em', fontWeight: '700' }], 'body-md': ['14px', { lineHeight: '20px', letterSpacing: '0em', fontWeight: '400' }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;min-height:100%;background-color:#f8f9ff;}body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,16px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}}::-webkit-scrollbar{display:none;}*{-ms-overflow-style:none;scrollbar-width:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head><body class="bg-surface text-on-surface flex flex-col min-h-screen relative antialiased selection:bg-primary-fixed selection:text-on-primary-fixed"><header class="fixed top-0 inset-x-0 z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin-mobile flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0"><img alt="Velox Ride Logo" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1VLSBS0ICOpOMW8h_imWQUzmxb6YDRDmjdo-KRgC7XfyNkohFfklmF9OZY8ZtXUSd6YCRrxcBTncAk1s2yuvF1eGxlXx0Qa3u-eT-GS8Jj2eDm3Btk6AU5FB1lcwgBAdnj7ICgLGGGuzTmip-h95TNDjxlk_mlbhwcyeLnECWBsNjbYwCNhc8S8AWVicsdL6roeyLWCSutoANsu53vCpcP2RVjKOvTOaKGhqyStTgkOgBUJQHHFYWmwfSI"><div class="flex flex-col min-w-0"><span class="font-label-sm text-label-sm uppercase tracking-wider text-primary font-bold leading-none">Velox</span><h1 class="font-title-md text-title-md text-on-surface truncate leading-tight">Home</h1></div></div><div class="flex items-center gap-space-sm flex-shrink-0"><button aria-label="Notifications" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-[22px]">notifications</span></button><img alt="Profile" class="w-8 h-8 rounded-full object-cover shadow-[0_1px_8px_rgba(0,0,0,0.04)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNquAAGdGMP2bxcL9JuOjd14g7Xdw8zy7PzYtH6QBaSd7ARNQDC1ob6k-2edMFAJRSWvnOR0d0GeHoUwqmdfjlwDylFphUMtxUnc9U2Vdg2jACEmyhTV-YjaMKgSzmGEv-k5drvGjiMaU70XBf4TnA8Vym_WERLo8xGa3xmebT92Z3260nBU8EzpjzBl4v-J_MYBOZhkZoRIGNpDkMKQqAqsG_ypC0dBiHnZk7pG8V7dACkqljkADO"></div></div></header><main class="flex-1 w-full bg-surface pt-16 pb-28"><div class="flex flex-col w-full px-margin-mobile pb-space-xl gap-space-lg">
+<!-- 1. Header & Location Context -->
+<section class="flex flex-col gap-space-sm pt-space-sm">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex flex-col min-w-0">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface tracking-tight">Good morning, Alex 👋</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Where would you like to go today?</p>
+</div>
+<button aria-label="Wallet and membership status" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary-container text-on-secondary-fixed text-left shadow-sm shrink-0 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[16px] text-primary" style="font-variation-settings: 'FILL' 1;">stars</span>
+<div class="flex flex-col leading-none">
+<span class="font-label-sm text-label-sm font-bold text-primary">Velox+ Member</span>
+<span class="font-label-sm text-label-sm text-secondary font-medium">$42.50</span>
+</div>
+</button>
+</div>
+<!-- Current Location Pill -->
+<div class="flex items-center justify-between px-space-md py-2.5 rounded-xl bg-surface-container-low shadow-sm">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-7 h-7 rounded-full bg-primary-fixed flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary text-[18px]" style="font-variation-settings: 'FILL' 1;">my_location</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium uppercase tracking-wider">Current Location</span>
+<span class="font-body-md text-body-md text-on-surface font-semibold truncate">Grand Central Terminal, NY</span>
+</div>
+</div>
+<button class="flex items-center gap-0.5 px-2.5 py-1 rounded-full bg-surface-container-highest text-primary hover:bg-surface-container font-label-md text-label-md shrink-0 transition-colors">
+<span>Change</span>
+<span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+</div>
+</section>
+<!-- 2. Active Ride Live Status Card (Hero Priority) -->
+<section class="relative overflow-hidden rounded-2xl bg-surface-container-lowest p-space-md shadow-md flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-fixed text-on-primary-fixed">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+<span class="font-label-sm text-label-sm uppercase tracking-wide font-bold">Driver Arriving • 3 mins</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary font-medium">1 active booking</span>
+</div>
+<!-- Driver & Vehicle Snippet -->
+<div class="flex items-center justify-between gap-space-sm bg-surface-container-low p-space-sm rounded-xl">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-full object-cover shadow-sm" data-alt="A warm, professional portrait headshot of a friendly rideshare driver named Marcus Vance smiling in natural daylight with sharp focus, modern urban framing" src="https://lh3.googleusercontent.com/aida-public/AB6AXuADiM8C3KNpwcKgvrSEdN7klCUNFNxSIakYL2vXh9QoCPml6f4Wfbe51kjF_ChZm_kBlhEv-tWGmCzYNwvrLDTgrJVNKo78X-PJh6KrwH_3CVq5K4yaClyXhHlxU4s0j2GxhumsJdc2fsU8amPAaaUtU8aO24veJYaAH5qgjjibbeMnF1G-581sN1zlQJyhsnBRDcOwU609hWLLVxa4bcGwhZbI3pP3_YzxOWGJt7ImyCp1y35oiGEO">
+<span class="absolute -bottom-1 -right-1 bg-surface-container-lowest px-1 rounded-full font-label-sm text-label-sm text-on-surface font-bold shadow-xs flex items-center gap-0.5">
+            4.9 <span class="material-symbols-outlined text-[12px] text-tertiary-container" style="font-variation-settings: 'FILL' 1;">star</span>
+</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-title-md text-title-md text-on-surface font-semibold truncate">Marcus Vance</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Silver Camry • <strong class="text-on-surface font-semibold">7XYZ92</strong></span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 shrink-0">
+<button aria-label="Message driver" class="w-9 h-9 rounded-full bg-surface-container-highest text-on-surface flex items-center justify-center hover:bg-surface-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">chat</span>
+</button>
+<button aria-label="Call driver" class="w-9 h-9 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">call</span>
+</button>
+</div>
+</div>
+<!-- Route Overview Bar -->
+<div class="flex items-center justify-between px-space-xs py-1 text-on-surface">
+<div class="flex items-center gap-2 min-w-0">
+<div class="flex flex-col items-center">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary"></span>
+</div>
+<span class="font-body-sm text-body-sm font-medium truncate">Grand Central Bay 4</span>
+</div>
+<span class="material-symbols-outlined text-secondary shrink-0 px-2 text-[18px]">arrow_forward</span>
+<div class="flex items-center gap-2 min-w-0">
+<span class="w-2.5 h-2.5 rounded-sm bg-on-surface"></span>
+<span class="font-body-sm text-body-sm font-semibold truncate">SoHo House</span>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex items-center gap-space-sm pt-0.5">
+<button class="flex-1 h-12 rounded-full bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all">
+<span>Track Ride on Map</span>
+<span class="material-symbols-outlined text-[18px]">north_east</span>
+</button>
+</div>
+</section>
+<!-- 3. Quick Booking Card -->
+<section class="flex flex-col rounded-2xl bg-surface-container-lowest p-space-md shadow-sm gap-space-md">
+<div class="flex items-center justify-between">
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Where are you going?</h3>
+<span class="material-symbols-outlined text-primary text-[22px]">tune</span>
+</div>
+<!-- Frameless Multi-Stop Visual Connector Inputs -->
+<div class="flex flex-col bg-surface-container-low rounded-xl p-space-sm gap-2">
+<div class="flex items-center gap-3">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary shrink-0"></span>
+<div class="flex-1 flex items-center justify-between">
+<span class="font-body-md text-body-md font-medium text-on-surface">Grand Central Terminal</span>
+<span class="material-symbols-outlined text-outline text-[18px]">gps_fixed</span>
+</div>
+</div>
+<div class="ml-1 w-0.5 h-3 bg-outline-variant"></div>
+<div class="flex items-center gap-3">
+<span class="w-2.5 h-2.5 rounded-sm bg-on-surface shrink-0"></span>
+<div class="flex-1 flex items-center justify-between">
+<input class="w-full bg-transparent font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none" placeholder="Search destination or address..." type="text">
+<span class="material-symbols-outlined text-outline text-[18px]">search</span>
+</div>
+</div>
+</div>
+<!-- Saved Places Quick Pills -->
+<div class="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container text-on-surface hover:bg-surface-container-high transition-colors shrink-0 active:scale-95">
+<span>🏠</span>
+<span class="font-label-md text-label-md font-medium">Home</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container text-on-surface hover:bg-surface-container-high transition-colors shrink-0 active:scale-95">
+<span>💼</span>
+<span class="font-label-md text-label-md font-medium">Work</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container text-on-surface hover:bg-surface-container-high transition-colors shrink-0 active:scale-95">
+<span>🏋️</span>
+<span class="font-label-md text-label-md font-medium">Equinox Gym</span>
+</button>
+</div>
+<!-- CTA Confirm Booking -->
+<button class="w-full h-14 rounded-full bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg font-bold flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all">
+<span>Book a Ride</span>
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</section>
+<!-- 4. Quick Actions Grid -->
+<section class="grid grid-cols-4 gap-space-sm">
+<button class="flex flex-col items-center justify-center p-3 rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm gap-2 active:scale-95 transition-all text-center">
+<div class="w-11 h-11 rounded-full bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[22px]">directions_car</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-semibold">Book Ride</span>
+</button>
+<button class="flex flex-col items-center justify-center p-3 rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm gap-2 active:scale-95 transition-all text-center">
+<div class="w-11 h-11 rounded-full bg-secondary-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[22px]">history</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-semibold">Activity</span>
+</button>
+<button class="flex flex-col items-center justify-center p-3 rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm gap-2 active:scale-95 transition-all text-center">
+<div class="w-11 h-11 rounded-full bg-secondary-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[22px]">bookmark</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-semibold">Saved</span>
+</button>
+<button class="flex flex-col items-center justify-center p-3 rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm gap-2 active:scale-95 transition-all text-center">
+<div class="w-11 h-11 rounded-full bg-tertiary-fixed flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-[22px]">health_and_safety</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-semibold">Safety</span>
+</button>
+</section>
+<!-- 5. Recent Bookings / Activity Section -->
+<section class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Recent Rides</h3>
+<button class="font-label-md text-label-md text-primary font-semibold flex items-center gap-0.5 hover:underline">
+<span>View All</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+<div class="flex flex-col gap-space-sm">
+<!-- Item 1: Yesterday -->
+<div class="flex items-center justify-between p-space-md rounded-2xl bg-surface-container-lowest shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center shrink-0 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">apartment</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-body-md text-body-md font-semibold text-on-surface truncate">Downtown Tech Center</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm">Completed</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Yesterday, 18:45 • $16.50</span>
+</div>
+</div>
+<button class="px-3 py-1.5 rounded-full bg-surface-container-high text-primary hover:bg-primary hover:text-on-primary font-label-md text-label-md font-semibold shrink-0 transition-colors">
+          Rebook
+        </button>
+</div>
+<!-- Item 2: Oct 24 -->
+<div class="flex items-center justify-between p-space-md rounded-2xl bg-surface-container-lowest shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center shrink-0 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">train</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-body-md text-body-md font-semibold text-on-surface truncate">Grand Central Station</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm">Completed</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Oct 24, 08:30 • $7.20</span>
+</div>
+</div>
+<button class="px-3 py-1.5 rounded-full bg-surface-container-high text-primary hover:bg-primary hover:text-on-primary font-label-md text-label-md font-semibold shrink-0 transition-colors">
+          Rebook
+        </button>
+</div>
+<!-- Item 3: Oct 18 (Cancelled) -->
+<div class="flex items-center justify-between p-space-md rounded-2xl bg-surface-container-lowest shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center shrink-0 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">palette</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-body-md text-body-md font-semibold text-on-surface truncate">River North Gallery</span>
+<span class="px-2 py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm">Cancelled</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Oct 18, 14:10 • $6.00</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline text-[20px] pr-2">chevron_right</span>
+</div>
+</div>
+</section>
+</div></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.06)]" data-active-classes="text-primary [&amp;_.active-indicator]:opacity-100"><div class="h-16 px-margin flex items-center justify-around"><a class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="home" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">near_me</span><span class="font-label-sm text-label-sm">Home</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a><a class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="activity" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">receipt_long</span><span class="font-label-sm text-label-sm">Activity</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a><a class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="account" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">person</span><span class="font-label-sm text-label-sm">Account</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a></div></nav></body></html>

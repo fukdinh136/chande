@@ -1,0 +1,297 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_tab" name="shell-type"><title>Velox</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'background': '#f8f9ff', 'on-error': '#ffffff', 'secondary-fixed': '#dae2fd', 'secondary-container': '#dae2fd', 'inverse-surface': '#213145', 'surface-bright': '#f8f9ff', 'tertiary': '#006b2d', 'on-surface-variant': '#3d4947', 'on-secondary-container': '#5c647a', 'tertiary-fixed': '#71fe91', 'error': '#ba1a1a', 'surface-container-high': '#dce9ff', 'on-background': '#0b1c30', 'secondary-fixed-dim': '#bec6e0', 'surface-tint': '#006a61', 'surface-dim': '#cbdbf5', 'error-container': '#ffdad6', 'tertiary-fixed-dim': '#52e078', 'surface': '#f8f9ff', 'surface-container-low': '#eff4ff', 'secondary': '#565e74', 'on-error-container': '#93000a', 'primary-fixed': '#89f5e7', 'primary': '#00685f', 'outline': '#6d7a77', 'primary-fixed-dim': '#6bd8cb', 'surface-variant': '#d3e4fe', 'on-tertiary-fixed': '#002109', 'on-secondary-fixed-variant': '#3f465c', 'surface-container-highest': '#d3e4fe', 'on-primary-container': '#f4fffc', 'on-tertiary-container': '#f7fff2', 'on-primary-fixed': '#00201d', 'on-surface': '#0b1c30', 'on-secondary': '#ffffff', 'on-tertiary-fixed-variant': '#005321', 'outline-variant': '#bcc9c6', 'tertiary-container': '#00873a', 'on-primary': '#ffffff', 'on-secondary-fixed': '#131b2e', 'on-tertiary': '#ffffff', 'inverse-primary': '#6bd8cb', 'primary-container': '#008378', 'surface-container': '#e5eeff', 'surface-container-lowest': '#ffffff', 'inverse-on-surface': '#eaf1ff', 'on-primary-fixed-variant': '#005049' }, borderRadius: { 'DEFAULT': '1rem', 'lg': '2rem', 'xl': '3rem', 'full': '9999px' }, spacing: { 'gutter': '1rem', 'space-md': '0.75rem', 'space-xs': '0.25rem', 'margin-mobile': '1rem', 'margin': '1.25rem', 'space-lg': '1.25rem', 'space-xl': '1.75rem', 'space-sm': '0.5rem', 'gutter-mobile': '0.75rem' }, fontFamily: { 'display-lg': ['Inter'], 'headline-sm': ['Inter'], 'body-lg': ['Inter'], 'headline-md': ['Inter'], 'headline-lg': ['Inter'], 'label-lg': ['Inter'], 'title-md': ['Inter'], 'headline-lg-mobile': ['Inter'], 'body-sm': ['Inter'], 'label-md': ['Inter'], 'label-sm': ['Inter'], 'body-md': ['Inter'] }, fontSize: { 'display-lg': ['40px', { lineHeight: '48px', letterSpacing: '-0.02em', fontWeight: '700' }], 'headline-sm': ['18px', { lineHeight: '24px', letterSpacing: '-0.005em', fontWeight: '600' }], 'body-lg': ['16px', { lineHeight: '24px', letterSpacing: '0em', fontWeight: '400' }], 'headline-md': ['22px', { lineHeight: '28px', letterSpacing: '-0.01em', fontWeight: '600' }], 'headline-lg': ['32px', { lineHeight: '38px', letterSpacing: '-0.02em', fontWeight: '700' }], 'label-lg': ['14px', { lineHeight: '18px', letterSpacing: '0.01em', fontWeight: '600' }], 'title-md': ['16px', { lineHeight: '22px', letterSpacing: '0em', fontWeight: '600' }], 'headline-lg-mobile': ['26px', { lineHeight: '32px', letterSpacing: '-0.015em', fontWeight: '700' }], 'body-sm': ['12px', { lineHeight: '16px', letterSpacing: '0.01em', fontWeight: '400' }], 'label-md': ['12px', { lineHeight: '16px', letterSpacing: '0.02em', fontWeight: '600' }], 'label-sm': ['10px', { lineHeight: '12px', letterSpacing: '0.04em', fontWeight: '700' }], 'body-md': ['14px', { lineHeight: '20px', letterSpacing: '0em', fontWeight: '400' }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;min-height:100%;background-color:#f8f9ff;}body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,16px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}}::-webkit-scrollbar{display:none;}*{-ms-overflow-style:none;scrollbar-width:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface flex flex-col min-h-screen relative antialiased selection:bg-primary-fixed selection:text-on-primary-fixed"><header class="fixed top-0 inset-x-0 z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin-mobile flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0"><img alt="Velox Ride Logo" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1VLSBS0ICOpOMW8h_imWQUzmxb6YDRDmjdo-KRgC7XfyNkohFfklmF9OZY8ZtXUSd6YCRrxcBTncAk1s2yuvF1eGxlXx0Qa3u-eT-GS8Jj2eDm3Btk6AU5FB1lcwgBAdnj7ICgLGGGuzTmip-h95TNDjxlk_mlbhwcyeLnECWBsNjbYwCNhc8S8AWVicsdL6roeyLWCSutoANsu53vCpcP2RVjKOvTOaKGhqyStTgkOgBUJQHHFYWmwfSI"><div class="flex flex-col min-w-0"><span class="font-label-sm text-label-sm uppercase tracking-wider text-primary font-bold leading-none">Velox</span><h1 class="font-title-md text-title-md text-on-surface truncate leading-tight">Activity</h1></div></div><div class="flex items-center gap-space-sm flex-shrink-0"><button aria-label="Notifications" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-[22px]">notifications</span></button><img alt="Profile" class="w-8 h-8 rounded-full object-cover shadow-[0_1px_8px_rgba(0,0,0,0.04)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNquAAGdGMP2bxcL9JuOjd14g7Xdw8zy7PzYtH6QBaSd7ARNQDC1ob6k-2edMFAJRSWvnOR0d0GeHoUwqmdfjlwDylFphUMtxUnc9U2Vdg2jACEmyhTV-YjaMKgSzmGEv-k5drvGjiMaU70XBf4TnA8Vym_WERLo8xGa3xmebT92Z3260nBU8EzpjzBl4v-J_MYBOZhkZoRIGNpDkMKQqAqsG_ypC0dBiHnZk7pG8V7dACkqljkADO"></div></div></header><main class="flex-1 w-full bg-surface pt-16 pb-28"><div class="flex flex-col w-full px-margin-mobile pb-6 space-y-space-md">
+<!-- Activity Overview / Stats Bar -->
+<div class="bg-surface-container-low rounded-2xl p-space-md shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-space-sm">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[22px]">auto_graph</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-bold block">October Mobility</span>
+<p class="font-headline-sm text-headline-sm text-on-surface leading-tight">28 Trips • $314.50</p>
+</div>
+</div>
+<div class="flex items-center space-x-1 px-space-sm py-1 bg-tertiary/10 text-tertiary rounded-full">
+<span class="material-symbols-outlined text-[16px]">eco</span>
+<span class="font-label-sm text-label-sm font-bold">14.2kg CO₂ saved</span>
+</div>
+</div>
+</div>
+<!-- Segmented Filter Control -->
+<div class="bg-surface-container-high p-1 rounded-full flex items-center shadow-inner" id="filterBar">
+<button class="filter-btn flex-1 py-2 text-center rounded-full font-label-md text-label-md transition-all duration-200 bg-surface-container-lowest text-primary shadow-sm" data-filter="all" type="button">
+      All (4)
+    </button>
+<button class="filter-btn flex-1 py-2 text-center rounded-full font-label-md text-label-md transition-all duration-200 text-on-surface-variant hover:text-on-surface" data-filter="completed" type="button">
+      Completed (3)
+    </button>
+<button class="filter-btn flex-1 py-2 text-center rounded-full font-label-md text-label-md transition-all duration-200 text-on-surface-variant hover:text-on-surface" data-filter="cancelled" type="button">
+      Cancelled (1)
+    </button>
+</div>
+<!-- Trip List -->
+<div class="space-y-space-md" id="tripContainer">
+<!-- Trip 1 (Yesterday, 18:45) -->
+<article class="trip-card bg-surface-container-lowest rounded-2xl p-space-md shadow-sm transition-all duration-200 hover:shadow-md" data-status="completed">
+<!-- Top Meta Row -->
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex items-center space-x-space-xs">
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-primary font-label-sm text-label-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">directions_car</span>
+            Velox Standard Car
+          </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Yesterday, 18:45</span>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-tertiary-container/15 text-tertiary font-label-sm text-label-sm font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+          Completed
+        </span>
+</div>
+<!-- Route Visual Timeline -->
+<div class="py-space-xs relative flex items-start space-x-space-sm">
+<div class="flex flex-col items-center pt-1 flex-shrink-0">
+<div class="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/20"></div>
+<div class="w-0.5 h-7 bg-outline-variant/60 my-0.5"></div>
+<div class="w-2.5 h-2.5 bg-inverse-surface rounded-xs"></div>
+</div>
+<div class="flex-1 min-w-0 space-y-1.5">
+<div class="flex items-baseline justify-between">
+<p class="font-title-md text-title-md text-on-surface truncate">Downtown Tech Center</p>
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold ml-2">$16.50</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant truncate">Marina Bay Residences</p>
+</div>
+</div>
+<!-- Driver & Rating Snippet -->
+<div class="mt-space-sm pt-space-xs flex items-center justify-between bg-surface-container-low rounded-xl px-space-sm py-2">
+<div class="flex items-center space-x-space-sm min-w-0">
+<img class="w-7 h-7 rounded-full object-cover" data-alt="Portrait photo of a cheerful male rideshare driver named Marcus V. wearing a dark minimalist jacket with a polite warm smile, clean bright urban lighting, high quality automotive profile aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDkd0txj-fUbKvdUCZWHqrNJOroOL0cvxCsrHGiTKcCfN_KZhzcGAByQiojYORjHp6VeNQ-Ha7nsXVsKyvOGE6CDaW873hPm0gufZSi-yg6HLBsLFMFr6hEapr0wQc7EbWWL6hiiRGjOdcwXvywwgjhRqSpMdAPPySe-ml4gpX9Cs3HgBuEWcKNe2Iy-MMQjK3KZJA52xHYgOErIKE4hkMMah3oDkuMimh5o-uL3JkLFQF3lNpgfTIq">
+<div class="flex items-center space-x-1 truncate">
+<span class="font-label-md text-label-md text-on-surface font-semibold truncate">Marcus V.</span>
+<span class="text-amber-500 font-label-sm text-label-sm flex items-center">
+<span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">star</span> 5.0
+            </span>
+</div>
+</div>
+<div class="flex items-center space-x-1 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[16px]">credit_card</span>
+<span>Apple Pay</span>
+</div>
+</div>
+<!-- Quick Action Buttons -->
+<div class="mt-space-sm pt-space-xs flex items-center justify-between gap-space-sm">
+<button class="receipt-trigger flex items-center space-x-1 text-on-surface-variant hover:text-primary font-label-md text-label-md px-2 py-1.5 transition-colors" type="button">
+<span class="material-symbols-outlined text-[16px]">receipt</span>
+<span>Receipt</span>
+</button>
+<button class="rebook-btn px-space-md py-2 rounded-full bg-primary text-on-primary font-label-md text-label-md flex items-center space-x-1 shadow-sm active:scale-95 transition-transform" type="button">
+<span class="material-symbols-outlined text-[16px]">replay</span>
+<span>Rebook</span>
+</button>
+</div>
+</article>
+<!-- Trip 2 (Oct 24, 08:30) -->
+<article class="trip-card bg-surface-container-lowest rounded-2xl p-space-md shadow-sm transition-all duration-200 hover:shadow-md" data-status="completed">
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex items-center space-x-space-xs">
+<span class="px-2.5 py-0.5 rounded-full bg-secondary-container text-on-secondary-fixed font-label-sm text-label-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">two_wheeler</span>
+            Velox Moto
+          </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Oct 24, 08:30</span>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-tertiary-container/15 text-tertiary font-label-sm text-label-sm font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+          Completed
+        </span>
+</div>
+<div class="py-space-xs relative flex items-start space-x-space-sm">
+<div class="flex flex-col items-center pt-1 flex-shrink-0">
+<div class="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/20"></div>
+<div class="w-0.5 h-7 bg-outline-variant/60 my-0.5"></div>
+<div class="w-2.5 h-2.5 bg-inverse-surface rounded-xs"></div>
+</div>
+<div class="flex-1 min-w-0 space-y-1.5">
+<div class="flex items-baseline justify-between">
+<p class="font-title-md text-title-md text-on-surface truncate">Grand Central Station</p>
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold ml-2">$7.20</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant truncate">Oakridge Medical</p>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs flex items-center justify-between gap-space-sm">
+<div class="flex items-center space-x-1 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[16px]">contactless</span>
+<span>Velox Wallet •• 4091</span>
+</div>
+<button class="rebook-btn px-space-md py-1.5 rounded-full bg-surface-container-high text-primary hover:bg-primary hover:text-on-primary font-label-md text-label-md flex items-center space-x-1 active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[16px]">replay</span>
+<span>Rebook</span>
+</button>
+</div>
+</article>
+<!-- Trip 3 (Oct 21, 22:15) -->
+<article class="trip-card bg-surface-container-lowest rounded-2xl p-space-md shadow-sm transition-all duration-200 hover:shadow-md" data-status="completed">
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex items-center space-x-space-xs">
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-primary font-label-sm text-label-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">directions_car</span>
+            Velox Standard Car
+          </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Oct 21, 22:15</span>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-tertiary-container/15 text-tertiary font-label-sm text-label-sm font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+          Completed
+        </span>
+</div>
+<div class="py-space-xs relative flex items-start space-x-space-sm">
+<div class="flex flex-col items-center pt-1 flex-shrink-0">
+<div class="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/20"></div>
+<div class="w-0.5 h-7 bg-outline-variant/60 my-0.5"></div>
+<div class="w-2.5 h-2.5 bg-inverse-surface rounded-xs"></div>
+</div>
+<div class="flex-1 min-w-0 space-y-1.5">
+<div class="flex items-baseline justify-between">
+<p class="font-title-md text-title-md text-on-surface truncate">Sunset Lounge</p>
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold ml-2">$19.80</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant truncate">Home (842 Meridian Ave)</p>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs flex items-center justify-between gap-space-sm">
+<div class="flex items-center space-x-1 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[16px]">credit_card</span>
+<span>Visa •• 8820</span>
+</div>
+<button class="rebook-btn px-space-md py-1.5 rounded-full bg-surface-container-high text-primary hover:bg-primary hover:text-on-primary font-label-md text-label-md flex items-center space-x-1 active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[16px]">replay</span>
+<span>Rebook</span>
+</button>
+</div>
+</article>
+<!-- Trip 4 (Oct 18, Cancelled) -->
+<article class="trip-card bg-surface-container-lowest rounded-2xl p-space-md shadow-sm transition-all duration-200 opacity-90 hover:opacity-100" data-status="cancelled">
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex items-center space-x-space-xs">
+<span class="px-2.5 py-0.5 rounded-full bg-secondary-container text-on-secondary-fixed font-label-sm text-label-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">two_wheeler</span>
+            Velox Moto
+          </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Oct 18, 14:10</span>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+          Cancelled
+        </span>
+</div>
+<div class="py-space-xs relative flex items-start space-x-space-sm">
+<div class="flex flex-col items-center pt-1 flex-shrink-0">
+<div class="w-2.5 h-2.5 rounded-full bg-outline"></div>
+<div class="w-0.5 h-7 bg-outline-variant/40 my-0.5"></div>
+<div class="w-2.5 h-2.5 bg-outline rounded-xs"></div>
+</div>
+<div class="flex-1 min-w-0 space-y-1.5">
+<div class="flex items-baseline justify-between">
+<p class="font-title-md text-title-md text-on-surface-variant line-through truncate">River North Gallery</p>
+<span class="font-title-md text-title-md text-on-surface-variant line-through ml-2">$6.00</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant line-through truncate">West End Plaza</p>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs flex items-center justify-between">
+<span class="font-body-sm text-body-sm text-error flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">info</span>
+          Driver unavailable • Fee waived
+        </span>
+<button class="rebook-btn px-space-md py-1.5 rounded-full bg-surface-container text-on-surface font-label-md text-label-md flex items-center space-x-1 active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[16px]">search</span>
+<span>Find Ride</span>
+</button>
+</div>
+</article>
+</div>
+<!-- Rebook Toast Notification -->
+<div class="fixed bottom-20 left-4 right-4 z-40 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none bg-inverse-surface text-inverse-on-surface px-space-md py-3 rounded-2xl shadow-xl flex items-center justify-between" id="rebookToast">
+<div class="flex items-center space-x-space-sm">
+<span class="material-symbols-outlined text-primary-fixed text-[20px]">near_me</span>
+<span class="font-label-md text-label-md font-semibold" id="toastMessage">Preparing your route...</span>
+</div>
+<span class="font-label-sm text-label-sm text-primary-fixed uppercase tracking-wider font-bold">Routing</span>
+</div>
+</div>
+<script>
+  // Dynamic Tab Bar Highlight syncing
+  const activityNavBtn = document.querySelector('nav a[data-path="activity"]');
+  if (activityNavBtn) {
+    const allNavLinks = document.querySelectorAll('nav a');
+    allNavLinks.forEach(link => {
+      link.classList.remove('text-primary');
+      const dot = link.querySelector('.active-indicator');
+      if (dot) dot.classList.add('opacity-0');
+    });
+    activityNavBtn.classList.add('text-primary');
+    const activeDot = activityNavBtn.querySelector('.active-indicator');
+    if (activeDot) activeDot.classList.remove('opacity-0');
+  }
+
+  // Segmented Control Filtering
+  const filterBtns = document.querySelectorAll('.filter-btn');
+  const tripCards = document.querySelectorAll('.trip-card');
+
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => {
+        b.classList.remove('bg-surface-container-lowest', 'text-primary', 'shadow-sm');
+        b.classList.add('text-on-surface-variant');
+      });
+      btn.classList.remove('text-on-surface-variant');
+      btn.classList.add('bg-surface-container-lowest', 'text-primary', 'shadow-sm');
+
+      const filter = btn.getAttribute('data-filter');
+      tripCards.forEach(card => {
+        if (filter === 'all' || card.getAttribute('data-status') === filter) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  });
+
+  // Rebook / Receipt Interaction Delight
+  const toast = document.getElementById('rebookToast');
+  const toastMsg = document.getElementById('toastMessage');
+  let toastTimer;
+
+  function showToast(text) {
+    clearTimeout(toastTimer);
+    toastMsg.textContent = text;
+    toast.classList.remove('translate-y-20', 'opacity-0');
+    toast.classList.add('translate-y-0', 'opacity-100');
+    toastTimer = setTimeout(() => {
+      toast.classList.remove('translate-y-0', 'opacity-100');
+      toast.classList.add('translate-y-20', 'opacity-0');
+    }, 2400);
+  }
+
+  document.querySelectorAll('.rebook-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showToast('Finding best driver nearby...');
+    });
+  });
+
+  document.querySelectorAll('.receipt-trigger').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showToast('Receipt downloaded to documents');
+    });
+  });
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.06)]" data-active-classes="text-primary [&amp;_.active-indicator]:opacity-100"><div class="h-16 px-margin flex items-center justify-around"><a class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="home" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">near_me</span><span class="font-label-sm text-label-sm">Home</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a><a aria-current="page" class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 transition-colors text-primary [&amp;_.active-indicator]:opacity-100" data-path="activity" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">receipt_long</span><span class="font-label-sm text-label-sm">Activity</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a><a class="group relative flex flex-col items-center justify-center min-w-[64px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="account" href="#"><span class="material-symbols-outlined text-[24px] mb-0.5">person</span><span class="font-label-sm text-label-sm">Account</span><span class="active-indicator opacity-0 w-1 h-1 rounded-full bg-primary mt-0.5 transition-opacity"></span></a></div></nav></body></html>
