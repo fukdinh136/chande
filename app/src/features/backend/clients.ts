@@ -46,7 +46,7 @@ export class OfferApi {
   async detail(token:string,offerId:string,signal?:AbortSignal){return offer((await this.http.send({service:'matching',path:'/matching/offers/'+id(offerId),token,signal})).data)}
   async decide(token:string,offerId:string,key:string,action:'accept'|'decline'){
     const r=await this.http.send({service:'matching',path:`/matching/offers/${id(offerId)}/${action}`,method:'POST',body:{},token,key});
-    const d=record(r.data);if(d.offerId!==id(offerId)||typeof d.accepted!=='boolean')throw new BackendError('INVALID_RESPONSE');return {offerId:id(d.offerId),status:text(d.status),accepted:d.accepted};
+    const d=record(r.data);if(d.offerId!==id(offerId)||d.accepted!==(action==='accept')||d.status!==(action==='accept'?'ASSIGNMENT_PENDING':'DECLINED'))throw new BackendError('INVALID_RESPONSE');return {offerId:id(d.offerId),status:text(d.status),accepted:d.accepted};
   }
 }
 export class CustomerTripApi {
