@@ -327,6 +327,15 @@ test("refresh insertion failure rolls back revocation so the old token can still
   const next = await f.auth.refresh(session.refreshToken);
   assert.notEqual(next.refreshToken, session.refreshToken);
 });
+test("lost refresh response after commit does not grant replay with the revoked token", async () => {
+  const f = fixture(), challenge = await f.auth.request(f.driver.phone, "isolated-test");
+  const first = await f.auth.verify(f.driver.phone, challenge.challengeId, "123456");
+  // Simulate a committed response lost by the transport. The server has no
+  // replay/idempotency contract; abort/timeout cannot make the old token reusable.
+  const committed = await f.auth.refresh(first.refreshToken);
+  await rejectsCode(f.auth.refresh(first.refreshToken), "INVALID_REFRESH_TOKEN");
+  assert.ok((await f.auth.refresh(committed.refreshToken)).refreshToken);
+});
 test("coordinated status commands project the final committed intent", async () => {
   const f = fixture();
   await f.app.select(f.driver.id, f.vehicle.id, "Bearer delegated");

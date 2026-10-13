@@ -2,6 +2,7 @@ import { fetch } from 'expo/fetch';
 import type { HttpConfig, Service } from './config';
 import { ApiError } from './errors';
 import { object } from '../contracts/decode';
+import { retryAfterDeadline } from './retry-after';
 
 export interface RequestSpec {
   service: Service;
@@ -19,8 +20,8 @@ export interface HttpTransport {
 export class FetchTransport implements HttpTransport {
   constructor(private readonly config: HttpConfig) {}
   async send(request: RequestSpec, accessToken?: string): Promise<HttpResult> {
-    const base = request.service === 'driver' ? this.config.driverBase : this.config.tripBase;
-    if (!base) throw new ApiError('TRIP_NOT_CONFIGURED');
+    const base = { driver: this.config.driverBase, trip: this.config.tripBase, matching: this.config.matchingBase, routing: this.config.routingBase }[request.service];
+    if (!base) throw new ApiError(`${request.service.toUpperCase()}_NOT_CONFIGURED`);
     if (!/^\/[A-Za-z0-9/_-]+$/.test(request.path) || request.path.includes('//')) throw new ApiError('INVALID_ROUTE');
     const url = new URL(`${base}${request.path}`);
     for (const [key, value] of Object.entries(request.query ?? {})) url.searchParams.set(key, value);
@@ -41,16 +42,22 @@ export class FetchTransport implements HttpTransport {
         },
         ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
       });
+      const retryAt = retryAfterDeadline(response.headers.get('Retry-After'), Date.now(), response.headers.get('Date'));
       let payload: unknown;
-      try { payload = await response.json(); } catch { throw new ApiError('INVALID_RESPONSE', response.status); }
-      const envelope = object(payload);
+      try { payload = await response.json(); }
+      catch {
+        if (controller.signal.aborted) throw new ApiError(timedOut ? 'TIMEOUT' : 'CANCELLED', 0, undefined, retryAt);
+        throw new ApiError('INVALID_RESPONSE', response.status, undefined, retryAt);
+      }
+      let envelope: Record<string, unknown>;
+      try { envelope = object(payload); } catch { throw new ApiError('INVALID_RESPONSE', response.status, undefined, retryAt); }
       if (!response.ok) {
-        const error = envelope.error && typeof envelope.error === 'object' ? object(envelope.error) : {};
-        const meta = envelope.meta && typeof envelope.meta === 'object' ? object(envelope.meta) : {};
+        const error = envelope.error && typeof envelope.error === 'object' && !Array.isArray(envelope.error) ? object(envelope.error) : {};
+        const meta = envelope.meta && typeof envelope.meta === 'object' && !Array.isArray(envelope.meta) ? object(envelope.meta) : {};
         const code = typeof error.code === 'string' && /^[A-Z_]{1,80}$/.test(error.code)
           ? error.code : response.status === 401 ? 'UNAUTHENTICATED' : 'INVALID_RESPONSE';
         const requestId = typeof meta.requestId === 'string' && /^[0-9a-f-]{36}$/i.test(meta.requestId) ? meta.requestId : undefined;
-        throw new ApiError(code, response.status, requestId);
+        throw new ApiError(code, response.status, requestId, retryAt);
       }
       const meta = object(envelope.meta);
       if (typeof meta.requestId !== 'string' || !/^[0-9a-f-]{36}$/i.test(meta.requestId)) throw new ApiError('INVALID_RESPONSE', response.status);

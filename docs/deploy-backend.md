@@ -95,7 +95,13 @@ Restart-check chỉ restart năm deployment trong chande-local và xác minh acc
 kubectl --context docker-desktop -n chande-local port-forward --address 127.0.0.1 service/edge 18081:8088
 ```
 
-Runner tạo helper port-forward ẩn và lưu PID/log; không tự kill PID không xác minh. Khi helper chết, xóa chỉ file port-forward.pid hoặc chạy lệnh terminal trên. Không dùng down -v/delete namespace/PVC để restart, vì các lệnh đó xóa data. Secrets đổi cần restart pod sử dụng env; xoay khóa cần giữ public keys cũ trong TTL theo contract User/Driver.
+Runner kiểm tra response 401/UNAUTHENTICATED của Gateway thật trước khi xác nhận cổng 18081 sẵn sàng; file PID chỉ dùng chẩn đoán, không quyết định bỏ qua startup. Helper ẩn tự mở lại port-forward khi kubectl mất kết nối với pod, lưu PID/log tại deploy/.local/backend; không kill tiến trình khác hoặc thay endpoint đang chiếm cổng. Sau khi Docker/Kubernetes khởi động lại, khôi phục riêng kết nối mà không deploy lại/migrate database:
+
+```powershell
+node deploy/run.cjs kube-forward
+```
+
+Lệnh này cũng dùng lại cổng đã kết nối đúng Gateway. Không cần xóa file PID cũ. Giữ Docker Desktop/Kubernetes chạy trong khi dùng app; nếu tab đã báo lỗi, reload để discovery thử lại. Không dùng down -v/delete namespace/PVC để restart, vì các lệnh đó xóa data. Secrets đổi cần restart pod sử dụng env; xoay khóa cần giữ public keys cũ trong TTL theo contract User/Driver.
 
 PostgreSQL/Rabbit/Redis có persistence; Rabbit node hostname cố định rabbitmq, process/health cùng UID999, PVC fsGroup999. Điều này tránh cookie permission race và thay tên node làm mất khả năng đọc mnesia cũ khi pod/container thay ID. Không xóa cookie hoặc volume để sửa lỗi startup.
 

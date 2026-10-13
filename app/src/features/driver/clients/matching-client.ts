@@ -1,30 +1,48 @@
 import { ApiError } from '../http/errors';
-import { BackendError, BackendHttp } from '../../backend/http';
-import { OfferApi, type Offer } from '../../backend/clients';
+import { BackendError, id } from '../../backend/http';
+import { offer, type Offer } from '../../backend/clients';
+import { receipt, type OfferAction, type OfferDecision, type OfferReceipt } from '../contracts/offer-workflow';
+import type { HttpConfig } from '../http/config';
 import type { SessionManager } from '../session/session-manager';
 
-// Gateway adapter follows Matching's published DRIVER contract.
+// Both direct and Gateway adapters follow Matching's public DRIVER contract.
 export interface MatchingClient {
   readonly available: boolean;
   readonly reason: string;
   active(signal?: AbortSignal): Promise<Offer | null>;
-  accept(offerId: string, key: string): Promise<void>;
-  decline(offerId: string, key: string): Promise<void>;
+  detail(offerId: string, signal?: AbortSignal): Promise<Offer>;
+  prepare(value: Offer, action: OfferAction, key: string): OfferDecision;
+  execute(command: OfferDecision, signal?: AbortSignal): Promise<OfferReceipt>;
 }
-export class UnconfiguredMatchingClient implements MatchingClient {
-  readonly available = false;
-  readonly reason = 'Chưa có kết nối Matching chính thức. Không có thao tác nhận hoặc từ chối offer.';
-  async active(): Promise<Offer | null> { return null; }
-  async accept(_offerId: string): Promise<void> { throw new ApiError('MATCHING_NOT_CONFIGURED'); }
-  async decline(_offerId: string): Promise<void> { throw new ApiError('MATCHING_NOT_CONFIGURED'); }
-}
-export class GatewayMatchingClient implements MatchingClient {
-  readonly available = true;
-  readonly reason = 'Matching đã kết nối qua Gateway; nhận cuốc cần Trip xác nhận ASSIGNED.';
-  private readonly api: OfferApi;
-  constructor(base: string, private readonly session: SessionManager) { this.api = new OfferApi(new BackendHttp(base)); }
-  private async call<T>(work: () => Promise<T>) { try { return await work(); } catch (error) { if (error instanceof BackendError) throw new ApiError(error.code,error.status,error.requestId); throw error; } }
-  async active(signal?: AbortSignal) { return this.call(async () => this.api.active(await this.session.accessToken(signal),signal)); }
-  async accept(offerId: string,key: string) { await this.call(async () => this.api.decide(await this.session.accessToken(),offerId,key,'accept')); }
-  async decline(offerId: string,key: string) { await this.call(async () => this.api.decide(await this.session.accessToken(),offerId,key,'decline')); }
+export class DriverMatchingClient implements MatchingClient {
+  constructor(private readonly config: HttpConfig, private readonly session: SessionManager) {}
+  // Configuration only; runtime availability is determined by REST results.
+  get available() { return this.config.capabilities.matching.configured; }
+  get reason() { return this.config.capabilities.matching.reason; }
+  private async call<T>(work: () => Promise<T>) {
+    if (!this.available) throw new ApiError('MATCHING_NOT_CONFIGURED');
+    try { return await work(); }
+    catch (error) { if (error instanceof BackendError) throw new ApiError(error.code, error.status, error.requestId); throw error; }
+  }
+  async active(signal?: AbortSignal) {
+    return this.call(async () => offer((await this.session.request({ service: 'matching', path: `${this.config.matchingPrefix}/matching/offers/active`, method: 'GET', signal })).data));
+  }
+  async detail(offerId: string, signal?: AbortSignal) {
+    return this.call(async () => {
+      const value = offer((await this.session.request({ service: 'matching', path: `${this.config.matchingPrefix}/matching/offers/${id(offerId)}`, method: 'GET', signal })).data);
+      if (!value || value.offerId !== id(offerId)) throw new ApiError('INVALID_RESPONSE');
+      return value;
+    });
+  }
+  prepare(value: Offer, action: OfferAction, key: string): OfferDecision {
+    if (!this.available || !this.config.matchingBase) throw new ApiError('MATCHING_NOT_CONFIGURED');
+    return { offerId: value.offerId, tripId: value.tripId, driverId: value.driverId, version: value.version, action, key: id(key), origin: this.config.matchingBase, path: `${this.config.matchingPrefix}/matching/offers/${id(value.offerId)}/${action}`, method: 'POST', body: {} };
+  }
+  async execute(command: OfferDecision, signal?: AbortSignal) {
+    return this.call(async () => {
+      if (command.origin !== this.config.matchingBase || command.path !== `${this.config.matchingPrefix}/matching/offers/${id(command.offerId)}/${command.action}` || command.driverId !== this.session.getSnapshot().session?.driver.driverId || command.method !== 'POST' || Object.keys(command.body).length) throw new ApiError('OFFER_COMMAND_SCOPE');
+      const result = await this.session.request({ service: 'matching', path: command.path, method: command.method, body: command.body, key: command.key, signal });
+      return receipt(result.data, command.offerId, command.action);
+    });
+  }
 }
