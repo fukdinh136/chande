@@ -74,7 +74,7 @@ test("Nest HTTP presentation runs from new backend path with isolated ports, DTO
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
-    return { status: response.status, body: await response.json() };
+    return { status: response.status, headers: response.headers, body: await response.json() };
   };
   try {
     assert.equal((await call("/health/live")).body.status, "ok");
@@ -93,6 +93,20 @@ test("Nest HTTP presentation runs from new backend path with isolated ports, DTO
         phoneNumber: f.driver.phone,
       })
     ).body.data;
+    const limited = await call("/driver-auth/otp/request", "POST", {
+      phoneNumber: f.driver.phone,
+    });
+    assert.equal(limited.status, 429);
+    assert.equal(limited.body.error.code, "RATE_LIMITED");
+    assert.deepEqual(limited.body.error.details, []);
+    assert.match(limited.headers.get("Retry-After"), /^\d+$/);
+    assert.equal(limited.headers.get("Cache-Control"), "no-store");
+    const wrongOtp = await call("/driver-auth/otp/verify", "POST", {
+      phoneNumber: f.driver.phone, challengeId: challenge.challengeId, otp: "000000",
+    });
+    assert.equal(wrongOtp.status, 401);
+    assert.equal(wrongOtp.body.error.code, "AUTHENTICATION_FAILED");
+    assert.equal(wrongOtp.body.error.message, "AUTHENTICATION_FAILED");
     const session = (
       await call("/driver-auth/otp/verify", "POST", {
         phoneNumber: f.driver.phone,
@@ -157,6 +171,14 @@ test("Nest HTTP presentation runs from new backend path with isolated ports, DTO
       (await call("/.well-known/jwks.json")).body.keys[0].kty,
       "RSA",
     );
+    f.tripError();
+    const dependency = await call("/drivers/me/selected-vehicle", "PUT", {
+      vehicleId: f.vehicle.id,
+    }, session.accessToken);
+    assert.equal(dependency.status, 503);
+    assert.equal(dependency.body.error.code, "DEPENDENCY_UNAVAILABLE");
+    assert.equal(dependency.headers.get("Retry-After"), "1");
+    assert.equal(f.driver.desiredStatus, "OFFLINE");
   } finally {
     await app.close();
   }

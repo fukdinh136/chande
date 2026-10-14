@@ -4,8 +4,22 @@ node_modules/
 # Build and test output
 dist/
 build/
+target/
 coverage/
+.test-dist/
+.nyc_output/
+test-results/
+playwright-report/
+blob-report/
 *.tsbuildinfo
+
+# Native and package/tool caches (including nested native modules)
+.gradle/
+.kotlin/
+.cxx/
+.cache/
+.npm-cache/
+.metro-cache/
 
 # Expo
 .expo/
@@ -14,17 +28,32 @@ web-build/
 # Local environment and secrets
 .env
 .env.*
+*.env
+*.env.*
 !.env.example
+!.env.*.example
+!*.env.example
 
-# Local-only legacy Driver Gateway; the official Gateway may live elsewhere.
+# Local-only legacy Driver Gateway; keep the official service/api-gateway.
 /api-gateway/
+
 # Private signing keys and local diagnostic output
 *.pem
 *.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
 *-lint-results.json
 
 # Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Generated backend credentials, manifests and local signing material
 /deploy/.local/

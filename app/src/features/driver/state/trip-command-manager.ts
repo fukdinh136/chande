@@ -1,7 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import type { TripClient } from '../clients/trip-client';
 import { nextStatus, type Trip, type TripCommand } from '../contracts/models';
-import { ApiError, isRetryable } from '../http/errors';
+import { ApiError } from '../http/errors';
 import type { SessionManager } from '../session/session-manager';
 import type { DriverStorage } from '../session/storage';
 
@@ -15,9 +15,16 @@ export interface CommandState {
 export class TripCommandManager {
   private owner: string | null = null;
   private epoch = 0;
+  private ownerEpoch = -1;
+  private unsubscribe: () => void;
   private state: CommandState = { pending: null, restoring: false, busy: false, error: null, message: null };
   private listeners = new Set<() => void>();
-  constructor(private readonly trip: TripClient, private readonly session: SessionManager, private readonly storage: DriverStorage) {}
+  constructor(private readonly trip: TripClient, private readonly session: SessionManager, private readonly storage: DriverStorage) {
+    this.unsubscribe = session.subscribe(() => {
+      if (this.owner && (this.ownerEpoch !== session.getOwnerEpoch() || !session.getSnapshot().usable)) void this.initialize(null);
+    });
+  }
+  private owns(epoch: number) { return epoch === this.epoch && this.ownerEpoch === this.session.getOwnerEpoch() && this.session.getSnapshot().usable; }
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -30,15 +37,16 @@ export class TripCommandManager {
   async initialize(driverId: string | null, force = false) {
     if (driverId === this.owner && !force) return;
     this.owner = driverId;
+    this.ownerEpoch = this.session.getOwnerEpoch();
     const epoch = ++this.epoch;
     this.publish({ pending: null, restoring: !!driverId, busy: false, error: null, message: null });
     if (!driverId) return;
     try {
       const pending = await this.storage.readCommand(driverId);
-      if (epoch === this.epoch) this.publish({ pending, restoring: false });
+      if (this.owns(epoch)) this.publish({ pending, restoring: false });
     } catch (error) {
       // Unknown stored command must not be replaced by a new command.
-      if (epoch === this.epoch) this.publish({ error, restoring: true });
+      if (this.owns(epoch)) this.publish({ error, restoring: true });
     }
   }
   async reloadStoredCommand() { if (!this.state.busy) await this.initialize(this.owner, true); }
@@ -61,7 +69,7 @@ export class TripCommandManager {
   async retry() { if (this.state.pending) await this.perform(this.state.pending, true); }
   private async perform(candidate: TripCommand, retry = false) {
     if (this.state.busy || this.state.restoring || (!retry && this.state.pending)) return;
-    if (!this.owner || candidate.driverId !== this.owner || this.session.getSnapshot().session?.driver.driverId !== this.owner) {
+    if (!this.owns(this.epoch) || !this.owner || candidate.driverId !== this.owner || this.session.getSnapshot().session?.driver.driverId !== this.owner) {
       this.publish({ error: new ApiError('FORBIDDEN', 403) });
       return;
     }
@@ -70,25 +78,27 @@ export class TripCommandManager {
     try {
       if (!retry) {
         await this.storage.writeCommand(candidate.driverId, candidate);
-        if (epoch !== this.epoch) return;
+        if (!this.owns(epoch)) return;
         this.publish({ pending: candidate });
       }
       const result = await this.trip.execute(candidate);
-      if (epoch !== this.epoch) return;
+      if (!this.owns(epoch)) return;
       await this.storage.writeCommand(candidate.driverId, null);
-      if (epoch === this.epoch) this.publish({ pending: null, message: result.replayed ? 'Dịch vụ trả lại kết quả lệnh trước. Đang đọc lại chuyến hiện tại.' : 'Đã xử lý lệnh. Đang đọc lại chuyến hiện tại.' });
+      if (this.owns(epoch)) this.publish({ pending: null, message: result.replayed ? 'Dịch vụ trả lại kết quả lệnh trước. Đang đọc lại chuyến hiện tại.' : 'Đã xử lý lệnh. Đang đọc lại chuyến hiện tại.' });
     } catch (error) {
-      if (epoch !== this.epoch) return;
-      if (!isRetryable(error) && error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 429) {
+      if (!this.owns(epoch)) return;
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status) && !['REQUEST_IN_PROGRESS', 'INVALID_RESPONSE'].includes(error.code)) {
         try {
           await this.storage.writeCommand(candidate.driverId, null);
-          if (epoch === this.epoch) this.publish({ pending: null });
+          if (this.owns(epoch)) this.publish({ pending: null });
         } catch { /* Retain the exact command if clearing its persisted state fails. */ }
-        await this.trip.detail(candidate.tripId).catch(() => {});
+        // The session resource subscription reconciles active/detail/history.
+        // Do not start a separate screen-independent detail GET here.
       }
-      if (epoch === this.epoch) this.publish({ error });
+      if (this.owns(epoch)) this.publish({ error });
     } finally {
-      if (epoch === this.epoch) this.publish({ busy: false });
+      if (this.owns(epoch)) this.publish({ busy: false });
     }
   }
+  dispose() { this.unsubscribe(); void this.initialize(null); this.listeners.clear(); }
 }
