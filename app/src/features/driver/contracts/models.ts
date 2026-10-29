@@ -57,6 +57,8 @@ export interface Trip {
   fare: { currency: 'VND'; estimatedAmount: string; finalAmount: string | null };
   driver?: {fullName:string;avatarUrl:string|null}|null;
   vehicle?: {licensePlate:string;brand:string|null;color:string|null}|null;
+  timestamps?: { requestedAt: string; assignedAt: string | null; driverArrivedAt: string | null; startedAt: string | null; completedAt: string | null; cancelledAt: string | null };
+  cancellation?: { actorType: 'RIDER' | 'DRIVER'; reason: string; cancelledAt: string } | null;
 }
 export interface TripHistoryEntry {
   fromStatus: TripStatus | null;

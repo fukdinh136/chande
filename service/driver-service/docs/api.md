@@ -23,11 +23,17 @@ JWT DRIVER trên /drivers/me*. Actor lấy từ sub, không chấp nhận driver
 | POST /driver-auth/refresh | {refreshToken} | Session mới, token cũ bị revoke |
 | POST /driver-auth/logout | {refreshToken} | {loggedOut:true} |
 
-Các endpoint trả 200. phoneNumber là số Việt Nam hợp lệ được chuẩn hóa mã 84; challengeId UUID, otp sáu chữ số. Không trả OTP, không tạo Driver mới.
+Các endpoint trả 200. phoneNumber nhận 9–15 chữ số, bắt đầu 1–9, cho phép dấu `+` đầu vào; chuẩn hóa bằng trim và bỏ dấu `+`, không tự thêm mã 84. challengeId UUID, otp sáu chữ số. Không trả OTP, không tạo Driver mới.
 
 Session: accessToken, tokenType Bearer, expiresIn, refreshToken, refreshExpiresAt và driver (Profile). Access mặc định 900 s; refresh mặc định 2.592.000 s. Logout idempotent với refresh không còn tồn tại/đã revoke nhưng input vẫn phải hợp lệ; không revoke access tức thì.
 
 OTP sai/hết hạn/reuse → 401 AUTHENTICATION_FAILED. Rate limit → 429 RATE_LIMITED. Refresh sai/hết hạn/revoked → 401 INVALID_REFRESH_TOKEN. Legacy status → 409 DRIVER_STATUS_MIGRATION_REQUIRED; không tự xem ACTIVE/BLOCKED là hợp lệ.
+
+`AUTHENTICATION_FAILED` cũng dùng cho challenge không hợp lệ/không khớp, quá số lần thử hoặc không tìm thấy tài xế sau khi consume OTP. Client giữ thông báo chung, không suy ra tài khoản thử nghiệm hay tiết lộ tài khoản có tồn tại. Thành công của request OTP cung cấp `expiresIn` và `retryAfterSeconds` (cooldown gửi lại); lỗi 429 hiện có `Retry-After: 60`, lỗi 503 có `Retry-After: 1`. Header không phân biệt giới hạn IP với cooldown theo số điện thoại. Client hỗ trợ cả delay-seconds và HTTP-date của `Retry-After`, không tự bịa thời gian chờ khi thiếu header.
+
+Refresh khóa row theo hash token bằng `pessimistic_write`, kiểm hạn/revoke, rồi lưu revoke token cũ và hash token mới trong cùng transaction. Chỉ trả Session sau khi transaction thành công; rollback hoàn chỉnh giữ token cũ sử dụng được. Database không lưu refresh token dạng rõ. Logout cũng khóa row; giữ cơ chế từ chối reuse token đã revoke.
+
+Refresh hiện **không có idempotency/replay hoặc grace period**. `Idempotency-Key` không bảo đảm replay endpoint này. Timeout, abort, mất kết nối hoặc lỗi sau khi gửi request không chứng minh transaction rollback: server có thể đã commit và response bị mất. Client không gửi lại token cũ trong trường hợp chưa rõ kết quả; đăng nhập OTP là cách tạo phiên mới. Chỉ `401 INVALID_REFRESH_TOKEN` của endpoint refresh là bằng chứng token bị từ chối; 401/403 của Trip, Matching, Routing hay Realtime không tự hủy phiên Driver. Chưa có thay đổi HTTP contract hoặc schema cho cơ chế phục hồi mobile.
 
 ## 3. Profile
 

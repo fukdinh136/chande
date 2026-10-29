@@ -1,27 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { SessionManager } from '../session/session-manager';
 
-export function useMutation() {
+export function useMutation(session: SessionManager) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const locked = useRef(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const run = useCallback(async (job: () => Promise<void>, message?: string) => {
+  const run = useCallback(async (job: (isCurrent: () => boolean) => Promise<void>, message?: string) => {
     if (locked.current) return false;
     locked.current = true;
+    const owner = session.getOwnerEpoch();
+    const isCurrent = () => mounted.current && owner === session.getOwnerEpoch();
     if (mounted.current) { setBusy(true); setError(null); setNotice(null); }
     try {
-      await job();
-      if (mounted.current && message) setNotice(message);
+      await job(isCurrent);
+      if (isCurrent() && message) setNotice(message);
       return true;
     } catch (failure) {
-      if (mounted.current) setError(failure);
+      if (isCurrent()) setError(failure);
       return false;
     } finally {
       locked.current = false;
-      if (mounted.current) setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
-  }, []);
-  return { busy, error, notice, run };
+  }, [session]);
+  const clearError = useCallback(() => setError(null), []);
+  return { busy, error, notice, run, clearError };
 }
