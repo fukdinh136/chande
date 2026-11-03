@@ -65,7 +65,7 @@ Docker dùng DNS service, ví dụ `http://osrm:5000`, thay vì localhost của 
 | Realtime timeout / response | `REALTIME_TIMEOUT_MS=1000`, `REALTIME_MAX_RESPONSE_BYTES=1048576` | Timeout không vượt deadline còn lại; response cap; không đổi lỗi thành empty list |
 | Nearby radius | `NEARBY_DRIVER_RADIUS_METERS=2000` | V1 cố định 2 km, validate literal 2000; semantics địa lý cần Realtime xác nhận |
 
-Numeric là integer dương, có upper bound trong settings; không cho queue size 0 thành vô hạn. Boolean chỉ nhận true/false; profile path segment không nhận slash/query. Defaults là đề xuất để review, chưa là SLO/capacity đã đo.
+Numeric là integer dương, có upper bound trong settings; không cho queue size 0 thành vô hạn. Boolean chỉ nhận true/false; profile path segment không nhận slash/query. Defaults là đề xuất để review, chưa là SLO/capacity đã đo. Stack Kubernetes local gọi OSRM tự host trong cụm nên ghi đè `RATE_LIMIT_REQUESTS_PER_SECOND=50`, `RATE_LIMIT_BURST=20`, `RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE=20000` ([stack.cjs](../../../deploy/stack.cjs)); với defaults, matching chỉ tìm được khoảng 2 lần/phút ([kiểm thử tải](../../../docs/bao-cao-kiem-thu-tai.md)).
 
 F00 đọc `.env` từ service root, sau đó biến process env ghi đè dotenv; validate sau merge. Secret file là nguồn được chọn qua `_FILE`, không tự ghi đè inline và không cho đặt cùng hai nguồn. Loader chuyển string env sang kiểu dữ liệu rồi validate bằng Zod; không coi chuỗi `false` là truthy. File local hiện có được giữ nguyên khi cập nhật tài liệu.
 

@@ -3,9 +3,12 @@ const { root, images, stack } = require('./stack.cjs');
 const out = path.join(__dirname, '.local', 'backend');
 fs.mkdirSync(out, { recursive: true });
 const secretFile = path.join(out, 'credentials.json');
-if (!fs.existsSync(secretFile)) {
-  const keys = ['rootPassword','userPassword','driverPassword','tripPassword','matchingPassword','rabbitPassword','userInternal','cursor','matchingTrip','driverTrip','tripRouting','tripPrice','tripMatching','tripGateway','driverMatching','realtimeMatching','matchingRouting','matchingDriver','realtimeDriver','routingRealtime','gatewayRouting'];
-  fs.writeFileSync(secretFile, JSON.stringify(Object.fromEntries(keys.map(k => [k, crypto.randomBytes(32).toString('hex')])), null, 2), { mode: 0o600 });
+{
+  const keys = ['rootPassword','userPassword','driverPassword','tripPassword','matchingPassword','rabbitPassword','userInternal','cursor','matchingTrip','driverTrip','tripRouting','tripPrice','tripMatching','tripGateway','driverMatching','realtimeMatching','matchingRouting','matchingDriver','realtimeDriver','routingRealtime','gatewayRouting','driverProxy'];
+  // Existing secrets are kept; only keys added after the file was created are generated.
+  const current = fs.existsSync(secretFile) ? JSON.parse(fs.readFileSync(secretFile, 'utf8')) : {};
+  const missing = keys.filter(k => !current[k]);
+  if (missing.length) fs.writeFileSync(secretFile, JSON.stringify({ ...current, ...Object.fromEntries(missing.map(k => [k, crypto.randomBytes(32).toString('hex')])) }, null, 2), { mode: 0o600 });
 }
 for (const key of ['user', 'driver']) if (!fs.existsSync(path.join(out, key + '.pem'))) {
   const pair = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -84,7 +87,7 @@ for (const [name,a] of Object.entries(apps)) {
   workloads.push(resource,service(name,name==='gateway-api'?[8080,8090]:[a.port]));
   if (a.migration) migrations.push({apiVersion:'batch/v1',kind:'Job',metadata:metadata(name.replace('-api','-migrate')),spec:{backoffLimit:3,activeDeadlineSeconds:180,template:{metadata:{labels:labels(name.replace('-api','-migrate'))},spec:{restartPolicy:'Never',automountServiceAccountToken:false,containers:[{name:'migrate',image:a.image,imagePullPolicy:'IfNotPresent',command:['node','dist/migrate.js'],envFrom:[{secretRef:{name:name+'-env'}}]}]}}}});
 }
-workloads.push(deployment('edge',{image:images.nginx,readinessProbe:probeHTTP(8088,'/health/live'),volumeMounts:[{name:'config',mountPath:'/etc/nginx/nginx.conf',subPath:'nginx.conf',readOnly:true}]},[{name:'config',configMap:{name:'nginx-config'}}],'128Mi'),service('edge',[8088]));
+workloads.push(deployment('edge',{image:images.nginx,readinessProbe:probeHTTP(8088,'/health/live'),volumeMounts:[{name:'config',mountPath:'/etc/nginx/nginx.conf',subPath:'nginx.conf',readOnly:true}]},[{name:'config',configMap:{name:'nginx-config'}}],'512Mi'),service('edge',[8088]));
 const imageIdsFile = path.join(out, 'images.json');
 if (fs.existsSync(imageIdsFile)) {
   const ids = JSON.parse(fs.readFileSync(imageIdsFile, 'utf8'));

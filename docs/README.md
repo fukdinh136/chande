@@ -44,9 +44,13 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 ## Chuẩn và validation chung
 
 - [Quy ước format](quy-uoc-tai-lieu.md): UTF-8, metadata, headings/bảng/code/link và nguồn số liệu.
+- [Kiến trúc mục tiêu và lộ trình hai phase](kien-truc-muc-tieu.md): đối chiếu với ứng dụng đặt xe lớn, C1/C2 đích, danh mục cải tiến (nằm ở đâu, mục đích), danh mục sự kiện, phân công theo tuần. Quyết định lớn ghi trong [ADR](adr/README.md).
 - [Hợp đồng liên service](hop-dong-lien-service.md): defaults/overrides, đơn vị, danh mục xe, giá, auth/routes và các khoảng trống tích hợp.
 - [Báo cáo validation](bao-cao-validation.md): commands, kết quả hiện tại, phạm vi thật/mock và lỗi tài liệu đã sửa.
 - [Rà soát và demo Kubernetes](bao-cao-demo-kubernetes.md): lần chạy hiện tại, tài khoản test lưu DB, Customer/Driver web, các lỗi sửa và giới hạn Android/production.
+- [Kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md): đối chiếu kiến trúc thật, luồng cần đo, môi trường và giám sát đề xuất, ngưỡng đạt/không đạt, test case theo giai đoạn (benchmark, load, stress, spike, soak, đồng thời, realtime, scalability), bottleneck và giả định cần xác minh.
+- [Đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md): cải tiến kiến trúc và môi trường đo theo kết quả kiểm thử tải, xếp theo chi phí (công sức, RAM, tiền cloud), gắn với lộ trình Phase 1–2 và mục tiêu đo lại.
+- [Báo cáo kiểm thử tải](bao-cao-kiem-thu-tai.md): ba nhóm kiểm thử: benchmark luồng đặt xe trước và sau tối ưu, tăng quy mô tới 5000 tài xế, trần thông lượng và kịch bản 3000 khách / 3500 tài xế; p50/p95 từng bước, CPU/RAM từng pod và điểm nghẽn theo ưu tiên. Công cụ ở [deploy/load](../deploy/load/README.md).
 - [Deploy backend](deploy-backend.md): Docker/Kubernetes local, ingress, secrets/PVC, startup/restart và smoke.
 - [Báo cáo tích hợp backend](bao-cao-tich-hop-backend.md): Gateway kết nối backend thật, deployment và kết quả hai môi trường.
 - [Thiết kế frontend Android](frontend/README.md): hai app Customer/Driver, UI Stitch, public APIs, kiến trúc và MapLibre Navigation gate/skip.
