@@ -23,8 +23,9 @@ export class OutboxDispatcher {
   lastProgress = 0;
   private active = false;
   constructor(private readonly repository: PgOutbox, private readonly sender: DeliverySender, private readonly config: Pick<Config, 'batchSize' | 'concurrency' | 'leaseMs' | 'retryBase' | 'retryMax'>) {}
-  async tick(): Promise<void> {
-    if (this.active) return; this.active = true; const owner = randomUUID();
+  /** Runs one batch and returns how many deliveries were claimed (0 when a batch is already running). */
+  async tick(): Promise<number> {
+    if (this.active) return 0; this.active = true; const owner = randomUUID();
     let renewal: NodeJS.Timeout | undefined;
     try {
       const deliveries = await this.repository.claim(owner, this.config.batchSize, this.config.leaseMs);
@@ -48,6 +49,7 @@ export class OutboxDispatcher {
           this.lastProgress = Date.now();
         }
       }));
+      return deliveries.length;
     } finally { if (renewal) clearInterval(renewal); this.active = false; }
   }
 }

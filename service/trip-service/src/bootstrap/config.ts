@@ -61,7 +61,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, kind: ProcessKi
     routingToken: secret('ROUTING_TOKEN', api), pricingToken: secret('PRICING_TOKEN', api), matchingToken: secret('MATCHING_TOKEN', worker),
     gatewayToken: secret('GATEWAY_EVENTS_TOKEN', worker), notificationToken: secret('NOTIFICATION_TOKEN', worker),
     httpTimeout, leaseMs, retryBase, retryMax,
-    pollInterval: integer('OUTBOX_POLL_INTERVAL_MS', 1000), batchSize: integer('OUTBOX_BATCH_SIZE', 20, 1000), concurrency: integer('OUTBOX_CONCURRENCY', 5, 100),
+    pollInterval: integer('OUTBOX_POLL_INTERVAL_MS', 250), batchSize: integer('OUTBOX_BATCH_SIZE', 100, 1000), concurrency: integer('OUTBOX_CONCURRENCY', 5, 100),
     heartbeatMaxAge: integer('WORKER_HEARTBEAT_MAX_AGE_MS', 30000), swagger: env.SWAGGER_ENABLED === 'true',
   };
 }

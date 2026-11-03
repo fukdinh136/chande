@@ -101,8 +101,8 @@ Các artifact đã tồn tại. `.github/workflows/trip-service.yml` chạy lint
 | `MATCHING_TOKEN_FILE` | Credential thử | Outbound token tới Matching, tách khỏi callback token | Worker |
 | `GATEWAY_EVENTS_TOKEN_FILE` / `NOTIFICATION_TOKEN_FILE` | Credential thử | Token riêng mỗi đích | Worker |
 | `HTTP_TIMEOUT_MS` | 5000 | 5000 đề xuất; kiểm thử contract trước đổi | API/worker |
-| `OUTBOX_POLL_INTERVAL_MS` | 1000 | 1000 | Worker |
-| `OUTBOX_BATCH_SIZE` / `OUTBOX_CONCURRENCY` | 20 / 5 | 20 / 5, tune theo DB/đích | Worker |
+| `OUTBOX_POLL_INTERVAL_MS` | 250 | 250; chỉ nghỉ khi lượt trước claim chưa đủ lô hoặc lỗi ([ADR-0008](../../../docs/adr/0008-xu-ly-hang-doi-lien-tuc.md)) | Worker |
+| `OUTBOX_BATCH_SIZE` / `OUTBOX_CONCURRENCY` | 100 / 5 | 100 / 5, tune theo DB/đích; lô đầy thì chạy lượt kế ngay | Worker |
 | `OUTBOX_LEASE_MS` | 30000 | 30000, lớn hơn timeout HTTP; renew lease khi cần | Worker |
 | `OUTBOX_RETRY_BASE_MS` / `OUTBOX_RETRY_MAX_MS` | 1000 / 300000 | 1000 / 300000 + jitter | Worker |
 | `WORKER_HEARTBEAT_MAX_AGE_MS` | 30000 | 30000; cập nhật khi poll và có tiến triển delivery | Worker probe |
