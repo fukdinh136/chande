@@ -11,7 +11,7 @@ export async function topology(channel: ConfirmChannel) {
 }
 export class OfferPublisher {
   private model?: ChannelModel; private channel?: ConfirmChannel; private busy = false;
-  constructor(private readonly repo: Repository, private readonly url: string) {}
+  constructor(private readonly repo: Repository, private readonly url: string, private readonly batchMax = 200) {}
   async open() {
     if (this.channel) return this.channel;
     const model = await connect(this.url, { timeout: 5000 }); model.on('error', () => {}); model.on('close', () => { if (this.model === model) { this.model = undefined; this.channel = undefined; } });
@@ -28,15 +28,21 @@ export class OfferPublisher {
       try { channel.publish(EXCHANGE, 'offer', Buffer.from(JSON.stringify(payload)), { persistent: true, mandatory: true, contentType: 'application/json', messageId: id }, error => finish(error)); } catch { finish(new Error('PUBLISH_FAILED')); }
     });
   }
-  async tick() {
-    if (this.busy) return; this.busy = true;
+  /**
+   * Publishes due messages one by one (oldest due_at first, each confirmed) until none is left or
+   * batchMax is reached. Returns true when it stopped at batchMax, i.e. more messages may be waiting.
+   * A failed send backs off that message and ends the round, so a broken broker is not hammered.
+   */
+  async tick(): Promise<boolean> {
+    if (this.busy) return false; this.busy = true;
     try {
-      for (let index = 0; index < 10; index++) {
+      for (let index = 0; index < this.batchMax; index++) {
         const lease = randomUUID(); const rows: { id: string; payload: unknown; attempts: number }[] = await this.repo.db.transaction(db => db.query(`WITH due AS (SELECT id FROM matching_outbox WHERE published_at IS NULL AND due_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<clock_timestamp()) ORDER BY due_at LIMIT 1 FOR UPDATE SKIP LOCKED), claimed AS (UPDATE matching_outbox o SET lease_id=$1,lease_until=clock_timestamp()+interval '60 seconds',attempts=o.attempts+1 FROM due WHERE o.id=due.id RETURNING o.id,o.payload,o.attempts) SELECT * FROM claimed`, [lease]));
-        const message = rows[0]; if (!message) return;
+        const message = rows[0]; if (!message) return false;
         try { await this.send(await this.open(), message.id, message.payload); await this.repo.db.query('UPDATE matching_outbox SET published_at=clock_timestamp(),lease_id=NULL,lease_until=NULL WHERE id=$1 AND lease_id=$2', [message.id, lease]); }
-        catch { const delay = Math.ceil(Math.min(30000, 1000 * 2 ** Math.min(message.attempts - 1, 10)) * (0.8 + Math.random() * 0.2)); await this.repo.db.query("UPDATE matching_outbox SET lease_id=NULL,lease_until=NULL,due_at=clock_timestamp()+$3*interval '1 millisecond' WHERE id=$1 AND lease_id=$2", [message.id, lease, delay]); return; }
+        catch { const delay = Math.ceil(Math.min(30000, 1000 * 2 ** Math.min(message.attempts - 1, 10)) * (0.8 + Math.random() * 0.2)); await this.repo.db.query("UPDATE matching_outbox SET lease_id=NULL,lease_until=NULL,due_at=clock_timestamp()+$3*interval '1 millisecond' WHERE id=$1 AND lease_id=$2", [message.id, lease, delay]); return false; }
       }
+      return true;
     } finally { this.busy = false; }
   }
   async close() { const model = this.model; this.model = undefined; this.channel = undefined; await model?.close().catch(() => {}); }

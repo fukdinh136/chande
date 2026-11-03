@@ -3,17 +3,19 @@ import type { Clients } from './ports';
 import { Repository } from '../infrastructure/persistence';
 import { rank, held, type Offer } from '../domain/models';
 export class MatchDriver {
-  constructor(private readonly repo: Repository, private readonly clients: Clients, private readonly pollMs = 5000) {}
+  /** `onEnqueued` runs after a transaction that queued an offer message commits, so the publisher can send it right away. */
+  constructor(private readonly repo: Repository, private readonly clients: Clients, private readonly pollMs = 5000, private readonly onEnqueued: () => void = () => {}) {}
   async execute(tripId: string) {
     const started = Date.now();
     const search = await this.repo.getSearch(tripId); if (!search || search.status !== 'SEARCHING' || !search.command) return;
     if (search.offerId) {
-      await this.repo.transaction(async tx => {
-        const s = await tx.search(tripId); if (!s || s.status !== 'SEARCHING' || !s.offerId) return;
-        const o = await tx.offer(s.offerId); if (!o || o.status !== 'PENDING') return;
-        const now = await tx.now(); if (now < Date.parse(o.expiresAt)) { await tx.saveSearch(s, Math.min(1000, Date.parse(o.expiresAt) - now)); return; }
-        o.status = 'EXPIRED'; o.version++; await tx.saveOffer(o); await tx.release(o); await tx.enqueue(o); s.offerId = null; await tx.saveSearch(s);
+      const expired = await this.repo.transaction(async tx => {
+        const s = await tx.search(tripId); if (!s || s.status !== 'SEARCHING' || !s.offerId) return false;
+        const o = await tx.offer(s.offerId); if (!o || o.status !== 'PENDING') return false;
+        const now = await tx.now(); if (now < Date.parse(o.expiresAt)) { await tx.saveSearch(s, Math.min(1000, Date.parse(o.expiresAt) - now)); return false; }
+        o.status = 'EXPIRED'; o.version++; await tx.saveOffer(o); await tx.release(o); await tx.enqueue(o); s.offerId = null; await tx.saveSearch(s); return true;
       });
+      if (expired) this.onEnqueued();
       return;
     }
     const candidates = await this.clients.matrix(search.command), tried = await this.repo.tried(tripId);
@@ -32,7 +34,7 @@ export class MatchDriver {
         await tx.saveOffer(o); if (!await tx.reserve(o)) throw new Error('RESERVATION_CONFLICT');
         s.offerId = o.offerId; s.attempts = 0; await tx.saveSearch(s, 1000); await tx.enqueue(o); return true;
       });
-      if (created) return;
+      if (created) { this.onEnqueued(); return; }
     }
     await this.repo.transaction(async tx => { const s = await tx.search(tripId); if (s?.status === 'SEARCHING' && !s.offerId) await tx.saveSearch(s, this.pollMs); });
   }

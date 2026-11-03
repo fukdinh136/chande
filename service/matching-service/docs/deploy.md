@@ -14,6 +14,18 @@ PostgreSQL riêng cho Matching; Redis của Driver/Realtime do từng service s�
 
 Readiness kiểm tra schema/database. Worker và consumer reconnect có backoff; không trả thành công khi durable write thất bại. Requeue outbox giữ eventId và không đổi expiresAt. DLQ chỉ replay sau khi sửa payload/nguyên nhân, kiểm tra terminal state trước giao.
 
+## Tham số worker
+
+| Biến | Mặc định | Ý nghĩa |
+| --- | --- | --- |
+| `WORKER_CONCURRENCY` | 2 (tối đa 16) | Số search claim mỗi nhịp worker |
+| `WORKER_SCAN_MS` | 1000 | Nhịp worker và vòng hết hạn offer |
+| `SEARCH_POLL_MS` | 5000 | Hạn tìm lại khi chưa có ứng viên |
+| `PUBLISHER_BATCH_MAX` | 200 (tối đa 1000) | Số tin outbox tối đa publisher gửi trong một lượt; chạm trần thì chạy lượt kế ngay |
+| `PUBLISHER_SCAN_MS` | 250 | Thời gian publisher nghỉ khi hết tin hoặc khi gửi lỗi |
+
+Publisher offer chạy vòng riêng, không chung nhịp với worker, và được đánh thức ngay khi worker commit offer trong cùng process ([ADR-0008](../../../docs/adr/0008-xu-ly-hang-doi-lien-tuc.md)). Tin do matching-api ghi (accept, decline) được gửi theo nhịp `PUBLISHER_SCAN_MS`.
+
 V1 một Realtime replica. Mở rộng nhiều replica cần Socket.IO adapter/room delivery và limiter toàn cụm. Hosting production, GPS traffic và OSRM BIKE ngoài nghiệm thu.
 
 ## Local Hà Nội
