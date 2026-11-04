@@ -19,7 +19,12 @@ export class MatchingInitial1791244800000 implements MigrationInterface {
   `); }
   async down(q: QueryRunner) { await q.query('DROP TABLE matching_outbox,matching_receipts,matching_reservations,matching_offers,matching_searches'); }
 }
-export function source(url: string) { return new DataSource({ type: 'postgres', url, migrations: [MatchingInitial1791244800000], synchronize: false, logging: false, extra: { max: 10, connectionTimeoutMillis: 5000, query_timeout: 10000 } }); }
+// The publisher claims `published_at IS NULL AND due_at <= now() ORDER BY due_at`; without this index every claim scans the whole outbox.
+export class MatchingOutboxPending1793750400000 implements MigrationInterface {
+  async up(q: QueryRunner) { await q.query('CREATE INDEX IF NOT EXISTS matching_outbox_pending ON matching_outbox(due_at) WHERE published_at IS NULL'); }
+  async down(q: QueryRunner) { await q.query('DROP INDEX IF EXISTS matching_outbox_pending'); }
+}
+export function source(url: string) { return new DataSource({ type: 'postgres', url, migrations: [MatchingInitial1791244800000, MatchingOutboxPending1793750400000], synchronize: false, logging: false, extra: { max: 10, connectionTimeoutMillis: 5000, query_timeout: 10000 } }); }
 export class Tx {
   constructor(readonly db: EntityManager) {}
   async lock(scope: string) { await this.db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [scope]); }

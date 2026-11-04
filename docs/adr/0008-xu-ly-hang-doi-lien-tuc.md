@@ -25,7 +25,7 @@ Nguyên nhân là ba vòng xử lý hàng đợi đều chạy theo nhịp cố 
 Khi hệ thống rảnh, mỗi chuyến còn chờ 3–4 nhịp 1 giây nối tiếp, nên tới `ASSIGNED` mất khoảng 3 giây dù mọi lời gọi HTTP nội bộ chỉ tốn 1–30 ms.
 
 Một số cơ chế hiện có giúp thay đổi này an toàn:
-- Claim ở cả hai service dùng `FOR UPDATE SKIP LOCKED` cùng partial index: `outbox_pending` ở Trip (claim đo được 0,03 ms) và `matching_due` ở Matching.
+- Claim ở cả hai service dùng `FOR UPDATE SKIP LOCKED` cùng partial index: `outbox_pending` ở Trip (claim đo được 0,03 ms), `matching_due` cho search và `matching_outbox_pending` cho outbox ở Matching. Index outbox Matching được thêm sau khi đo lại thấy publisher quét toàn bảng ([báo cáo kiểm thử tải](../bao-cao-kiem-thu-tai.md#11-publisher-matching-quét-toàn-bảng-outbox)).
 - Matching đã có `OfferExpiry` ([expiry.ts](../../service/matching-service/src/application/expiry.ts)), một vòng quét riêng làm hết hạn offer `PENDING` và đưa search về hàng chờ.
 - Accept và decline ([decisions.ts](../../service/matching-service/src/application/decisions.ts)) tự đặt search về hạn ngay.
 

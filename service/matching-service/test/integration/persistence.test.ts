@@ -23,3 +23,11 @@ test('PostgreSQL receipt replay/conflict, terminal marker and lease survive reco
     await db.destroy(); await db.initialize(); assert.equal((await repo.getSearch(id))?.status, 'CANCELLED');
   } finally { await db.destroy(); }
 });
+test('publisher claim on matching_outbox can use the matching_outbox_pending partial index', { skip: !process.env.MATCHING_TEST_DATABASE_URL }, async () => {
+  const db = source(process.env.MATCHING_TEST_DATABASE_URL!); await db.initialize(); await db.runMigrations();
+  try {
+    // Same predicate and order as the claim in publisher.ts. With seq scans disabled the planner must pick a usable index.
+    const plan: { 'QUERY PLAN': string }[] = await db.transaction(async m => { await m.query('SET LOCAL enable_seqscan = off'); return m.query("EXPLAIN SELECT id FROM matching_outbox WHERE published_at IS NULL AND due_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<clock_timestamp()) ORDER BY due_at LIMIT 1 FOR UPDATE SKIP LOCKED"); });
+    assert.match(plan.map(r => r['QUERY PLAN']).join('\n'), /matching_outbox_pending/);
+  } finally { await db.destroy(); }
+});
