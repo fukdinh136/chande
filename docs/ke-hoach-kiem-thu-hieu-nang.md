@@ -212,14 +212,26 @@ Với mỗi tối ưu trong [đề xuất cải tiến hiệu năng](de-xuat-cai
 
 ## 8. Những gì đã chạy (local)
 
+Lần đo sau nhóm cải tiến A và E1–E3 (2026-11-04), chi tiết trong [báo cáo kiểm thử tải](bao-cao-kiem-thu-tai.md):
+
 | Loại | Kịch bản | Kết quả chính | Chi tiết |
 | --- | --- | --- | --- |
-| Benchmark | 50 tài xế, 1 chuyến/giây | Trước: 1/270 chuyến được gán. Sau nâng giới hạn Routing: 301/301, p95 7,4 giây. Sau nâng worker: p95 4,0 giây | [Báo cáo, lần 1–4](bao-cao-kiem-thu-tai.md#kết-luận) |
-| Load | 2 chuyến/giây với 500, 1000, 2000 tài xế | Mọi chuyến được gán, p95 3,7–4,0 giây, không lỗi | [Tăng quy mô](bao-cao-kiem-thu-tai.md#tăng-quy-mô-số-tài-xế) |
-| Stress, thông lượng | 1000 tài xế, 4, 8, 12 chuyến/giây | Trần khoảng 2,5–3 chuyến/giây do hai outbox. Ở 8 chuyến/giây: chỉ 110/706 chuyến được gán trong 60 giây, báo giá p95 7,3 giây | [Kịch bản 3000 khách](bao-cao-kiem-thu-tai.md#kịch-bản-3000-khách-và-3500-tài-xế) |
-| Stress, kịch bản cao nhất | 1000 và 2000 tài xế, 2 → 2,5 → 3 chuyến/giây | Cao nhất còn đạt ngưỡng: khoảng 1000 tài xế, 2 chuyến/giây (khoảng 7200 chuyến/giờ). 2,5 chuyến/giây hoặc 2000 tài xế là vượt ngưỡng | [Kịch bản cao nhất](bao-cao-kiem-thu-tai.md#kịch-bản-cao-nhất-đạt-được) |
-| Stress, kết nối | 500 → 5000 tài xế | Gãy lần lượt ở edge `worker_connections`, edge OOM, driver-api, rồi môi trường đo | [Tăng quy mô](bao-cao-kiem-thu-tai.md#tăng-quy-mô-số-tài-xế) |
-| Spike | 3500 tài xế + 3000 chuyến trong 2 phút | Không chạy trọn: `cri-dockerd` sập. Ước tính cần 13–17 phút để gán hết | [Kịch bản 3000 khách](bao-cao-kiem-thu-tai.md#kịch-bản-3000-khách-và-3500-tài-xế) |
+| Stress, so với mốc ban đầu | 1000 tài xế, 2 → 10 chuyến/giây, cách đo cũ | Cao nhất còn đạt ngưỡng: 6 chuyến/giây, p95 1,0 giây (mốc ban đầu: 2 chuyến/giây, p95 4,0 giây) | [Mục 6.1](bao-cao-kiem-thu-tai.md#61-so-với-mốc-ban-đầu) |
+| Stress, thông lượng | 1000 tài xế, 2 → 16 chuyến/giây, giống app | Đạt ngưỡng tới 6 chuyến/giây; gán tối đa khoảng 10,5 chuyến/giây; từ 8 chuyến/giây driver-api chạm 1 core | [Mục 6.2](bao-cao-kiem-thu-tai.md#62-thông-lượng-tối-đa), [mục 7.1](bao-cao-kiem-thu-tai.md#71-driver-api-kiểm-tra-từng-tài-xế-một) |
+| Load, kết nối | 1000 → 5000 tài xế, 4 chuyến/giây | Đạt ngưỡng tới 5000 tài xế, p95 1,3 giây, 0 lỗi kết nối | [Mục 6.4](bao-cao-kiem-thu-tai.md#64-tăng-quy-mô-số-tài-xế) |
+| Soak | 1000 tài xế, 3 chuyến/giây, 30 phút | 5388/5395 chuyến; RAM ổn định; một đợt chậm 3 phút chưa rõ nguyên nhân | [Mục 6.5](bao-cao-kiem-thu-tai.md#65-chạy-lâu-30-phút) |
+| Đăng nhập | 5 → 15 lượt/giây; rate limit theo IP thật (A4) | p95 77 ms, 0 lỗi; IP giả bị bỏ qua, mỗi IP một quota | [Mục 6.6](bao-cao-kiem-thu-tai.md#66-đăng-nhập-và-rate-limit-theo-ip) |
+
+Mốc ban đầu (2026-10-28/29, báo cáo ở commit `bc1db9b`):
+
+| Loại | Kịch bản | Kết quả chính | Chi tiết |
+| --- | --- | --- | --- |
+| Benchmark | 50 tài xế, 1 chuyến/giây | Trước: 1/270 chuyến được gán. Sau nâng giới hạn Routing: 301/301, p95 7,4 giây. Sau nâng worker: p95 4,0 giây | Báo cáo `bc1db9b`, lần 1–4 |
+| Load | 2 chuyến/giây với 500, 1000, 2000 tài xế | Mọi chuyến được gán, p95 3,7–4,0 giây, không lỗi | Báo cáo `bc1db9b` |
+| Stress, thông lượng | 1000 tài xế, 4, 8, 12 chuyến/giây | Trần khoảng 2,5–3 chuyến/giây do hai outbox. Ở 8 chuyến/giây: chỉ 110/706 chuyến được gán trong 60 giây, báo giá p95 7,3 giây | Báo cáo `bc1db9b` |
+| Stress, kịch bản cao nhất | 1000 và 2000 tài xế, 2 → 2,5 → 3 chuyến/giây | Cao nhất còn đạt ngưỡng: khoảng 1000 tài xế, 2 chuyến/giây (khoảng 7200 chuyến/giờ). 2,5 chuyến/giây hoặc 2000 tài xế là vượt ngưỡng | Báo cáo `bc1db9b` |
+| Stress, kết nối | 500 → 5000 tài xế | Gãy lần lượt ở edge `worker_connections`, edge OOM, driver-api, rồi môi trường đo | Báo cáo `bc1db9b` |
+| Spike | 3500 tài xế + 3000 chuyến trong 2 phút | Không chạy trọn: `cri-dockerd` sập. Ước tính cần 13–17 phút để gán hết | Báo cáo `bc1db9b` |
 | Nhất quán | TC-CC-01, 30 khách × 10 request × 3 trường hợp | **0 chuyến trùng**; 59 chuyến cho 30 khách; 0 quote dùng hai lần; 0 khách có hai chuyến mở | Chỉ ghi trong kế hoạch này |
 | Đăng nhập | TC-BM-02, 5 → 20 lượt/giây | p95 79 ms; User 0,68 core trung bình, 1,2 core đỉnh; 201 lượt (6,25%) bị 429 ở mức 20/giây | Chỉ ghi trong kế hoạch này |
 | Soak | TC-SK-01, 1000 tài xế, GPS 10 giây, 2 chuyến/giây; dùng 20 phút hợp lệ của lần 3 | 2336/2336 chuyến được gán, p95 5,0 giây, không tăng dần; 0% lỗi HTTP, 0 deadlock, 0 restart; RAM gần như phẳng. Hai lần đầu hỏng vì lỗi của bộ giả lập (đã sửa) | Chỉ ghi trong kế hoạch này |
