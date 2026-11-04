@@ -21,8 +21,10 @@ test('publisher drains a backlog past the old 10-per-round cap in due_at order',
   try {
     await db.query('UPDATE matching_outbox SET published_at=clock_timestamp() WHERE published_at IS NULL'); await channel.purgeQueue('driver.offers');
     const ids = Array.from({ length: 250 }, () => randomUUID());
-    // Insert in reverse so table order differs from due_at order; ids[0] is due first.
-    for (let i = ids.length - 1; i >= 0; i--) await db.query("INSERT INTO matching_outbox(id,payload,due_at) VALUES($1,$2,clock_timestamp()-($3::int * interval '1 millisecond'))", [ids[i], { eventId: ids[i] }, (ids.length - i) * 10]);
+    // Insert in reverse so table order differs from due_at order; ids[0] is due first. due_at comes from one fixed
+    // base (1 s apart, all in the past), so a slow machine cannot reorder rows by taking long between inserts.
+    const base = Date.now() - 3600000;
+    for (let i = ids.length - 1; i >= 0; i--) await db.query('INSERT INTO matching_outbox(id,payload,due_at) VALUES($1,$2,$3)', [ids[i], { eventId: ids[i] }, new Date(base + i * 1000)]);
     assert.deepEqual([await publisher.tick(), await publisher.tick(), await publisher.tick()], [true, true, false]);
     const pending = await db.query('SELECT count(*)::int AS n FROM matching_outbox WHERE id = ANY($1) AND published_at IS NULL', [ids]); assert.equal(pending[0].n, 0);
     const received: string[] = []; for (let i = 0; i < 300; i++) { const message = await channel.get('driver.offers'); if (!message) break; received.push(String(message.properties.messageId)); channel.ack(message); }
