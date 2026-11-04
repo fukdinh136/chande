@@ -2,7 +2,9 @@
 const fs = require('node:fs'), path = require('node:path'), {randomUUID} = require('node:crypto'), {spawnSync} = require('node:child_process');
 
 const base = (process.env.BACKEND_URL || 'http://127.0.0.1:18081').replace(/\/$/, '');
-if (!['127.0.0.1', 'localhost'].includes(new URL(base).hostname)) throw new Error('Load test uses local fixture accounts; only loopback targets are allowed');
+// Inside the local cluster (E1, LOAD_IN_CLUSTER=1) the runner pod reaches the stack through the `edge` Service.
+const allowed = process.env.LOAD_IN_CLUSTER === '1' ? ['edge', 'edge.chande-local.svc', 'edge.chande-local.svc.cluster.local'] : ['127.0.0.1', 'localhost'];
+if (!allowed.includes(new URL(base).hostname)) throw new Error('Load test uses local fixture accounts; only the local stack (loopback, or the edge Service in-cluster) is allowed');
 const dir = path.join(__dirname, '..', '.local', 'load');
 fs.mkdirSync(dir, {recursive: true});
 
