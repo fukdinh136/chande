@@ -3,41 +3,71 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-10-30 |
+| Rà soát | 2026-11-04 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
-Đây là tài liệu duy nhất gom mọi đề xuất cải tiến hiệu năng: kiến trúc, môi trường đo, chi phí, đối chiếu với ADR và lộ trình. Số liệu gốc nằm trong [báo cáo kiểm thử tải](bao-cao-kiem-thu-tai.md); test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md).
+Tài liệu duy nhất gom các đề xuất cải tiến hiệu năng: kết quả nhóm cải tiến đã làm, điểm nghẽn còn lại, đề xuất tiếp theo kèm chi phí, đối chiếu ADR và lộ trình. Mọi căn cứ lấy từ [báo cáo kiểm thử tải](bao-cao-kiem-thu-tai.md) ngày 2026-11-04; test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md).
 
-Các đề xuất bám theo [kiến trúc mục tiêu](kien-truc-muc-tieu.md) và [ADR](adr/README.md), không thêm công nghệ mà tài liệu đó đã loại (Kafka, sharding, service mesh). Mọi con số "sau cải tiến" là ước tính, phải đo lại để xác nhận.
+Các đề xuất bám theo [kiến trúc mục tiêu](kien-truc-muc-tieu.md) và [ADR](adr/README.md), không thêm công nghệ mà tài liệu đó đã loại (Kafka, sharding, service mesh). Con số "sau cải tiến" của các đề xuất chưa làm là ước tính, phải đo lại để xác nhận.
 
 ## 1. Tóm tắt
 
-Hiện tại hệ thống đạt ngưỡng ở khoảng **1000 tài xế, 2 chuyến/giây**. Trần nằm ở cách các worker đọc hàng đợi, không phải ở phần cứng: ở 3 chuyến/giây, mọi pod vẫn dùng dưới 0,3 core. Vì vậy phần lớn cải tiến là sửa code nhỏ hoặc đổi cấu hình, gần như không tốn thêm tài nguyên.
+Nhóm A (cải tiến rẻ) và cải tiến môi trường đo E1–E3 đã làm xong và đã đo:
+- Mức tải cao nhất đạt mọi ngưỡng tăng từ **2 lên 6 chuyến/giây** với 1000 tài xế.
+- Thông lượng gán tối đa tăng từ khoảng 3 lên khoảng **10,5 chuyến/giây**.
+- Hệ thống chịu được **5000 tài xế online**.
+- Đạt và vượt mục tiêu đề ra cho bước đầu, vốn là 4–5 chuyến/giây.
 
-| Bước | Nội dung | Công sức (ước tính) | Thêm tài nguyên | Hiệu quả kỳ vọng |
+Điểm nghẽn đã chuyển từ hàng đợi sang **cách kiểm tra điều kiện tài xế**:
+- Mỗi lần tìm, Driver kiểm tra khoảng 200 tài xế trong 2 km, **từng người một**: 4 câu SQL và 2 lệnh Redis mỗi người, cộng một câu SQL ở Trip. Ở 12 chuyến/giây, việc này tốn khoảng 1400 câu SQL cho mỗi chuyến (gồm các lần tìm lại).
+- Hệ quả 1: từ 8 chuyến/giây, driver-api (một process Node) chạm 1 core, Routing trả `ROUTING_BUSY`, và chuyến phải chờ.
+- Hệ quả 2: PostgreSQL lên khoảng 1 core vì khoảng 14000 câu lệnh/giây, dù tổng thời gian thực thi chỉ khoảng 0,1 core.
+
+Thêm worker hay tăng tài nguyên không giải quyết được; đã thử Routing 8 worker, không cải thiện.
+
+| Bước | Nội dung | Công sức (ước tính) | Thêm tài nguyên | Hiệu quả kỳ vọng (cần đo lại) |
 | --- | --- | --- | --- | --- |
-| 1 | Gỡ ba hàng đợi theo nhịp (A1–A3), sửa đường đo (E1, E2) | khoảng 6–7 ngày người | Không | Trần từ khoảng 2,5 lên khoảng 6–10 chuyến/giây; 3000 chuyến gán xong trong khoảng 5–8 phút thay vì 15–20 phút |
-| 2 | Rate limit theo IP thật, driver-api 2 replica, làm mới token có jitter (A4, B4, B5) | khoảng 3 ngày người | khoảng 0,1 GB RAM | Đăng nhập không còn dùng chung một quota; tài xế lên ca đồng loạt không làm driver-api bị restart |
-| 3 | Các mục đã có trong lộ trình: P1.1, P1.3, P1.4, P2.5 (B1–B3, B6) | đã tính trong Phase 1–2 | khoảng 1,2 GB RAM (observability và replica) | Chi phí mỗi lần tìm không còn tăng theo mật độ tài xế; có số liệu phía server để tìm trần tiếp theo |
-| 4 (tuỳ chọn) | Thuê cụm thử nghiệm trong 1 ngày (E4) | khoảng 2 ngày người | Ước tính 5–20 USD | Đo được 3000–5000 tài xế, điều mà máy local không làm được |
+| 1 | Kiểm tra điều kiện theo lô thật sự (B7) và giới hạn số ứng viên theo [ADR-0001](adr/0001-matching-so-huu-tim-ung-vien.md) (B1) | khoảng 3–4 ngày người (B1 đã tính trong Phase 1) | Không | Câu SQL kiểm tra tài xế cho mỗi chuyến từ khoảng 1400 xuống khoảng 10–20; mức đạt ngưỡng lên khoảng 10–12 chuyến/giây |
+| 2 | Observability (B6), làm mới token có jitter (B5), 2 replica driver-api (B4) | B6 đã tính trong Phase 1; B5, B4 khoảng 2 ngày | khoảng 0,9 GB | Giải thích được hai hiện tượng còn mở; tài xế lên ca hay làm mới token đồng loạt không gây chậm |
+| 3 | Đo lại trọn kịch bản 3000 khách và 3500 tài xế trong cụm (E6); tuỳ chọn thuê cụm 1 ngày (E4) | khoảng 1 ngày (E6); 2 ngày (E4) | E4: ước tính 5–20 USD | Số liệu thật cho kịch bản đột biến |
 
-Muốn gán 3000 chuyến trong khoảng 2 phút (25 chuyến/giây) thì cần cả bước 1–3 và nhiều replica trên nhiều máy. Mục tiêu đó vượt quá hạ tầng demo trên một MacBook (mục 8).
+Gán 3000 chuyến trong khoảng 2 phút (25 chuyến/giây) vẫn cần nhiều máy; mục tiêu đó vượt hạ tầng demo trên một MacBook ([mục 8](#8-kỳ-vọng-cho-kịch-bản-3000-khách)).
 
 ## 2. Hiện trạng đo được
 
-Đo trên Docker Desktop Kubernetes một node, đi qua `kubectl port-forward`, ngày 2026-10-28 và 2026-10-29. Chi tiết trong [báo cáo](bao-cao-kiem-thu-tai.md).
+Đo trên Docker Desktop Kubernetes một node, ngày 2026-11-04, sau nhóm A và E1–E3. Chi tiết trong [báo cáo](bao-cao-kiem-thu-tai.md).
 
-| Chỉ số | Kết quả |
-| --- | --- |
-| Kịch bản cao nhất đạt ngưỡng | 1000 tài xế, 2 chuyến/giây: tới `ASSIGNED` p95 4,0 giây, báo giá p95 22 ms, 0% lỗi |
-| 2,5 chuyến/giây (1000 tài xế) | Mọi chuyến được gán nhưng p95 13,3 giây, báo giá p95 535 ms: vượt ngưỡng |
-| 3 chuyến/giây (1000 tài xế) | Hàng đợi dài dần (p95 30,6 giây) trong khi mọi pod dưới 0,3 core |
-| 2000 tài xế | Ở 2 chuyến/giây có 10% chuyến chờ tới 5,7 phút; ở 2,5 chuyến/giây PostgreSQL 0,62 core, driver-api 0,4 core |
-| Kết nối tài xế | Gãy lần lượt ở edge (khoảng 500 WebSocket), edge OOM (128 MiB), driver-api khi lên ca đồng loạt, rồi môi trường đo (khoảng 4000 kết nối) |
-| Thời gian tới `ASSIGNED` khi rảnh | khoảng 3 giây, do 3–4 vòng chờ nhịp 1 giây |
-| 3000 khách, 3500 tài xế | Cần khoảng 13–20 phút để gán hết; chưa đo trọn vì `cri-dockerd` sập |
+| Chỉ số | Mốc ban đầu (2026-10-29) | Hiện tại (2026-11-04) |
+| --- | --- | --- |
+| Mức cao nhất đạt ngưỡng (1000 tài xế) | 2 chuyến/giây, p95 4,0 giây | **6 chuyến/giây**, p95 1,0 giây, báo giá p95 25–66 ms |
+| 8 chuyến/giây | 110 chuyến được gán, lỗi HTTP 3,9% | Cách đo cũ: 961/961, lỗi 0%, p95 37 giây. Giống app: 3,2–4,4 chuyến/giây được gán, p95 41–52 giây |
+| Thông lượng gán tối đa | khoảng 2,5–3 chuyến/giây | khoảng 10,5 chuyến/giây (đặt 16 chuyến/giây, khách chờ hơn 20 giây) |
+| Tài xế online | Gãy trước 5000; môi trường đo sập ở khoảng 3500 kết nối | 5000 tài xế, 0 lỗi kết nối, p95 1,3 giây ở 4 chuyến/giây |
+| Khi rảnh, tới `ASSIGNED` | khoảng 3 giây | khoảng 0,6 giây |
+| Chạy 30 phút | Chưa đo | Ổn định, RAM không tăng; một đợt chậm 3 phút chưa rõ nguyên nhân |
+| Đăng nhập | Mọi người dùng chung một quota | Mỗi IP một quota; 15 lượt/giây p95 77 ms |
+| CPU ở 8–12 chuyến/giây (giống app) | — | driver-api đỉnh 1,1–1,2 core; PostgreSQL 0,7–1,1 core; Gateway, Trip, Matching, Routing dưới 0,3 core |
 
-## 3. Ràng buộc chi phí
+## 3. Kết quả nhóm cải tiến đã làm
+
+| ID | Cải tiến | Kỳ vọng khi đề xuất | Kết quả đo được | Đánh giá |
+| --- | --- | --- | --- | --- |
+| A1, A5 | Outbox Trip lặp khi lô đầy, nghỉ 250 ms khi rảnh ([ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md)) | Outbox Trip không còn là trần | Accept → `ASSIGNED` ở 4 chuyến/giây: p95 7,0 → 0,3 giây | Đạt |
+| A2 | Publisher Matching vòng riêng, đánh thức ngay | Offer → publish dưới 100 ms | p95 8017 → 12 ms ở 4 chuyến/giây | Vượt |
+| A3 | Worker Matching dạng pool, giữ offer bằng `expires_at` | Thông lượng worker gấp 2–3 lần | `SEARCHING` → offer p95 53,1 → 0,5 giây ở 4 chuyến/giây; matching-worker dưới 0,15 core | Vượt |
+| (mới) | Partial index cho claim publisher Matching | Không có trong đề xuất, phát hiện khi đo lại | Claim 0,017 ms thay vì quét 56000 dòng; 5 và 6 chuyến/giây chuyển sang đạt | Đạt |
+| A4 | Rate limit theo IP thật, chuyển IP xuống Driver | Không còn 429 cho người dùng hợp lệ | Header IP giả bị bỏ qua; mỗi IP một quota (kiểm trên stack thật) | Đạt |
+| A6 | Dọn outbox sau 24 giờ | Tránh suy giảm khi chạy lâu | Lần chạy đầu xoá 75508 tin outbox Trip cũ; có index để dọn không quét bảng | Đạt |
+| A7 | Log retry có mã lỗi; dependency bận thử lại tối đa 2 giây | Tìm được nguyên nhân chuyến chờ lâu | Chỉ ra 2459/2463 lần thử lại là `ROUTING_BUSY`, dẫn tới điểm nghẽn mới | Đạt |
+| A8 | Rate limit Routing cho OSRM tự host theo năng lực đo được | Không còn `ROUTING_BUSY` ở tải bình thường | OSRM đo khoảng 1000 matrix/giây; cùng A7, p95 ở 6 chuyến/giây giảm từ 6,7 xuống 1,0 giây | Đạt |
+| A9 | Edge tính theo số tài xế cao điểm | Edge không còn là điểm gãy đầu | 5000 tài xế, edge dùng 183 MiB trên 448 MiB được cấp | Đạt |
+| E1 | Bộ đo chạy trong cụm | Đo được 3000–5000 tài xế | Đo được 5000 tài xế, môi trường không sập | Đạt |
+| E2 | GPS 10 giây, kịch bản `/ws` | Bộ đo sát thực tế | Ở 8 chuyến/giây, request HTTP giảm từ 37372 xuống 3244 | Đạt |
+| E3 | `pg_stat_statements` | Biết truy vấn nào nóng | Chỉ ra PostgreSQL bận vì số câu lệnh, không vì câu chậm | Đạt |
+
+Tổng công sức thực tế cho nhóm A và E1–E3 nằm trong ước tính 6–7 ngày người, không thêm tài nguyên ngoài RAM edge.
+
+## 4. Ràng buộc chi phí
 
 | Loại chi phí | Ràng buộc (theo [kiến trúc mục tiêu](kien-truc-muc-tieu.md#1-bối-cảnh-và-ràng-buộc)) |
 | --- | --- |
@@ -46,134 +76,111 @@ Muốn gán 3000 chuyến trong khoảng 2 phút (25 chuyến/giây) thì cần 
 | Tiền | Không có ngân sách cloud thường xuyên; chỉ có thể thuê ngắn hạn cho một buổi đo |
 | Công nghệ | Giữ PostgreSQL, Redis, RabbitMQ; chỉ thêm bộ observability |
 
-Thứ tự ưu tiên vì vậy là: sửa code nhỏ, rồi cấu hình, rồi tài nguyên. Không thêm thành phần hạ tầng mới ngoài observability đã có trong kế hoạch.
+Thứ tự ưu tiên vẫn là: sửa code nhỏ, rồi cấu hình, rồi tài nguyên. Số đo mới củng cố thứ tự này: ở trần hiện tại, nghẽn là số lần gọi, không phải CPU hay RAM của máy.
 
-## 4. Cải tiến kiến trúc
+## 5. Đề xuất tiếp theo
 
-### 4.1 Nhóm A: rẻ, làm ngay (code nhỏ hoặc cấu hình)
+### 5.1 Nhóm B: theo điểm nghẽn mới
 
-| ID | Cải tiến | Giải quyết | Chỗ sửa | Công sức | Rủi ro | Hiệu quả ước tính |
+Xếp theo thứ tự nên làm.
+
+| ID | Cải tiến | Căn cứ đo được | Chỗ sửa | Công sức | Thêm tài nguyên | Hiệu quả ước tính |
 | --- | --- | --- | --- | --- | --- | --- |
-| A1 | Outbox Trip: lặp ngay khi lô đầy thay vì luôn nghỉ `OUTBOX_POLL_INTERVAL_MS`; tăng `OUTBOX_BATCH_SIZE` lên 100 | Trần khoảng 2,7 chuyến/giây: 20 tin mỗi nhịp, 7,3 tin mỗi chuyến | `trip-service/src/bootstrap/worker-runtime.ts`, env | 0,5–1 ngày | Thấp: claim đã dùng `SKIP LOCKED` và partial index (0,03 ms) | Outbox Trip không còn là trần |
-| A2 | Publisher Matching: gửi tới khi hết tin (có trần mỗi lượt, ví dụ 200), chạy theo vòng riêng, không chờ worker | Trần khoảng 2,8 chuyến/giây: 10 tin mỗi nhịp, viết cứng; offer chờ publish 1–6 giây | `matching-service/src/infrastructure/publisher.ts`, `src/worker.ts` | 1 ngày | Thấp: vẫn một tin mỗi lần, có confirm | Đoạn offer → publish từ khoảng 1 giây xuống dưới 100 ms |
-| A3 | Worker Matching: nhận job mới ngay khi có chỗ trống, thay vì mỗi nhịp một lô rồi chờ job chậm nhất; giữ offer bằng hạn `expires_at` thay vì kiểm tra lại mỗi 1 giây; `WORKER_CONCURRENCY=16` | Trần kế tiếp sau A1–A2: khoảng 8 job/giây, mỗi chuyến cần 2–4 job | `matching-service/src/application/worker.ts`, `match.ts` | 1,5–2 ngày | Trung bình: chạm logic lease; cần test offer hết hạn | Khoảng 2–3 lần thông lượng worker; bỏ phần lớn job kiểm tra lại |
-| A4 | Rate limit theo IP thật: nginx gửi `X-Forwarded-For` và `X-Real-IP` (hiện chưa gửi); Gateway bật `server.forward-headers-strategy` và chỉ tin edge | Mọi người dùng chung một quota theo IP của edge; mặc định chỉ 5 lần/phút | `deploy/nginx.conf`, Gateway `application.yaml` | 0,5 ngày | Thấp; phải chặn client tự gửi header giả | Rate limit đúng theo từng người dùng |
-| A5 | Hạ nhịp poll khi rảnh: `WORKER_SCAN_MS=250`, `OUTBOX_POLL_INTERVAL_MS=250` | Khoảng 3 giây chờ cố định mỗi chuyến | env trong `deploy/stack.cjs` | 0,5 ngày, gồm đo lại | Thêm khoảng 8 query/giây khi rảnh, không đáng kể | Thời gian tới `ASSIGNED` khi rảnh từ khoảng 3 xuống khoảng 1 giây |
-| A6 | Dọn bảng outbox đã gửi, giữ 24 giờ | `outbox_deliveries` tăng không giới hạn (110.464 dòng sau các lần đo) | Job dọn trong trip-worker và matching-worker | 0,5 ngày | Thấp | Tránh suy giảm khi chạy lâu |
-| A7 | Ghi mã lỗi trong `matching_job_retry`, giới hạn backoff khi gặp `ROUTING_BUSY` | Lỗi bị nuốt bằng `catch {}`; 37 chuyến chờ tới 5,7 phút chưa rõ nguyên nhân | `matching-service/src/application/worker.ts` | 0,5 ngày | Thấp | Tìm được nguyên nhân các chuyến chờ lâu |
-| A8 | Đặt rate limit Routing theo năng lực OSRM tự host trong cấu hình triển khai thật (local đã đặt 20000 element/phút, 50 request/giây, burst 20) | Mặc định 100 element/phút: baseline chỉ 1/270 chuyến được gán | Cấu hình triển khai, hoặc mặc định riêng cho chế độ OSRM tự host | 0,5 ngày | Thấp; phải đo năng lực OSRM thật trước khi chốt | Không còn `ROUTING_BUSY` ở tải bình thường |
-| A9 | Đưa cấu hình edge đã nâng trên local vào cấu hình triển khai thật: `worker_processes auto`, `worker_connections` và RAM tính theo số tài xế online lúc cao điểm (khoảng 2 kết nối và vài chục KB mỗi WebSocket) | Edge gãy ở khoảng 500 WebSocket và OOM ở 128 MiB | `deploy/nginx.conf`, `deploy/generate.cjs`, cấu hình thật | 0,5 ngày | Thấp | Edge không còn là điểm gãy đầu tiên khi tăng tài xế |
+| B7 (mới) | Kiểm tra điều kiện tài xế theo lô thật sự. Driver đọc hồ sơ và xe của cả lô bằng một câu SQL (`WHERE id = ANY($1)`), đọc và ghi trạng thái Redis bằng một lệnh cho cả lô, bỏ advisory lock từng tài xế ở đường chỉ đọc. Trip trả lời `active-drivers/batch` bằng một câu SQL thay vì vòng lặp | Endpoint batch hiện lặp từng tài xế (4 song song): mỗi tài xế 4 câu SQL (đọc hồ sơ, đọc xe, lấy và trả advisory lock) và 2 lệnh Redis ở Driver, 1 câu SQL ở Trip. Ở 12 chuyến/giây: 363000 lần đọc hồ sơ, 363000 lần đọc xe, 727000 lệnh lock/unlock, 362000 câu hỏi chuyến đang mở trong 2,5 phút | `driver-service` batch eligibility use case và repository; `trip-service` controller `active-drivers/batch` | 1,5–2 ngày | Không | Câu SQL kiểm tra tài xế cho mỗi chuyến từ khoảng 1400 xuống khoảng 10–20; CPU driver-api và PostgreSQL ở 8 chuyến/giây giảm mạnh. Rủi ro trung bình: cần giữ đúng ngữ nghĩa khoá khi ghi trạng thái Redis |
+| B1 | Matching tự lấy tối đa 200 vị trí, kiểm điều kiện theo lô, chỉ tính ETA cho 25 người gần nhất | Chi phí mỗi lần tìm tăng tuyến tính theo mật độ: từ 1000 lên 5000 tài xế, CPU driver-api tăng 3,5 lần, PostgreSQL 2,7 lần ở cùng tải | P1.1, [ADR-0001](adr/0001-matching-so-huu-tim-ung-vien.md) | Đã tính trong Phase 1 | Không | Chặn trên chi phí mỗi lần tìm; matrix 25 thay vì 50 element; cùng B7, mức đạt ngưỡng ước tính 10–12 chuyến/giây |
+| B6 | Observability: metrics HTTP, event loop lag, thời gian chờ trong pool Routing, độ dài outbox, HikariCP; dashboard | Hai hiện tượng chưa giải thích được: thông lượng ở 8–10 chuyến/giây thấp hơn ở 12–16; đợt chậm 3 phút khi chạy 30 phút | P1.4, [ADR-0003](adr/0003-observability-opentelemetry.md) | Đã tính trong Phase 1 | khoảng 0,8 GB | Xác định được nguyên nhân hai hiện tượng trên; điều kiện để đo các bước sau |
+| B5 | App tài xế làm mới token trước hạn và kết nối lại có jitter | Đợt chậm khi chạy lâu trùng với lúc 1000 tài xế cùng làm mới token; 2000 lần kết nối lại đúng lúc JWT hết hạn | Mới (app) | 1 ngày | Không | Tránh đợt làm mới và kết nối lại đồng loạt |
+| B4 | 2 replica driver-api | driver-api là process nóng nhất (đỉnh 1,1–1,2 core ở 8–12 chuyến/giây). Phần chuyển IP thật cho Driver đã xong ở A4 | P2.5 | 0,5–1 ngày | khoảng 0,1 GB | Gấp đôi trần của driver-api; làm sau B7 vì B7 có thể đủ |
+| B2 | Gộp đích `gateway` và `notification` của outbox Trip thành một đích trên RabbitMQ | Outbox Trip không còn là trần (offer → publish và accept → `ASSIGNED` đều dưới 0,3 giây); câu ghi `outbox_deliveries` vẫn nằm trong 5 câu tốn nhất của Trip | P1.3, [ADR-0002](adr/0002-truc-su-kien-rabbitmq.md) | Đã tính trong Phase 1 | Không | Giảm khoảng 40% tin outbox Trip; lợi ích hiệu năng nhỏ, lợi ích chính là không mất event khi Gateway tắt |
+| B3 | 2 replica matching-worker | matching-worker dưới 0,15 core ở mọi mức đo | P2.5 | Đã tính trong Phase 2 | khoảng 0,08 GB | Không cần cho hiệu năng; giữ vì tính sẵn sàng |
 
-Tổng nhóm A khoảng 6–7 ngày người, chia được cho 2 người Node và 1 người Java trong một tuần. Không cần thêm RAM, ngoài RAM của edge tính theo số kết nối.
-
-### 4.2 Nhóm B: trung bình, phần lớn đã có trong lộ trình
-
-| ID | Cải tiến | Giải quyết | Liên quan lộ trình | Công sức | Thêm tài nguyên | Hiệu quả ước tính |
-| --- | --- | --- | --- | --- | --- | --- |
-| B1 | Matching tự lấy tối đa 200 vị trí, kiểm eligibility theo lô, chỉ tính ETA cho top 25 | Realtime kiểm eligibility cho mọi tài xế trong 2 km (khoảng 220 ở 2000 tài xế); giới hạn 50 phải khớp ở 3 service | P1.1, [ADR-0001](adr/0001-matching-so-huu-tim-ung-vien.md) | Đã tính trong Phase 1 | Không | Chi phí mỗi lần tìm bị chặn trên; matrix 25 thay vì 50 element |
-| B2 | Gộp đích `gateway` và `notification` của outbox Trip thành một đích `bus` trên RabbitMQ | 7,3 tin mỗi chuyến, trong đó mỗi lần đổi trạng thái tốn 2 tin | P1.3, [ADR-0002](adr/0002-truc-su-kien-rabbitmq.md) | Đã tính trong Phase 1 | Không | Còn khoảng 4 tin mỗi chuyến |
-| B3 | 2 replica matching-worker | Một worker là điểm nghẽn và điểm lỗi duy nhất | P2.5 (lease đã có sẵn) | Đã tính trong Phase 2 | khoảng 0,08 GB | Gần gấp đôi thông lượng worker nếu PostgreSQL chưa nghẽn |
-| B4 | 2 replica driver-api; Gateway chuyển `X-Driver-Client-IP` và `X-Driver-Proxy-Token` cho Driver | driver-api bão hòa 1 core khi lên ca đồng loạt; event loop nghẽn quá 30 giây thì liveness restart (probe không chạm DB); OTP chỉ 10 lần/phút cho cả hệ thống | Mới, bổ sung cho P2.5 | 1–1,5 ngày (Java + deploy) | khoảng 0,1 GB | Lên ca đồng loạt không làm sập driver-api; OTP giới hạn đúng từng IP |
-| B5 | App tài xế làm mới token trước khi hết hạn và kết nối lại có jitter | Realtime ngắt socket đúng lúc JWT hết hạn, nên tài xế đăng nhập cùng lúc sẽ cùng kết nối lại mỗi 15 phút | Mới (app) | 1 ngày | Không | Tránh đợt kết nối lại đồng loạt |
-| B6 | Observability: metrics HTTP, độ dài và tuổi tin outbox, event loop lag, HikariCP, hàng đợi job Matching; dashboard | Chưa có số liệu phía server; các đợt chậm p99 2–3 giây chưa rõ nguyên nhân | P1.4, [ADR-0003](adr/0003-observability-opentelemetry.md) | Đã tính trong Phase 1 | khoảng 0,8 GB | Là điều kiện để đo các bước sau |
-
-### 4.3 Nhóm C: đắt hoặc để sau
+### 5.2 Nhóm C: đắt hoặc để sau
 
 | ID | Cải tiến | Khi nào cần | Chi phí |
 | --- | --- | --- | --- |
-| C1 | Nhiều replica cho trip-api, gateway-api, realtime-api (Socket.IO Redis adapter) | Khi nhóm A–B đã xong mà một process Node hoặc JVM chạm khoảng 1 core | Mỗi replica Node khoảng 0,1 GB, mỗi replica JVM khoảng 0,5 GB; Realtime nhiều replica nằm trong P2.5 |
-| C2 | PgBouncer, tách PostgreSQL theo service hoặc thêm replica đọc | Khi PostgreSQL là pod nóng nhất ở tải mục tiêu (đã thấy 0,6–0,9 core ở 2000 tài xế) | Thêm thành phần vận hành; đo `pg_stat_statements` trước |
-| C3 | Realtime lưu sẵn loại xe và trạng thái tài xế trong Redis để lọc tại chỗ (phương án ADR-0001 đã để sau) | Khi mật độ tài xế cao làm việc lọc ở Matching và Driver thành nghẽn | Cần event từ Driver sang Realtime |
-| C4 | Realtime đẩy offer kèm dữ liệu, bỏ lời gọi `GET /internal/matching/offers/:id` cho mỗi offer | Hiện đoạn publish → accept chỉ 6–8 ms, chưa cần | Đổi contract event offer |
-| C5 | Cụm production nhiều node, autoscaling | Khi có tải thật | Ngoài phạm vi đồ án |
+| C1 | Nhiều replica cho trip-api, gateway-api, realtime-api (Socket.IO Redis adapter) | Khi B7, B1 đã xong mà một process chạm khoảng 1 core. Hiện ở cách đo giống app, Gateway, Trip và Realtime đều dưới 0,35 core | Mỗi replica Node khoảng 0,1 GB, JVM khoảng 0,5 GB; Realtime nhiều replica nằm trong P2.5 |
+| C2 | PgBouncer, replica đọc PostgreSQL | Khi PostgreSQL vẫn là pod nóng nhất sau B7. Hiện nghẽn là số câu lệnh; PgBouncer không giảm chi phí mỗi câu | Thêm thành phần vận hành |
+| C3 | Realtime lưu sẵn loại xe và trạng thái tài xế trong Redis để lọc tại chỗ (phương án ADR-0001 đã để sau) | Nếu B7 vẫn chưa đủ ở mật độ cao | Cần event từ Driver sang Realtime |
+| C4 | Realtime đẩy offer kèm dữ liệu, bỏ một lời gọi HTTP mỗi offer | Đoạn publish → accept hiện p95 7–14 ms; chưa cần | Đổi contract event offer |
+| C5 | Cụm production nhiều node, autoscaling | Khi cần khoảng 25 chuyến/giây hoặc có tải thật | Ngoài phạm vi đồ án |
 
-## 5. Cải tiến môi trường đo
+### 5.3 Môi trường đo
 
-| ID | Cải tiến | Giải quyết | Công sức | Chi phí |
+| ID | Cải tiến | Trạng thái hoặc căn cứ | Công sức | Chi phí |
 | --- | --- | --- | --- | --- |
-| E1 | Đưa tải vào không qua `kubectl port-forward`. Rẻ nhất: chạy stack bằng Docker Compose (`node deploy/run.cjs docker-up`, edge đã bind `127.0.0.1:18080`) và cho `accounts.cjs` hỗ trợ `docker exec`. Hoặc chạy bộ giả lập và k6 dưới dạng Job trong cụm | Port-forward làm control plane dùng 2–5 core từ khoảng 4000 kết nối; `cri-dockerd` sập ở khoảng 3500 kết nối | 1–2 ngày | 0 đồng |
-| E2 | Mặc định GPS 10 giây như app; thêm kịch bản k6 nhận sự kiện qua `/ws` thay cho poll | Bộ đo nặng hơn thực tế: GPS gấp 3, poll mỗi 300 ms khuếch đại tải của Gateway, Trip, PostgreSQL khi chờ lâu | 1 ngày | 0 đồng |
-| E3 | Bật `pg_stat_statements` trên PostgreSQL local | Chưa biết truy vấn nào nóng khi PostgreSQL lên 0,6–0,9 core | 0,5 ngày | Không đáng kể |
-| E4 | Thuê cụm thử nghiệm trong 1 ngày: 3 node ứng dụng khoảng 4 vCPU / 16 GB, 1 node PostgreSQL, 2 máy tạo tải, dựng bằng manifest trong `deploy/` | Máy local không đo được 3000–5000 tài xế và 3000 chuyến cùng lúc | khoảng 2 ngày người (dựng, đo, gỡ) | Ước tính 6 máy × 8 giờ × 0,1–0,4 USD/giờ, tức khoảng 5–20 USD, cộng phí Kubernetes quản lý nếu có. **Cần kiểm tra bảng giá hiện tại** |
-| E5 | Cấp VM Docker ít nhất 10 GB khi chạy observability cùng bài đo | Ngân sách sau Phase 2 khoảng 5,2 GB; bài đo 2000 tài xế dùng thêm khoảng 2–3 GB | 0 | Giảm RAM còn lại cho macOS và emulator |
-
-E1 và E2 nên làm trước khi đo lại nhóm A, nếu không số đo sau tối ưu vẫn bị môi trường đo giới hạn.
+| E1 | Bộ đo chạy trong cụm | **Đã làm.** Đo được 5000 tài xế | — | — |
+| E2 | GPS 10 giây, kịch bản `/ws` | **Đã làm.** Mặc định của bộ đo | — | — |
+| E3 | `pg_stat_statements` | **Đã làm.** Mỗi lần đo ghi `sql.json` | — | — |
+| E4 | Thuê cụm thử nghiệm 1 ngày: 3 node ứng dụng khoảng 4 vCPU / 16 GB, 1 node PostgreSQL, 2 máy tạo tải | Một node local không tách được tranh chấp CPU giữa các service | khoảng 2 ngày người | Ước tính 6 máy × 8 giờ × 0,1–0,4 USD/giờ, tức khoảng 5–20 USD. **Cần kiểm tra bảng giá hiện tại** |
+| E5 | Cấp VM Docker ít nhất 10 GB khi chạy observability cùng bài đo | Bài đo 5000 tài xế đã dùng thêm khoảng 0,4 GB cho pod tạo tải; B6 thêm khoảng 0,8 GB | 0 | Giảm RAM còn lại cho macOS |
+| E6 (mới) | Chạy trọn kịch bản 3000 khách + 3500 tài xế trong cụm; mỗi mức tải đo ít nhất 3 lần | Kịch bản đợt mới chỉ ước tính; ở 8–10 chuyến/giây kết quả dao động 3,2–4,4 chuyến/giây giữa các lần | 1 ngày | 0 đồng |
 
 ## 6. Đối chiếu với ADR
 
-Các ADR 0001–0007 đều đang ở trạng thái **Đề xuất**, nên có thể bổ sung trước khi chấp nhận. Bảng dưới cho biết ADR nào dùng được cho hiệu năng, và còn thiếu gì so với kết quả đo.
-
-| ADR | Dùng được cho | Còn thiếu so với kết quả đo | Cần đo khi triển khai |
+| ADR | Trạng thái đề xuất | Căn cứ từ lần đo 2026-11-04 | Cần đo khi triển khai |
 | --- | --- | --- | --- |
-| [0001](adr/0001-matching-so-huu-tim-ung-vien.md) Matching tự tìm ứng viên | **B1, trực tiếp.** `NEARBY_LIMIT=200` chặn eligibility ở tối đa 2 lô 100; Driver không gọi occupancy; matrix còn 25 element; gỡ việc ba service cùng giữ giới hạn 50 | Không nói tới rate limit Routing: với mặc định 100 element/phút, 25 element mỗi lần tìm vẫn chỉ được khoảng 4 lần/phút (A8). Không nói tới nhịp worker (A3) | Trần thông lượng ở 1000 và 2000 tài xế; CPU PostgreSQL và driver-api mỗi lần tìm |
-| [0002](adr/0002-truc-su-kien-rabbitmq.md) Trục sự kiện RabbitMQ | **B2, trực tiếp.** Tin outbox Trip mỗi chuyến từ khoảng 7,3 xuống khoảng 4,3; event không mất khi Gateway tắt | Worker outbox vẫn 20 tin mỗi nhịp 1 giây, nên trần chỉ lên khoảng 4–5 chuyến/giây nếu không có A1. Publisher confirm làm mỗi lần gửi chậm hơn POST HTTP nội bộ. Publisher offer của Matching (A2) nằm ngoài phạm vi | Độ dài và tuổi tin outbox Trip; thời gian publish và confirm |
-| [0003](adr/0003-observability-opentelemetry.md) Observability | **B6, E3.** Dashboard bắt buộc đã gồm funnel matching và độ trễ outbox, đúng hai chỗ báo cáo phải tự tính từ DB | Chưa có exporter PostgreSQL (`pg_stat_statements`), Redis, RabbitMQ, nginx; chưa có event loop lag, HikariCP, hàng đợi job Matching; chưa đưa số liệu k6 vào cùng Grafana | RAM thật của bộ observability (ADR ước tính khoảng 0,8 GB) |
-| [0004](adr/0004-gioi-han-thoi-gian-tim-xe.md) Giới hạn thời gian tìm xe | **Bảo vệ khi quá tải:** chuyến không treo vô hạn và không tiếp tục chiếm job worker | Chưa tính hệ quả với tải đột biến: với trần hiện tại và hạn 3 phút, trong kịch bản 3000 khách chỉ khoảng 450 chuyến được gán, còn khoảng 2550 chuyến bị huỷ với `NO_DRIVER_FOUND` (mục 8) | Số chuyến `NO_DRIVER_FOUND` trong kịch bản đợt; tranh chấp accept ở giây cuối dưới tải |
-| [0005](adr/0005-payment-so-cai-kep-tcc.md) Payment | Không gỡ nghẽn; thêm lời gọi đồng bộ Trip → Payment khi tạo chuyến bằng ví và một consumer `trip.events` | Chưa có ngưỡng thời gian cho bước Try; Payment chậm thì `POST /trips` chậm theo | p95 `POST /trips` có và không có ví; hai chuyến đồng thời không giữ vượt số dư |
-| [0006](adr/0006-gia-dong-theo-o-h3.md) Giá động H3 | Không gỡ nghẽn; báo giá thêm một lần đọc Redis, cung tính trước mỗi 60 giây | Bộ đếm cầu tăng theo mỗi `trip.searching`, nên cũng tăng theo tải đột biến | p95 báo giá trước và sau surge; CPU Price |
-| [0007](adr/0007-admin-web-va-role-admin.md) Admin web | Không ảnh hưởng luồng nóng; thống kê lấy từ Grafana | Không | Không bắt buộc |
-
-**ADR mới.** Chưa ADR nào trong 0001–0007 xử lý trần chính, tức cách outbox và worker đọc hàng đợi theo nhịp. [ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md) (Đề xuất) phủ A1, A2, A3, A5:
-- outbox Trip lặp khi lô đầy;
-- publisher Matching chạy vòng riêng tới khi hết tin;
-- worker Matching chạy theo pool liên tục, giữ offer bằng `expires_at`;
-- nhịp rảnh 250 ms.
-
-ADR-0008 nên làm cùng ADR-0002, vì cả hai sửa cùng worker outbox của Trip.
+| [0008](adr/0008-xu-ly-hang-doi-lien-tuc.md) Xử lý hàng đợi liên tục | **Đề nghị chuyển sang Chấp nhận** | Đã triển khai và đạt cả hai tiêu chí đo lại: p95 ≤ 10 giây ở 4 chuyến/giây (đo được 0,9 giây), offer → publish ≤ 200 ms (12 ms). Bổ sung partial index outbox Matching | Giữ trong bộ đo hồi quy |
+| [0001](adr/0001-matching-so-huu-tim-ung-vien.md) Matching tự tìm ứng viên | **Ưu tiên cao nhất tiếp theo** | Bước tìm và kiểm tra tài xế là điểm nghẽn mới. Bổ sung cho ADR: endpoint batch phải truy vấn theo lô (B7), nếu không, giới hạn 200 ứng viên vẫn tốn khoảng 1000 câu SQL mỗi lần tìm | Câu SQL mỗi chuyến; CPU driver-api và PostgreSQL ở 8–12 chuyến/giây |
+| [0003](adr/0003-observability-opentelemetry.md) Observability | Nên làm cùng 0001 | Hai hiện tượng chưa giải thích được vì thiếu metrics phía server; bổ sung exporter cho `pg_stat_statements` (E3 đã bật) | RAM thật của bộ observability |
+| [0002](adr/0002-truc-su-kien-rabbitmq.md) Trục sự kiện RabbitMQ | Không còn gấp về hiệu năng | Outbox Trip không còn là trần sau A1 | Thời gian publish và confirm |
+| [0004](adr/0004-gioi-han-thoi-gian-tim-xe.md) Giới hạn thời gian tìm xe | Không đổi | Với thông lượng mới, số chuyến bị huỷ `NO_DRIVER_FOUND` trong đợt đột biến giảm mạnh ([mục 8](#8-kỳ-vọng-cho-kịch-bản-3000-khách)) | Số chuyến `NO_DRIVER_FOUND` trong kịch bản đợt |
+| [0005](adr/0005-payment-so-cai-kep-tcc.md), [0006](adr/0006-gia-dong-theo-o-h3.md), [0007](adr/0007-admin-web-va-role-admin.md) | Không đổi | Không nằm trên đường nóng đo được; báo giá hiện p95 13–66 ms khi chưa quá tải | p95 `POST /trips` và báo giá trước và sau khi thêm |
 
 ## 7. Lộ trình đề xuất
 
 | Thời điểm | Việc | Đo lại bằng | Mục tiêu (ước tính, cần xác nhận) |
 | --- | --- | --- | --- |
-| Ngay, 1 tuần | Duyệt [ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md); E1, E2; A1, A2, A5, A6, A7, A8 | Trần thông lượng: 1000 tài xế, 2 → 4 → 8 chuyến/giây | Đạt ngưỡng ở khoảng 4–5 chuyến/giây; khi rảnh, tới `ASSIGNED` khoảng 1 giây |
-| Ngay sau đó | A3, A4, A9 | Như trên, cộng kịch bản đăng nhập và tăng quy mô tài xế | Đạt ngưỡng ở khoảng 6–10 chuyến/giây; không còn 429 cho người dùng hợp lệ |
-| Phase 1 | B1, B2, B6 (P1.1, P1.3, P1.4) | Trần thông lượng với 2000 tài xế; dashboard | Trần không giảm khi tăng từ 1000 lên 2000 tài xế |
-| Phase 2 | B3, B4, B5 (cùng P2.5) | Tài xế lên ca đồng loạt; chạy lâu 2 giờ | Không restart; RAM ổn định |
-| Trước bảo vệ (tuỳ chọn) | E4 | Kịch bản 3500 tài xế + 3000 chuyến | Ghi lại thời gian gán hết 3000 chuyến trên cụm thật |
+| Đã xong | Nhóm A, index outbox Matching, E1–E3 | 21 lần đo ngày 2026-11-04 | Đạt: 6 chuyến/giây trong ngưỡng, 5000 tài xế |
+| Ngay, 1 tuần | B7; chuyển ADR-0008 sang Chấp nhận | Loạt 2 (giống app) ở 6, 8, 10, 12 chuyến/giây; `sql.json` | Câu SQL kiểm tra tài xế dưới 20 mỗi chuyến; đạt ngưỡng ở 10 chuyến/giây |
+| Phase 1 | B1, B6 (P1.1, P1.4); B2 nếu còn thời gian | Như trên với 2000 và 5000 tài xế; dashboard | Trần không giảm khi tăng từ 1000 lên 5000 tài xế; giải thích được hai hiện tượng còn mở |
+| Phase 2 | B5, B4, B3 (cùng P2.5) | Tài xế lên ca đồng loạt; chạy lâu 2 giờ | Không có đợt chậm khi làm mới token; RAM ổn định |
+| Trước bảo vệ | E6; tuỳ chọn E4 | Kịch bản 3500 tài xế + 3000 chuyến | Ghi lại thời gian gán hết 3000 chuyến |
 
-Với mỗi cải tiến, chạy lại đúng kịch bản trước đó và so trong một bảng trước/sau. Mỗi lần đo chỉ đổi một thay đổi ([kế hoạch, giai đoạn 9](ke-hoach-kiem-thu-hieu-nang.md#giai-đoạn-9-tối-ưu-và-đo-lại)).
+Mỗi cải tiến chạy lại đúng kịch bản trước đó, so trong một bảng trước/sau và chỉ đổi một thay đổi mỗi lần ([kế hoạch, giai đoạn 9](ke-hoach-kiem-thu-hieu-nang.md#giai-đoạn-9-tối-ưu-và-đo-lại)).
 
 ## 8. Kỳ vọng cho kịch bản 3000 khách
 
-| Trạng thái | Thông lượng ước tính | Gán hết 3000 chuyến | Được gán trong 3 phút nếu có ADR-0004 |
+| Trạng thái | Thông lượng gán | Gán hết 3000 chuyến | Được gán trong 3 phút nếu có ADR-0004 |
 | --- | --- | --- | --- |
-| Hiện tại | khoảng 2–2,5 chuyến/giây | 15–20 phút | khoảng 450 |
-| Sau nhóm A | khoảng 6–10 chuyến/giây | 5–8 phút | khoảng 1000–1800 |
-| Sau nhóm A + B, vẫn trên một MacBook | khoảng 10–15 chuyến/giây; khi đó PostgreSQL và các process một luồng có thể thành giới hạn | 3–5 phút | khoảng 1800–2700 |
-| 3000 chuyến trong khoảng 2 phút | cần khoảng 25 chuyến/giây | Cần thêm nhóm C và nhiều máy; ngoài phạm vi demo | 3000 |
+| Mốc ban đầu (đo) | khoảng 2,5–3 chuyến/giây | 15–20 phút | khoảng 450–540 |
+| Hiện tại, sau nhóm A (đo thông lượng, ước tính kịch bản) | khoảng 6 trong ngưỡng, tối đa khoảng 10 chuyến/giây | khoảng 5–8 phút | khoảng 1100–1800 |
+| Sau B7 + B1 (ước tính) | khoảng 12–15 chuyến/giây | khoảng 3–4 phút | khoảng 2200–2700 |
+| 3000 chuyến trong khoảng 2 phút | khoảng 25 chuyến/giây | Cần thêm C1 và nhiều máy (C5); ngoài phạm vi demo | 3000 |
 
-Các con số suy ra từ trần đo được, các giới hạn trong code (lô outbox, nhịp worker) và CPU đo được; chưa được đo sau khi sửa. Khi có hạn tìm xe 3 phút ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md)), chuyến vượt trần bị huỷ với `NO_DRIVER_FOUND` thay vì chờ tới lượt. Số chuyến được gán xấp xỉ bằng thông lượng × 180 giây, nên nâng thông lượng quyết định trực tiếp số khách được phục vụ trong một đợt đột biến.
+Với hạn tìm xe 3 phút ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md)), số chuyến được gán xấp xỉ bằng thông lượng × 180 giây, nên nâng thông lượng quyết định trực tiếp số khách được phục vụ trong một đợt đột biến.
 
 ## 9. Nối điểm nghẽn với cải tiến
 
-| Điểm nghẽn trong [báo cáo](bao-cao-kiem-thu-tai.md#điểm-nghẽn-tìm-được) | Cải tiến |
-| --- | --- |
-| 1. Hai hàng đợi outbox giới hạn khoảng 3 chuyến/giây | A1, A2, A3, A5 ([ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md)), B2, B3 |
-| 2. Rate limit đăng nhập tính theo IP của proxy | A4, B4 |
-| 3. driver-api quá tải khi nhiều tài xế lên mạng cùng lúc | B4, B5 |
-| 4. Edge nginx chưa cấu hình cho WebSocket số lượng lớn | A9 |
-| 5. Realtime kiểm eligibility mọi tài xế trong 2 km, giới hạn 50 phải khớp ở ba service | B1, C3 |
-| 6. Rate limit Routing mặc định | A8 |
-| 7. Nhịp poll 1 giây của worker Matching | A3, A5 |
-| 8. Lỗi matching bị nuốt và backoff tới 30 giây | A7 |
-| 9. Poll trạng thái làm khuếch đại tải khi chờ lâu | E2 |
-| 10. Thêm một bước HTTP cho mỗi offer | C4 |
-| Môi trường đo: port-forward, `cri-dockerd` | E1, E4, E5 |
-| Chưa có số liệu phía server | B6, E3 |
+| Điểm nghẽn trong [báo cáo](bao-cao-kiem-thu-tai.md#7-phân-tích-điểm-nghẽn-hiện-tại) | Cải tiến | Trạng thái |
+| --- | --- | --- |
+| Hai hàng đợi outbox và nhịp worker giới hạn khoảng 3 chuyến/giây (mốc ban đầu) | A1, A2, A3, A5, index outbox Matching | Đã xử lý |
+| Rate limit đăng nhập tính theo IP của proxy | A4 | Đã xử lý |
+| Edge nginx chưa cấu hình cho nhiều WebSocket | A9 | Đã xử lý |
+| Rate limit Routing mặc định | A8 | Đã xử lý |
+| Lỗi matching bị nuốt, backoff tới 30 giây | A7 | Đã xử lý |
+| Môi trường đo: port-forward, `cri-dockerd` | E1 | Đã xử lý |
+| driver-api kiểm tra từng tài xế một ([7.1](bao-cao-kiem-thu-tai.md#71-driver-api-kiểm-tra-từng-tài-xế-một)) | B7, B1, B4 | Đề xuất |
+| PostgreSQL bận vì số câu lệnh ([7.2](bao-cao-kiem-thu-tai.md#72-postgresql-bận-vì-số-câu-lệnh)) | B7, B1; sau đó C2 nếu cần | Đề xuất |
+| Poll khuếch đại tải khi chờ lâu ([7.3](bao-cao-kiem-thu-tai.md#73-poll-khuếch-đại-tải-khi-khách-chờ-lâu)) | App đã dùng `/ws`; bộ đo E2 | Đã xử lý ở bộ đo |
+| Đợt chậm khi chạy lâu ([7.4](bao-cao-kiem-thu-tai.md#74-đợt-chậm-khi-chạy-lâu)) | B6 để tìm nguyên nhân; B5 | Đề xuất |
+| Thông lượng không đơn điệu ở 8–10 chuyến/giây | B6, E6 | Cần đo thêm |
+| Một bước HTTP cho mỗi offer | C4 | Chưa cần |
 
 ## 10. Không đề xuất
 
 | Không làm | Lý do |
 | --- | --- |
-| Kafka, thay RabbitMQ | Trần hiện tại là cách worker đọc hàng đợi, không phải message broker; kiến trúc mục tiêu đã loại vì tốn RAM |
-| Tăng CPU/RAM cho pod | Ở 3 chuyến/giây mọi pod dưới 0,3 core; thêm tài nguyên không nâng trần |
+| Tăng `WORKER_POOL_SIZE` của Routing | Đã thử 8 thay vì 2 ở 8 chuyến/giây: không cải thiện (3,95 so với 3,2–4,4 chuyến/giây được gán). Routing chờ driver-api phía sau |
+| Tăng CPU/RAM cho PostgreSQL, thêm index | Không có câu lệnh chậm (0,001–0,07 ms mỗi câu); CPU là chi phí theo số câu lệnh |
+| Kafka, thay RabbitMQ | Hàng đợi không còn là điểm nghẽn; kiến trúc mục tiêu đã loại vì tốn RAM |
 | Batch matching, geo-sharding, service mesh | Đã nằm trong mục không làm của kiến trúc mục tiêu; chưa phải nghẽn |
-| Cache báo giá | Báo giá chỉ chậm khi hệ thống đã quá tải; nguyên nhân gốc là hàng đợi và poll |
+| Cache báo giá | Báo giá p95 13–66 ms khi chưa quá tải; chỉ chậm khi các service khác đã quá tải |
 
 ## 11. Giả định và việc cần xác minh
 
 1. Ước tính công sức tính cho người đã quen code của service đó, chưa gồm thời gian review.
-2. Hiệu quả của A1–A3 phụ thuộc độ trễ HTTP thật giữa các service ở tải cao, hiện chưa đo được vì thiếu metrics (B6).
-3. Giá cloud ở E4 là khoảng tham khảo; cần kiểm tra bảng giá hiện tại và hạn mức tài khoản sinh viên nếu có.
-4. Năng lực OSRM thật (A8) và số tài xế online lúc cao điểm (A9) cần đo hoặc chốt trước khi đặt cấu hình thật.
-5. Tải mục tiêu (số tài xế, số chuyến giờ cao điểm) chưa được chốt ([kế hoạch, mục 10](ke-hoach-kiem-thu-hieu-nang.md#10-giả-định-và-việc-cần-xác-minh-trước-khi-chạy-ở-môi-trường-thật)). Nếu mục tiêu chỉ là demo trước hội đồng, nhóm A cùng các mục đã có trong lộ trình là đủ.
+2. Hiệu quả của B7 phụ thuộc việc giữ đúng ngữ nghĩa khoá khi Driver ghi trạng thái tài xế vào Redis; cần review cùng người viết Driver trước khi bỏ advisory lock.
+3. Mức "10–12 chuyến/giây sau B7 + B1" suy ra từ việc driver-api và PostgreSQL là hai pod nóng nhất, các pod còn lại dưới 0,35 core; nghẽn tiếp theo có thể là Realtime hoặc một node CPU dùng chung.
+4. Giá cloud ở E4 là khoảng tham khảo; cần kiểm tra bảng giá hiện tại và hạn mức tài khoản sinh viên nếu có.
+5. Năng lực OSRM triển khai thật cần đo lại với số thread và CPU của nó (A8 đo trên local); số tài xế cao điểm cho edge (A9) cần chốt với tải mục tiêu.
+6. Tải mục tiêu (số tài xế, số chuyến giờ cao điểm) chưa được chốt ([kế hoạch, mục 10](ke-hoach-kiem-thu-hieu-nang.md#10-giả-định-và-việc-cần-xác-minh-trước-khi-chạy-ở-môi-trường-thật)). Nếu mục tiêu chỉ là demo trước hội đồng, trạng thái hiện tại (6 chuyến/giây, 5000 tài xế) đã đủ; B7 là bước rẻ nhất để có thêm dư địa.
