@@ -6,7 +6,7 @@
 | Rà soát | 2026-10-06 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
-Matching API mặc định 3007. Local tích hợp dùng Driver 3008, Realtime 3009 để tránh Trip mock 3003 và Routing 3004. Một worker, hai job async đồng thời; polling 5 giây, expiry scan 1 giây; retry nominal 1–30 giây với jitter hệ số 0.8–1.0 (delay thực có thể từ 800 ms).
+Matching API mặc định 3007. Local tích hợp dùng Driver 3008, Realtime 3009 để tránh Trip mock 3003 và Routing 3004. Một worker, tối đa 16 job async đồng thời; polling 5 giây, expiry scan 250 ms; retry nominal 1–30 giây với jitter hệ số 0.8–1.0 (delay thực có thể từ 800 ms).
 
 Copy .env.example ra .env và điền credential riêng; không commit env/key. Node 24: npm ci, npm run build, npm run migration:run, npm run start:prod; worker chạy npm run worker:prod. Migration là lệnh riêng trước API/worker, không synchronize schema.
 
@@ -18,13 +18,13 @@ Readiness kiểm tra schema/database. Worker và consumer reconnect có backoff;
 
 | Biến | Mặc định | Ý nghĩa |
 | --- | --- | --- |
-| `WORKER_CONCURRENCY` | 2 (tối đa 16) | Số search claim mỗi nhịp worker |
-| `WORKER_SCAN_MS` | 1000 | Nhịp worker và vòng hết hạn offer |
+| `WORKER_CONCURRENCY` | 16 (tối đa 16) | Số job tìm xe chạy cùng lúc; job xong là claim job mới ngay |
+| `WORKER_SCAN_MS` | 250 | Thời gian worker nghỉ khi không còn search tới hạn, và nhịp vòng hết hạn offer |
 | `SEARCH_POLL_MS` | 5000 | Hạn tìm lại khi chưa có ứng viên |
 | `PUBLISHER_BATCH_MAX` | 200 (tối đa 1000) | Số tin outbox tối đa publisher gửi trong một lượt; chạm trần thì chạy lượt kế ngay |
 | `PUBLISHER_SCAN_MS` | 250 | Thời gian publisher nghỉ khi hết tin hoặc khi gửi lỗi |
 
-Publisher offer chạy vòng riêng, không chung nhịp với worker, và được đánh thức ngay khi worker commit offer trong cùng process ([ADR-0008](../../../docs/adr/0008-xu-ly-hang-doi-lien-tuc.md)). Tin do matching-api ghi (accept, decline) được gửi theo nhịp `PUBLISHER_SCAN_MS`.
+Worker giữ một pool tối đa `WORKER_CONCURRENCY` job: một job chậm không chặn job khác. Khi có offer `PENDING`, search được hẹn lại ngay sau `expires_at` (thêm 500 ms) thay vì kiểm tra mỗi giây; accept, decline và vòng hết hạn offer đưa search về hàng chờ ngay. Publisher offer chạy vòng riêng, không chung nhịp với worker, và được đánh thức ngay khi worker commit offer trong cùng process ([ADR-0008](../../../docs/adr/0008-xu-ly-hang-doi-lien-tuc.md)). Tin do matching-api ghi (accept, decline) được gửi theo nhịp `PUBLISHER_SCAN_MS`.
 
 V1 một Realtime replica. Mở rộng nhiều replica cần Socket.IO adapter/room delivery và limiter toàn cụm. Hosting production, GPS traffic và OSRM BIKE ngoài nghiệm thu.
 

@@ -16,14 +16,14 @@ async function main() {
   // PUBLISHER_BATCH_MAX, rests PUBLISHER_SCAN_MS when idle, and is woken as soon as this process commits an offer.
   const publisher = new OfferPublisher(repo, c.rabbitUrl, c.publisherBatchMax);
   const publishing = new DrainLoop(() => publisher.tick(), c.publisherScanMs, () => { console.warn('matching_publisher_dependency_unavailable'); });
-  const worker = new MatchingWorker(repo, new MatchDriver(repo, clients, c.pollMs, () => publishing.wake()), new AssignDriver(repo, clients), c);
+  // Search jobs run in a pool of WORKER_CONCURRENCY slots that refills as soon as a job ends (ADR-0008).
+  const worker = new MatchingWorker(repo, new MatchDriver(repo, clients, c.pollMs, () => publishing.wake()), new AssignDriver(repo, clients), c, () => { console.warn('matching_worker_dependency_unavailable'); });
   const expiry = new OfferExpiry(repo);
-  let stop = false; let active: Promise<void> | undefined; let expiring: Promise<void> | undefined;
-  const tick = () => { if (stop || active) return; active = worker.tick().catch(() => { console.warn('matching_worker_dependency_unavailable'); }).finally(() => { active = undefined; }); };
-  const expire = () => { if (stop || expiring) return; expiring = expiry.tick().catch(() => { console.warn('matching_expiry_dependency_unavailable'); }).finally(() => { expiring = undefined; }); };
-  const timer = setInterval(tick, c.scanMs), expiryTimer = setInterval(expire, c.scanMs); tick(); expire(); publishing.start();
+  let stop = false; let expiring: Promise<void> | undefined;
+  const expire = () => { if (stop || expiring) return; expiring = expiry.tick().then(expired => { if (expired) worker.wake(); }).catch(() => { console.warn('matching_expiry_dependency_unavailable'); }).finally(() => { expiring = undefined; }); };
+  const expiryTimer = setInterval(expire, c.scanMs); expire(); worker.start(); publishing.start();
   const server = createServer((req, res) => { if (req.url !== '/health/live' && req.url !== '/health/ready') { res.writeHead(404); res.end(); return; } const ready = !stop && (req.url === '/health/live' || worker.lastProgress > Date.now() - 90000); res.writeHead(ready ? 200 : 503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: ready ? 'ok' : 'unavailable' })); }); server.listen(Number(process.env.WORKER_HEALTH_PORT ?? 3017), c.host);
-  const shutdown = async () => { if (stop) return; stop = true; clearInterval(timer); clearInterval(expiryTimer); await Promise.all([active, expiring, publishing.stop()]); await publisher.close(); await new Promise<void>(r => server.close(() => r())); await db.destroy(); };
+  const shutdown = async () => { if (stop) return; stop = true; clearInterval(expiryTimer); await Promise.all([worker.stop(), expiring, publishing.stop()]); await publisher.close(); await new Promise<void>(r => server.close(() => r())); await db.destroy(); };
   process.once('SIGTERM', () => { void shutdown(); }); process.once('SIGINT', () => { void shutdown(); });
 }
 void main().catch(() => { console.error('Matching worker startup failed'); process.exitCode = 1; });

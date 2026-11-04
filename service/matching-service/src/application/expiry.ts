@@ -3,15 +3,17 @@ import { Repository } from '../infrastructure/persistence';
 export class OfferExpiry {
   private busy = false;
   constructor(private readonly repo: Repository) {}
-  async tick() {
-    if (this.busy) return; this.busy = true;
+  /** Expires overdue PENDING offers and returns how many searches it put back in the queue. */
+  async tick(): Promise<number> {
+    if (this.busy) return 0; this.busy = true; let expired = 0;
     try {
       const rows: { trip_id: string; id: string }[] = await this.repo.db.query("SELECT trip_id,id FROM matching_offers WHERE status='PENDING' AND expires_at<=clock_timestamp() ORDER BY expires_at LIMIT 100");
       for (const row of rows) await this.repo.transaction(async tx => {
         const search = await tx.search(row.trip_id); if (!search || search.status !== 'SEARCHING' || search.offerId !== row.id) return;
         const offer = await tx.offer(row.id); if (!offer || offer.status !== 'PENDING' || await tx.now() < Date.parse(offer.expiresAt)) return;
-        offer.status = 'EXPIRED'; offer.version++; await tx.saveOffer(offer); await tx.release(offer); await tx.enqueue(offer); search.offerId = null; await tx.saveSearch(search);
+        offer.status = 'EXPIRED'; offer.version++; await tx.saveOffer(offer); await tx.release(offer); await tx.enqueue(offer); search.offerId = null; await tx.saveSearch(search); expired++;
       });
+      return expired;
     } finally { this.busy = false; }
   }
 }

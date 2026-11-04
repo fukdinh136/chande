@@ -18,6 +18,8 @@ test('concurrent trips hold one driver; empty matrix stays SEARCHING; expired ne
     await Promise.all([match.execute(a.tripId), match.execute(b.tripId)]);
     const held = await repo.reservations([driverId]); assert.ok(held[0]?.tripId);
     const winner = held[0]!.tripId!, loser = winner === a.tripId ? b.tripId : a.tripId;
+    // A search holding a PENDING offer is not due again until just after the 20 s offer expires (no 1 s re-checks).
+    const due: { wait: string }[] = await db.query('SELECT extract(epoch FROM due_at-clock_timestamp())*1000 AS wait FROM matching_searches WHERE trip_id=$1', [winner]); assert.ok(Number(due[0]!.wait) > 19000);
     assert.equal((await repo.getSearch(loser))?.status, 'SEARCHING'); assert.equal((await repo.getSearch(loser))?.offerId, null);
     await repo.transaction(async tx => { const s = (await tx.search(winner))!, o = (await tx.offer(s.offerId!))!; o.expiresAt = new Date(0).toISOString(); await tx.db.query('UPDATE matching_offers SET expires_at=$2,data=$3 WHERE id=$1', [o.offerId, o.expiresAt, o]); });
     await new OfferExpiry(repo).tick(); await match.execute(winner); assert.equal((await repo.getSearch(winner))?.offerId, null); assert.equal((await repo.getSearch(winner))?.status, 'SEARCHING');

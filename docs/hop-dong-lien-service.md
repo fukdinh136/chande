@@ -43,8 +43,8 @@ PostgreSQL test: Trip 55434, Matching 55435; Matching local DB 55436; Trip local
 | Routing async workers | 2 | Cùng process, xử lý I/O; không phải worker threads |
 | Routing Realtime lookup timeout | Default 1000 ms; Matching stack override 3000 ms | Luôn cắt theo deadline còn lại |
 | Offer TTL | 20000 ms (20 giây) | Tính ở DB/server; retry/reconnect không reset |
-| Search polling / expiry scan | 5000 ms / 1000 ms | Defaults Matching; không deadline kết thúc tìm xe |
-| Matching concurrent jobs / lease | 2 / 60000 ms | Worker lease khác reservation; pending callback không hết theo TTL offer |
+| Search polling / expiry scan | 5000 ms / 250 ms | Defaults Matching; worker nghỉ 250 ms khi không còn search tới hạn ([ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md)); không deadline kết thúc tìm xe |
+| Matching concurrent jobs / lease | 16 / 60000 ms | Worker lease khác reservation; pending callback không hết theo TTL offer |
 | Retry Matching | Nominal 1000–30000 ms, jitter hệ số 0.8–1.0 | Hiện code có thể bắt đầu ở 800 ms; không diễn giải thành deadline tìm xe |
 | REST body cap Node/User | 65536 byte (64 KiB) | Routing/Matching/Trip/Price và User admission |
 | Gateway body cap | 256 KiB | Cấu hình 256KB của Spring DataSize; service vẫn kiểm cap nhỏ hơn |
