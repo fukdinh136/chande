@@ -6,7 +6,7 @@
 | Rà soát | 2026-10-06 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
-Matching API mặc định 3007. Local tích hợp dùng Driver 3008, Realtime 3009 để tránh Trip mock 3003 và Routing 3004. Một worker, tối đa 16 job async đồng thời; polling 5 giây, expiry scan 250 ms; retry nominal 1–30 giây với jitter hệ số 0.8–1.0 (delay thực có thể từ 800 ms).
+Matching API mặc định 3007. Local tích hợp dùng Driver 3008, Realtime 3009 để tránh Trip mock 3003 và Routing 3004. Một worker, tối đa 16 job async đồng thời; polling 5 giây, expiry scan 250 ms; retry nominal 1–30 giây với jitter hệ số 0.8–1.0 (delay thực có thể từ 800 ms); dependency bận (`ROUTING_BUSY`, 429 hoặc có `Retry-After`) được thử lại theo `Retry-After`, tối đa 2 giây, không tăng dần.
 
 Copy .env.example ra .env và điền credential riêng; không commit env/key. Node 24: npm ci, npm run build, npm run migration:run, npm run start:prod; worker chạy npm run worker:prod. Migration là lệnh riêng trước API/worker, không synchronize schema.
 
@@ -23,6 +23,7 @@ Readiness kiểm tra schema/database. Worker và consumer reconnect có backoff;
 | `SEARCH_POLL_MS` | 5000 | Hạn tìm lại khi chưa có ứng viên |
 | `PUBLISHER_BATCH_MAX` | 200 (tối đa 1000) | Số tin outbox tối đa publisher gửi trong một lượt; chạm trần thì chạy lượt kế ngay |
 | `PUBLISHER_SCAN_MS` | 250 | Thời gian publisher nghỉ khi hết tin hoặc khi gửi lỗi |
+| `OUTBOX_RETENTION_MS` / `OUTBOX_PURGE_INTERVAL_MS` | 86400000 / 600000 | Giữ tin outbox đã publish 24 giờ để tra cứu, dọn mỗi 10 phút theo lô 1000; tin chưa publish không bị xoá |
 
 Worker giữ một pool tối đa `WORKER_CONCURRENCY` job: một job chậm không chặn job khác. Khi có offer `PENDING`, search được hẹn lại ngay sau `expires_at` (thêm 500 ms) thay vì kiểm tra mỗi giây; accept, decline và vòng hết hạn offer đưa search về hàng chờ ngay. Publisher offer chạy vòng riêng, không chung nhịp với worker, và được đánh thức ngay khi worker commit offer trong cùng process ([ADR-0008](../../../docs/adr/0008-xu-ly-hang-doi-lien-tuc.md)). Tin do matching-api ghi (accept, decline) được gửi theo nhịp `PUBLISHER_SCAN_MS`.
 
@@ -61,7 +62,7 @@ Không chạy `down -v` để giữ dữ liệu. Khi stop, worker ngừng nhận
 
 Outbox lỗi tự retry. Để requeue sớm một event chưa confirm: `npm.cmd run outbox:requeue -- <eventId>` với DATABASE_URL riêng Matching. Giữ event ID, payload, version và expiresAt. DLQ `driver.offers.dlq` là nơi giữ malformed hoặc retry hết 10 lần; kiểm tra/sửa nguyên nhân rồi dùng Rabbit management để chuyển lại `driver.offers`. Realtime truy vấn state nên message quá hạn/thu hồi không hiện lại.
 
-OpenAPI: http://127.0.0.1:3007/openapi.json, Swagger: /docs (bật SWAGGER_ENABLED). Readiness API chỉ schema/DB; worker có probe nội bộ 3017. Quan sát backlog outbox, lease, tuổi job, offer pending, Rabbit DLQ và dependency error; không log JWT, GPS hoặc credentials.
+OpenAPI: http://127.0.0.1:3007/openapi.json, Swagger: /docs (bật SWAGGER_ENABLED). Readiness API chỉ schema/DB; worker có probe nội bộ 3017. Quan sát backlog outbox, lease, tuổi job, offer pending, Rabbit DLQ và dependency error. Mỗi lần retry, worker ghi `matching_job_retry` gồm `tripId`, `attempt`, `delayMs`, `dependency` (routing, driver, trip, matching), `code` (ví dụ `ROUTING_BUSY`, `TIMEOUT`, `UNREACHABLE`, `HTTP_503`) và `status`; không log JWT, GPS hoặc credentials.
 
 ## Gateway
 

@@ -2,6 +2,7 @@ import type { Config } from '../bootstrap/config';
 import { Repository } from '../infrastructure/persistence';
 import { MatchDriver } from './match';
 import { AssignDriver } from './decisions';
+import { describeFailure, retryDelay } from './retry';
 type Job = { trip_id: string; lease_id: string };
 /**
  * Keeps up to `workers` search jobs running (ADR-0008). Whenever a slot frees up it claims more due
@@ -47,11 +48,11 @@ export class MatchingWorker {
     try {
       const s = await this.repo.getSearch(job.trip_id); if (s?.status === 'ASSIGNMENT_PENDING') await this.assign.execute(job.trip_id); else await this.match.execute(job.trip_id);
       await this.repo.finishLease(job.trip_id, job.lease_id);
-    } catch {
-      let delay = 1000;
-      await this.repo.transaction(async tx => { const s = await tx.search(job.trip_id); if (!s) return; s.attempts++; delay = Math.ceil(Math.min(30000, 1000 * 2 ** Math.min(s.attempts - 1, 10)) * (0.8 + Math.random() * 0.2)); await tx.saveSearch(s, delay); });
+    } catch (error) {
+      const failure = describeFailure(error); let delay = 1000, attempt = 0;
+      await this.repo.transaction(async tx => { const s = await tx.search(job.trip_id); if (!s) return; attempt = ++s.attempts; delay = retryDelay(attempt, failure); await tx.saveSearch(s, delay); });
       await this.repo.finishLease(job.trip_id, job.lease_id, delay);
-      console.warn(JSON.stringify({ event: 'matching_job_retry', tripId: job.trip_id, delayMs: delay }));
+      console.warn(JSON.stringify({ event: 'matching_job_retry', tripId: job.trip_id, attempt, delayMs: delay, dependency: failure.dependency, code: failure.code, status: failure.status }));
     } finally { clearInterval(renewal); }
   }
 }
