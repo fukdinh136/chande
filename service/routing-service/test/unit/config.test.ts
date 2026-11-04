@@ -17,6 +17,16 @@ test('mock defaults preserve bounded queue, radius and separate integrations', (
   const c = loadConfig(testEnv); assert.equal(c.map.mode, 'mock'); assert.equal(c.realtime.mode, 'mock');
   assert.equal(c.realtime.radius, 2000); assert.equal(c.limits.workers, 2); assert.equal(c.limits.deadline, 4000);
 });
+test('self-hosted OSRM raises the rate limit defaults; explicit values still win', () => {
+  const env = { ...testEnv, INTEGRATION_MODE: 'real', SUPPORTED_VEHICLE_TYPES: 'CAR', EXTERNAL_MAP_BASE_URL: 'http://osrm:5000', EXTERNAL_MAP_ALLOWED_HOSTS: 'osrm', EXTERNAL_MAP_ALLOW_HTTP: 'true' };
+  const shared = loadConfig(env, { read: () => profiles }).limits;
+  assert.deepEqual([shared.rps, shared.burst, shared.elementsPerMinute], [2, 2, 100]);
+  const own = loadConfig({ ...env, EXTERNAL_MAP_SELF_HOSTED: 'true' }, { read: () => profiles }).limits;
+  assert.deepEqual([own.rps, own.burst, own.elementsPerMinute], [200, 100, 300000]);
+  const tuned = loadConfig({ ...env, EXTERNAL_MAP_SELF_HOSTED: 'true', RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE: '1500000' }, { read: () => profiles }).limits;
+  assert.equal(tuned.elementsPerMinute, 1500000);
+  assert.throws(() => loadConfig({ ...env, EXTERNAL_MAP_SELF_HOSTED: 'yes' }, { read: () => profiles }), /EXTERNAL_MAP_SELF_HOSTED/);
+});
 test('native OSRM real mode needs endpoint/profile but not API key', () => {
   const c = loadConfig({ ...testEnv, INTEGRATION_MODE: 'real', SUPPORTED_VEHICLE_TYPES: 'CAR', EXTERNAL_MAP_BASE_URL: 'http://localhost:5000', EXTERNAL_MAP_ALLOW_HTTP: 'true' }, { read: () => profiles });
   assert.equal(c.map.key, ''); assert.equal(c.profiles.CAR?.baseUrl, 'http://localhost:5000');
