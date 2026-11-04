@@ -3,22 +3,24 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-10-29 |
+| Rà soát | 2026-11-04 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Kết quả ba nhóm kiểm thử hiệu năng cho mục P2.6 trong [kiến trúc mục tiêu](kien-truc-muc-tieu.md). Kế hoạch, test case và ngưỡng đạt/không đạt nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md); công cụ và cách chạy nằm trong [deploy/load](../deploy/load/README.md). Ba nhóm gồm: benchmark luồng đặt xe trước và sau tối ưu, tăng quy mô số tài xế, và trần thông lượng cùng kịch bản 3000 khách. Mọi lần đo chạy trên stack Kubernetes local, mục tiêu là tìm điểm nghẽn và so trước/sau, không phải nghiệm thu năng lực production.
+
+Các mục từ [Môi trường](#môi-trường) tới [Kịch bản 3000 khách](#kịch-bản-3000-khách-và-3500-tài-xế) là lần đo gốc ngày 2026-10-28/29. Kết quả sau khi làm [ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md) nằm ở [Đo lại sau ADR-0008](#đo-lại-sau-adr-0008).
 
 ## Kết luận
 
 | Câu hỏi | Trả lời ngắn | Mục |
 | --- | --- | --- |
 | Luồng đặt xe có chạy ở tải thấp không? | Ban đầu không: chỉ 1/270 chuyến tìm được tài xế vì rate limit của Routing. Sau khi chỉnh cấu hình: 100% chuyến được gán, p95 4,0 giây ở 1–2 chuyến/giây | [Benchmark](#benchmark-luồng-đặt-xe) |
-| Hệ thống gán được bao nhiêu chuyến mỗi giây? | Khoảng **2,5–3 chuyến/giây** là trần. Trần nằm ở hai hàng đợi outbox (Trip, Matching), không phải ở CPU hay ở bước tìm tài xế | [Trần thông lượng](#trần-thông-lượng-đặt-xe), [điểm nghẽn 1](#1-hai-hàng-đợi-outbox-giới-hạn-khoảng-3-chuyếngiây) |
-| Kịch bản cao nhất còn đạt ngưỡng? | **Khoảng 1000 tài xế online, 2 chuyến/giây** (khoảng 7200 chuyến/giờ): p95 tới `ASSIGNED` 4,0 giây, 0% lỗi. Từ 2,5 chuyến/giây, hoặc 2000 tài xế, là bắt đầu vượt ngưỡng | [Kịch bản cao nhất](#kịch-bản-cao-nhất-đạt-được) |
-| 3000 khách cùng đặt khi có 3500 tài xế rảnh thì sao? | **Chưa đáp ứng được.** Tài xế đủ, nhưng cần khoảng 13–20 phút để gán hết 3000 chuyến. Đặt trong 1–2 phút thì phần lớn khách phải chờ quá 1 phút | [Kịch bản 3000 khách](#kịch-bản-3000-khách-và-3500-tài-xế) |
+| Hệ thống gán được bao nhiêu chuyến mỗi giây? | Lần đo gốc: trần khoảng **2,5–3 chuyến/giây**, nằm ở hai hàng đợi outbox. Sau ADR-0008 và index outbox Matching: trần nằm giữa **6 và 8 chuyến/giây**, ở CPU của PostgreSQL và driver-api | [Đo lại sau ADR-0008](#đo-lại-sau-adr-0008), [điểm nghẽn 1](#1-hai-hàng-đợi-outbox-giới-hạn-khoảng-3-chuyếngiây) |
+| Kịch bản cao nhất còn đạt ngưỡng? | Sau ADR-0008 và index outbox Matching: **1000 tài xế online, 6 chuyến/giây** (khoảng 21600 chuyến/giờ): p95 tới `ASSIGNED` 6,7 giây, 0% lỗi. Chỉ ADR-0008: 4 chuyến/giây. Lần đo gốc: 2 chuyến/giây | [Sau khi thêm index](#sau-khi-thêm-index-outbox-matching), [kịch bản cao nhất gốc](#kịch-bản-cao-nhất-đạt-được) |
+| 3000 khách cùng đặt khi có 3500 tài xế rảnh thì sao? | **Chưa đáp ứng được.** Tài xế đủ, nhưng lần đo gốc cần khoảng 13–20 phút để gán hết 3000 chuyến; giờ ước tính còn khoảng 8–10 phút (chưa đo trực tiếp). Đặt trong 1–2 phút thì phần lớn khách vẫn phải chờ quá 1 phút | [Kịch bản 3000 khách](#kịch-bản-3000-khách-và-3500-tài-xế) |
 | Chịu được bao nhiêu tài xế online? | 500, 1000, 2000 tài xế ổn ở 2 chuyến/giây. Khi lên 5000, gãy lần lượt ở edge nginx, driver-api, rồi chính môi trường đo | [Tăng quy mô](#tăng-quy-mô-số-tài-xế) |
 
-Việc cần làm trước tiên là sửa hai hàng đợi outbox ([điểm nghẽn 1](#1-hai-hàng-đợi-outbox-giới-hạn-khoảng-3-chuyếngiây)), rồi rate limit đăng nhập theo IP của proxy ([điểm nghẽn 2](#2-rate-limit-đăng-nhập-tính-theo-ip-của-proxy)).
+Hai hàng đợi outbox ([điểm nghẽn 1](#1-hai-hàng-đợi-outbox-giới-hạn-khoảng-3-chuyếngiây)) đã được gỡ bằng ADR-0008, và outbox Matching đã có index ([điểm nghẽn 11](#11-publisher-matching-quét-toàn-bảng-outbox)). Việc cần làm tiếp theo là tìm câu SQL tốn CPU nhất của PostgreSQL, giảm tải eligibility của driver-api, rồi rate limit đăng nhập theo IP của proxy ([điểm nghẽn 2](#2-rate-limit-đăng-nhập-tính-theo-ip-của-proxy)).
 
 ## Môi trường
 
@@ -191,6 +193,112 @@ Câu hỏi: nếu 3000 người cùng muốn đặt xe khi có khoảng 3500 tà
 
 Kịch bản trọn vẹn (`run.cjs --drivers 3500 --ramp 25 --trips 3000 --rate 25`) chưa đo được trên máy này. 3500 tài xế lên mạng đủ, nhưng ngay khi đợt đặt xe bắt đầu, `cri-dockerd` (lớp runtime xử lý cả `kubectl port-forward` lẫn `exec`) sập. Node chuyển `NotReady`, 0 chuyến được tạo, phải khởi động lại Docker Desktop (dữ liệu giữ nguyên). Vì vậy câu trả lời dựa trên [trần thông lượng](#trần-thông-lượng-đặt-xe) đo riêng.
 
+## Đo lại sau ADR-0008
+
+Ngày 2026-11-04, commit `a0fe3c3` trên nhánh `perf/adr-0008-trip-outbox`. Phần đã làm của [ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md):
+- A1: outbox Trip lặp ngay khi lô 100 tin đầy.
+- A2: publisher Matching chạy vòng riêng và được đánh thức ngay khi worker commit offer.
+- A3: worker Matching chạy dạng pool tối đa 16 job; search có offer chờ được hẹn lại lúc offer hết hạn.
+- A5: nghỉ 250 ms khi rảnh.
+
+Môi trường giống [lần đo gốc](#môi-trường), chỉ khác là matching-worker không còn ghi đè `WORKER_CONCURRENCY`. Kịch bản: 1000 tài xế trong 6 km, GPS mỗi 3 giây, mỗi chuyến huỷ ngay sau khi gán. Mỗi mức đo 2 phút, riêng mức 2 chuyến/giây đo 3 phút như lần gốc.
+
+```bash
+node deploy/load/run.cjs --drivers 1000 --radius 6000 --rate 4 --duration 2m --warmup 30
+node deploy/load/segments.cjs --since <started> --until <finished>
+```
+
+Kết quả phía khách (k6), so với các mức tương ứng ở [Trần thông lượng](#trần-thông-lượng-đặt-xe) và [Kịch bản cao nhất](#kịch-bản-cao-nhất-đạt-được):
+
+| Chuyến/giây | Trước: được gán; tới `ASSIGNED` p50 / p95 | Sau: được gán; tới `ASSIGNED` p50 / p95 | Sau: báo giá p95 | Sau: ack GPS p95 | Sau: lỗi HTTP | Đạt ngưỡng? |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 301/301 (50 tài xế, 2 km); 3,1 / 4,0 giây | 121/121; 0,9 / 2,2 giây | 334 ms | 163 ms | 0% | Báo giá vượt ngưỡng; xem ghi chú sự cố bên dưới |
+| 2 | 361/361; 3,1 / 4,0 giây | 361/361; 0,9 / 1,6 giây | 172 ms | 92 ms | 0% | **Đạt** |
+| 4 | 394/394, hàng đợi dài dần; 26,6 / 48,0 giây | 481/481; 0,6 / 0,9 giây | 40 ms | 9 ms | 0% | **Đạt** |
+| 5 | — | 601/601; 0,9 / 5,6 giây | 417 ms | 312 ms | 0% | Không: báo giá và GPS vượt ngưỡng |
+| 6 | — | 721/721; 1,8 / 21,5 giây | 1009 ms | 425 ms | 0% | Không |
+| 8 | 110 được gán, 422 quá 60 giây; 19,3 / 55,9 giây | 513 được gán, 196 quá 60 giây; 0,9 / 50,6 giây | 2005 ms | 956 ms | 3,9% | Không |
+
+Ngưỡng theo [kế hoạch](ke-hoach-kiem-thu-hieu-nang.md#5-ngưỡng-đạtkhông-đạt-đề-xuất): tới `ASSIGNED` p95 ≤ 10 giây, báo giá p95 ≤ 300 ms, ack GPS p95 ≤ 200 ms, lỗi HTTP < 0,5%.
+
+Tách theo đoạn từ mốc thời gian trong DB (p50 / p95), bằng [segments.cjs](../deploy/load/segments.cjs). Cột "trước" dùng cùng script trên dữ liệu của lần đo gốc, vẫn còn trong DB:
+
+| Đoạn | 2/giây trước | 2/giây sau | 4/giây trước | 4/giây sau | 6/giây sau |
+| --- | --- | --- | --- | --- | --- |
+| `SEARCHING` → Matching tạo offer | 1,00 / 1,94 giây | 0,35 / 1,11 giây | 21,7 / 53,1 giây | 0,35 / 0,58 giây | 1,31 / 11,5 giây |
+| Offer → publish lên RabbitMQ | 931 / 952 ms | 7 / 54 ms | 4913 / 8017 ms | 7 / 29 ms | 37 / 231 ms |
+| Publish → tài xế accept | 7 / 17 ms | 6 / 24 ms | 7 / 53 ms | 5 / 16 ms | 12 / 70 ms |
+| Accept → Trip `ASSIGNED` | 1,00 / 1,04 giây | 0,25 / 0,27 giây | 3,98 / 7,03 giây | 0,25 / 0,27 giây | 0,26 / 10,1 giây |
+| Tổng `SEARCHING` → `ASSIGNED` | 2,91 / 3,88 giây | 0,62 / 1,52 giây | 30,8 / 78,9 giây | 0,57 / 0,78 giây | 1,59 / 21,4 giây |
+
+Tổng của cột "4/giây trước" trong DB lớn hơn số của k6 (48,0 giây), vì DB tính cả các chuyến được gán sau khi k6 đã thôi chờ ở 60 giây.
+
+Đối chiếu tiêu chí đo lại của ADR-0008:
+
+| Tiêu chí | Kết quả |
+| --- | --- |
+| 1000 tài xế, 4 chuyến/giây: `SEARCHING` → `ASSIGNED` p95 ≤ 10 giây, không tăng dần | **Đạt**: 0,78 giây (DB), 0,94 giây (k6); 481/481 chuyến |
+| Đoạn offer → publish p95 ≤ 200 ms | **Đạt**: 29 ms ở 4 chuyến/giây; 128 ms ở 5 chuyến/giây |
+| 1000 tài xế, 1 chuyến/giây: p95 ≤ 2 giây | **Sát ngưỡng, chưa đạt theo k6**: 2,21 giây (k6), 1,83 giây (DB); 121/121 chuyến, p50 0,9 giây. Đo sau khi khởi động lại Docker Desktop, cùng lúc báo giá p95 334 ms, cao hơn mức 4 chuyến/giây đo trước đó (40 ms), nên đuôi chậm có thể do môi trường; chưa xác minh. Cần đo lại |
+
+**Kết luận:**
+- Mức cao nhất đạt mọi ngưỡng tăng từ 2 lên **4 chuyến/giây**, tức khoảng 14400 chuyến/giờ.
+- Ở 2 chuyến/giây, p95 tới `ASSIGNED` giảm từ 4,0 xuống 1,6 giây.
+- Ở 5 và 6 chuyến/giây, mọi chuyến vẫn được gán và không có lỗi HTTP, nhưng chậm dần.
+
+Trần đã chuyển chỗ. Trước đây, ở 4 chuyến/giây, mọi pod dùng dưới 0,35 core mà hàng đợi vẫn dài. Bây giờ hàng đợi không còn là điểm nghẽn, mà các service bắt đầu thật sự tốn CPU:
+
+| Pod (CPU trung bình, millicore) | 4/giây | 5/giây | 6/giây | 8/giây |
+| --- | --- | --- | --- | --- |
+| postgres | 307 | 820 | 1022 | 1026 |
+| driver-api | 179 | 464 | 595 | 594 |
+| gateway-api | 123 | 207 | 415 | 727 |
+| trip-api | 90 | 251 | 414 | 533 |
+| realtime-api | 126 | 261 | 309 | 313 |
+| matching-worker | 57 | 121 | 141 | 118 |
+
+PostgreSQL chạm khoảng 1 core từ 6 chuyến/giây, kéo theo báo giá, ack GPS và callback gán của Trip cùng chậm: đoạn accept → `ASSIGNED` p95 lên 10 giây ở 6 chuyến/giây. Có hai nguồn tải đã biết:
+- Publisher Matching quét toàn bảng outbox ([điểm nghẽn 11](#11-publisher-matching-quét-toàn-bảng-outbox)).
+- Eligibility của tài xế trong 2 km ([điểm nghẽn 5](#5-realtime-kiểm-eligibility-mọi-tài-xế-trong-2-km-và-giới-hạn-50-tài-xế-phải-khớp-ở-ba-service)).
+
+Chưa tách được phần CPU của từng nguồn. Ở 8 chuyến/giây, khách chờ lâu cùng poll, nên Gateway và Trip tăng thêm ([điểm nghẽn 9](#9-poll-trạng-thái-làm-khuếch-đại-tải-khi-chờ-lâu)).
+
+Với kịch bản 3000 khách, gán ổn định ở khoảng 4–5 chuyến/giây cho ước tính khoảng 10–12 phút để gán hết 3000 chuyến (lần đo gốc ước tính 13–20 phút). Sau khi thêm index, con số này còn khoảng 8–10 phút ([bên dưới](#sau-khi-thêm-index-outbox-matching)). Các ước tính này chưa được đo trực tiếp.
+
+Sự cố trong lần đo: ngay sau 4 mức đo liên tiếp (4, 8, 6, 5 chuyến/giây), lần đo 2 chuyến/giây đầu tiên làm `cri-dockerd` sập. Node chuyển `NotReady`, Realtime restart, và 1000 tài xế mất kết nối. Đây là cùng giới hạn của môi trường đo đã nêu ở [Giới hạn](#giới-hạn-của-lần-đo). Sau khi khởi động lại Docker Desktop (dữ liệu giữ nguyên), mức 2 chuyến/giây được đo lại; số trong bảng là của lần đo lại. Hai mức 2 và 1 chuyến/giây đều đo sau khi khởi động lại, và đều có đuôi chậm hơn mức 4 chuyến/giây đo trước đó: báo giá p95 172 và 334 ms so với 40 ms, ack GPS p95 92 và 163 ms so với 9 ms. Tải thấp hơn mà chậm hơn cho thấy môi trường sau khởi động lại chậm hơn, nhưng chưa tìm ra nguyên nhân. Nên đo lại hai mức này trên một môi trường ổn định.
+
+### Sau khi thêm index outbox Matching
+
+Cùng ngày 2026-11-04, sau khi thêm migration `MatchingOutboxPending1793750400000` ([điểm nghẽn 11](#11-publisher-matching-quét-toàn-bảng-outbox)). Kịch bản giống trên. Câu claim của publisher chuyển từ quét toàn bảng sang `Index Scan using matching_outbox_pending`, mất 0,017 ms. Khi rảnh, số lần quét toàn bảng `matching_outbox` trong 10 giây giảm từ 40 lần (2,26 triệu dòng) xuống 0.
+
+| Chuyến/giây | Chỉ ADR-0008: được gán; tới `ASSIGNED` p50 / p95 | Thêm index: được gán; tới `ASSIGNED` p50 / p95 | Báo giá p95 (trước → sau) | Ack GPS p95 (trước → sau) | Lỗi HTTP sau | Đạt ngưỡng sau? |
+| --- | --- | --- | --- | --- | --- | --- |
+| 5 | 601/601; 0,9 / 5,6 giây | 601/601; 0,9 / 2,9 giây | 417 → 266 ms | 312 → 153 ms | 0% | **Đạt** |
+| 6 | 721/721; 1,8 / 21,5 giây | 721/721; 0,6 / 6,7 giây | 1009 → 154 ms | 425 → 88 ms | 0% | **Đạt** |
+| 8 | 513 được gán, 196 quá 60 giây, lỗi 3,9%; 0,9 / 50,6 giây | 946 được gán, 15 quá 60 giây; 14,2 / 44,9 giây | 2005 → 687 ms | 956 → 193 ms | 0% | Không: hàng đợi dài dần |
+
+CPU trung bình (millicore), chỉ ADR-0008 → thêm index:
+
+| Pod | 5/giây | 6/giây | 8/giây |
+| --- | --- | --- | --- |
+| postgres | 820 → 517 | 1022 → 459 | 1026 → 1003 |
+| driver-api | 464 → 373 | 595 → 328 | 594 → 726 |
+| gateway-api | 207 → 244 | 415 → 156 | 727 → 554 |
+| trip-api | 251 → 204 | 414 → 180 | 533 → 536 |
+
+Tách theo đoạn ở 6 chuyến/giây (p50 / p95), chỉ ADR-0008 → thêm index:
+- `SEARCHING` → offer: 1,31 / 11,5 giây → 0,39 / 3,0 giây.
+- Offer → publish: 37 / 231 ms → 7 / 34 ms.
+- Accept → `ASSIGNED`: 0,26 / 10,1 giây → 0,08 / 1,6 giây.
+
+**Kết luận:**
+- Mức cao nhất đạt mọi ngưỡng tăng từ 4 lên **6 chuyến/giây** (khoảng 21600 chuyến/giờ), gấp 3 lần lần đo gốc.
+- Ở 8 chuyến/giây, gần như mọi chuyến được gán và không có lỗi HTTP, nhưng hàng đợi dài dần.
+- Ở 8 chuyến/giây, PostgreSQL vẫn khoảng 1 core và driver-api khoảng 0,7 core. Đây là trần kế tiếp. Chưa biết câu SQL nào tốn nhất, vì chưa bật `pg_stat_statements`. Nguồn đã biết là eligibility của tài xế trong 2 km ([điểm nghẽn 5](#5-realtime-kiểm-eligibility-mọi-tài-xế-trong-2-km-và-giới-hạn-50-tài-xế-phải-khớp-ở-ba-service)) và poll của khách chờ lâu ([điểm nghẽn 9](#9-poll-trạng-thái-làm-khuếch-đại-tải-khi-chờ-lâu)).
+- Với 3000 khách, ở khoảng 6 chuyến/giây, ước tính khoảng 8–10 phút để gán hết, vẫn chưa đạt mục tiêu 1–2 phút.
+
+Mức 1 chuyến/giây chưa đo lại sau khi thêm index.
+
 ## Điểm nghẽn tìm được
 
 Xếp theo mức ưu tiên xử lý.
@@ -210,6 +318,8 @@ Hướng xử lý:
 - Trip: lặp ngay khi lô đầy thay vì nghỉ 1 giây, tăng `OUTBOX_BATCH_SIZE`, tách hàng `search` khỏi event.
 - Matching: publisher chạy tới khi hết tin, độc lập với nhịp worker.
 - Đo lại ở 4, 8, 16 chuyến/giây.
+
+**Đã xử lý** bằng [ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md) (A1, A2). Ở 4 chuyến/giây, đoạn offer → publish còn 7 / 29 ms (p50 / p95) và hàng đợi không còn dài dần ([Đo lại sau ADR-0008](#đo-lại-sau-adr-0008)). Tách hàng `search` khỏi event chưa làm.
 
 ### 2. Rate limit đăng nhập tính theo IP của proxy
 
@@ -250,6 +360,8 @@ Sau khi nâng lên 20000 element/phút, 50 request/giây, burst 20, cùng lời 
 
 Ngay cả khi rảnh, một chuyến vẫn qua 3–4 vòng chờ khoảng 1 giây: outbox Trip, nhịp worker, nhịp publisher, nhịp worker sau khi accept, tổng khoảng 3 giây. Có thể giảm bằng cách hạ nhịp poll (đổi lại là nhiều query PostgreSQL hơn), hoặc đánh thức worker và publisher ngay khi có việc (`LISTEN/NOTIFY`, hoặc publish ngay sau khi commit offer).
 
+**Đã xử lý** bằng ADR-0008 (A3, A5): worker chạy dạng pool tối đa 16 job, nghỉ 250 ms khi rảnh; publisher được đánh thức ngay khi worker commit offer. Bỏ ghi đè `WORKER_CONCURRENCY=8` trong stack. Ở 2 chuyến/giây, tổng `SEARCHING` → `ASSIGNED` p50 từ 2,9 xuống 0,6 giây. Phần còn lại chủ yếu là khoảng 250 ms chờ ở outbox Trip cho mỗi chiều.
+
 ### 8. Lỗi matching bị nuốt và backoff tới 30 giây
 
 Worker bắt mọi lỗi bằng `catch {}` rồi retry với backoff 1 → 2 → 4 → 8 → 16 → 30 giây ([worker.ts](../service/matching-service/src/application/worker.ts)). Log chỉ có `tripId` và `delayMs`, không có mã lỗi. Ở benchmark lần 1, phải tái hiện thủ công mới biết lỗi là `ROUTING_BUSY`. Các lần retry ở benchmark lần 2 và 37 chuyến chậm ở bậc 2000 tài xế chưa rõ nguyên nhân vì lý do này.
@@ -264,6 +376,21 @@ Bộ k6 poll mỗi 300 ms; app thật không poll mà nhận `trip.event` qua `/
 
 Khi nhận event offer từ RabbitMQ, Realtime gọi `GET /internal/matching/offers/:id` sang Matching rồi mới đẩy qua Socket.IO ([consumer.ts](../service/realtime-service/src/infrastructure/offers/consumer.ts)). Đoạn publish → accept vẫn chỉ mất 6–8 ms p50, kể cả ở 4 chuyến/giây, nên hiện chưa gây ảnh hưởng.
 
+### 11. Publisher Matching quét toàn bảng outbox
+
+Tìm thấy khi đo lại sau ADR-0008. Câu claim của [publisher.ts](../service/matching-service/src/infrastructure/publisher.ts) lọc `published_at IS NULL AND due_at <= now()` rồi `ORDER BY due_at LIMIT 1`, nhưng `matching_outbox` không có index cho điều kiện này. `EXPLAIN` cho thấy PostgreSQL quét toàn bảng (`Seq Scan`) ở mỗi lần claim. Bảng không bao giờ được dọn: trên stack local đã có khoảng 56000 dòng, gần hết là tin đã publish.
+
+| Đo trên `matching_db` | Giá trị |
+| --- | --- |
+| 10 giây khi rảnh | 40 lần quét toàn bảng, khoảng 2,26 triệu dòng đọc (khoảng 225000 dòng/giây) |
+| Tích lũy từ lúc PostgreSQL khởi động | `matching_outbox` 2,45 tỉ dòng đọc bằng quét toàn bảng; mọi bảng khác của Matching cộng lại dưới 4 triệu |
+
+A2 làm điểm này nặng hơn: publisher claim từng tin một và chạy tới khi hết tin, nên mỗi tin là một lần quét. Đây là ứng viên chính cho việc PostgreSQL lên 0,8–1 core ở 5–6 chuyến/giây, nhưng chưa tách được bao nhiêu phần CPU là do câu này, vì chưa bật `pg_stat_statements`.
+
+Hướng xử lý: partial index `ON matching_outbox(due_at) WHERE published_at IS NULL` (giống `outbox_pending` của Trip), và dọn hoặc chuyển tin đã publish sang bảng lưu trữ theo lịch. Sau đó đo lại 5 và 6 chuyến/giây.
+
+**Đã thêm index** (migration `MatchingOutboxPending1793750400000` trong [persistence.ts](../service/matching-service/src/infrastructure/persistence.ts), có test tích hợp kiểm planner dùng được index). Kết quả: 5 và 6 chuyến/giây chuyển từ không đạt sang đạt mọi ngưỡng ([Sau khi thêm index](#sau-khi-thêm-index-outbox-matching)). Việc dọn tin đã publish chưa làm: bảng vẫn lớn dần, nhưng index chỉ chứa tin chưa publish nên claim không còn chậm theo kích thước bảng.
+
 ## Giới hạn của lần đo
 
 - Chưa có metrics và tracing phía service (P1.4). Số đo đến từ client, cgroup, thống kê PostgreSQL và mốc thời gian trong DB; nguyên nhân được tìm bằng log, DB và tái hiện thủ công.
@@ -275,4 +402,4 @@ Khi nhận event offer từ RabbitMQ, Realtime gọi `GET /internal/matching/off
 
 ## Bước tiếp theo
 
-Mọi đề xuất cải tiến, kèm công sức, chi phí, đối chiếu ADR và lộ trình đo lại, nằm trong [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md). Ưu tiên đầu tiên là gỡ hai hàng đợi outbox và nhịp worker Matching ([điểm nghẽn 1](#1-hai-hàng-đợi-outbox-giới-hạn-khoảng-3-chuyếngiây)), rồi đo lại trần thông lượng.
+Mọi đề xuất cải tiến, kèm công sức, chi phí, đối chiếu ADR và lộ trình đo lại, nằm trong [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md). Hai hàng đợi outbox và nhịp worker Matching đã được gỡ bằng ADR-0008 ([Đo lại sau ADR-0008](#đo-lại-sau-adr-0008)). Index cho outbox Matching cũng đã thêm ([điểm nghẽn 11](#11-publisher-matching-quét-toàn-bảng-outbox)), đưa mức đạt ngưỡng lên 6 chuyến/giây. Ưu tiên tiếp theo là bật `pg_stat_statements` để biết PostgreSQL tốn CPU ở câu nào, rồi giảm tải eligibility của driver-api ([điểm nghẽn 5](#5-realtime-kiểm-eligibility-mọi-tài-xế-trong-2-km-và-giới-hạn-50-tài-xế-phải-khớp-ở-ba-service)).

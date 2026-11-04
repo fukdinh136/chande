@@ -18,6 +18,7 @@ Bộ công cụ đo baseline cho mục P2.6 trong [kiến trúc mục tiêu](../
 | `pods.cjs` | Lấy mẫu CPU/RAM từng pod từ cgroup bằng `kubectl exec` (Docker Desktop không có metrics-server) |
 | `run.cjs` | Chạy một lần đo đầy đủ, ghi kết quả vào `deploy/.local/load/results/<thời điểm>/` |
 | `assignments.cjs` | Đọc `trip_db`: số chuyến bắt đầu SEARCHING sau `--since`, số đã gán, thời gian chờ và số chuyến gán mỗi phút; `--wait N` chờ tới khi hết chuyến SEARCHING |
+| `segments.cjs` | Tách `SEARCHING` → `ASSIGNED` theo đoạn (tạo offer, publish, accept, Trip ghi `ASSIGNED`) từ mốc thời gian trong `trip_db` và `matching_db`, cho chuyến bắt đầu trong khoảng `--since` … `--until`. Lấy hai mốc này từ `started`, `finished` trong `summary.json` |
 
 Dữ liệu test nằm trong `deploy/.local/load/` (đã gitignore): `drivers.json`, `riders.json` chứa refresh token, `rider-tokens.json` chứa access token cho k6. Tài xế test có ID tiền tố `30000000-`, số điện thoại `8496xxxxxxx`, biển số `LOAD-xxxxxx`, xe `CAR_4`. Rider có tên `Load Rider N`.
 
