@@ -1,5 +1,5 @@
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
-const { root, images, stack } = require('./stack.cjs');
+const { root, images, stack, edgeSizing } = require('./stack.cjs');
 const out = path.join(__dirname, '.local', 'backend');
 fs.mkdirSync(out, { recursive: true });
 const secretFile = path.join(out, 'credentials.json');
@@ -54,7 +54,10 @@ for (const [name, a] of Object.entries(apps)) {
   compose.services[name] = { image:a.image, init:true, env_file:[absolute(envFile)], depends_on:dependencies, healthcheck:health(probe), stop_grace_period:'60s', ...(a.command ? {command:a.command}:{}), ...(a.keys ? {volumes:[`${absolute(path.join(out,keyName))}:/run/keys/${keyName}:ro`]}:{}) };
   if (a.migration) compose.services[name.replace('-api','-migrate')] = {image:a.image, env_file:[absolute(envFile)], command:['node','dist/migrate.js'], depends_on:{postgres:{condition:'service_healthy'}}};
 }
-compose.services.edge = { image:images.nginx, volumes:[`${absolute(path.join(__dirname,'nginx.conf'))}:/etc/nginx/nginx.conf:ro`], ports:['127.0.0.1:18080:8088'], depends_on:{'gateway-api':{condition:'service_healthy'},'realtime-api':{condition:'service_healthy'}}, healthcheck:health(['CMD','wget','-q','--spider','http://127.0.0.1:8088/health/live']) };
+const edge = edgeSizing();
+const nginxConf = fs.readFileSync(path.join(__dirname,'nginx.conf'),'utf8').replace('__WORKER_CONNECTIONS__',String(edge.workerConnections)).replace('__RLIMIT_NOFILE__',String(edge.rlimitNofile));
+fs.writeFileSync(path.join(out,'nginx.conf'),nginxConf);
+compose.services.edge = { image:images.nginx, volumes:[`${absolute(path.join(out,'nginx.conf'))}:/etc/nginx/nginx.conf:ro`], ports:['127.0.0.1:18080:8088'], depends_on:{'gateway-api':{condition:'service_healthy'},'realtime-api':{condition:'service_healthy'}}, healthcheck:health(['CMD','wget','-q','--spider','http://127.0.0.1:8088/health/live']) };
 fs.writeFileSync(path.join(out,'compose.json'),JSON.stringify(compose,null,2));
 
 const ns = 'chande-local', labels = name => ({'app.kubernetes.io/name':name,'app.kubernetes.io/part-of':'chande'}), metadata = name => ({name,namespace:ns,labels:labels(name)});
@@ -62,7 +65,7 @@ const infra = [{apiVersion:'v1',kind:'Namespace',metadata:{name:ns,labels:{'app.
 const workloads = [], migrations = [];
 const secret = (name, data) => ({apiVersion:'v1',kind:'Secret',metadata:metadata(name),type:'Opaque',stringData:Object.fromEntries(Object.entries(data).map(([k,v])=>[k,String(v)]))});
 infra.push(secret('postgres-env',postgresEnv),secret('rabbitmq-env',rabbitEnv),secret('signing-keys',{'user.pem':fs.readFileSync(path.join(out,'user.pem'),'utf8'),'driver.pem':fs.readFileSync(path.join(out,'driver.pem'),'utf8')}));
-infra.push({apiVersion:'v1',kind:'ConfigMap',metadata:metadata('postgres-bootstrap'),data:{'init.sh':init,'driver.sql':driverSQL}},{apiVersion:'v1',kind:'ConfigMap',metadata:metadata('nginx-config'),data:{'nginx.conf':fs.readFileSync(path.join(__dirname,'nginx.conf'),'utf8')}});
+infra.push({apiVersion:'v1',kind:'ConfigMap',metadata:metadata('postgres-bootstrap'),data:{'init.sh':init,'driver.sql':driverSQL}},{apiVersion:'v1',kind:'ConfigMap',metadata:metadata('nginx-config'),data:{'nginx.conf':nginxConf}});
 const probeHTTP = (port, path) => ({httpGet:{port,path},periodSeconds:5,timeoutSeconds:3,failureThreshold:6});
 function service(name, ports, type, nodePort) { return {apiVersion:'v1',kind:'Service',metadata:metadata(name),spec:{selector:labels(name),...(type?{type}:{}),ports:ports.map((port,i)=>({name:'port-'+port,port,targetPort:port,...(nodePort && i===0 ? {nodePort}: {})}))}}; }
 function deployment(name, container, volumes = [], memory = '256Mi') {
@@ -87,7 +90,7 @@ for (const [name,a] of Object.entries(apps)) {
   workloads.push(resource,service(name,name==='gateway-api'?[8080,8090]:[a.port]));
   if (a.migration) migrations.push({apiVersion:'batch/v1',kind:'Job',metadata:metadata(name.replace('-api','-migrate')),spec:{backoffLimit:3,activeDeadlineSeconds:180,template:{metadata:{labels:labels(name.replace('-api','-migrate'))},spec:{restartPolicy:'Never',automountServiceAccountToken:false,containers:[{name:'migrate',image:a.image,imagePullPolicy:'IfNotPresent',command:['node','dist/migrate.js'],envFrom:[{secretRef:{name:name+'-env'}}]}]}}}});
 }
-workloads.push(deployment('edge',{image:images.nginx,readinessProbe:probeHTTP(8088,'/health/live'),volumeMounts:[{name:'config',mountPath:'/etc/nginx/nginx.conf',subPath:'nginx.conf',readOnly:true}]},[{name:'config',configMap:{name:'nginx-config'}}],'512Mi'),service('edge',[8088]));
+workloads.push(deployment('edge',{image:images.nginx,readinessProbe:probeHTTP(8088,'/health/live'),volumeMounts:[{name:'config',mountPath:'/etc/nginx/nginx.conf',subPath:'nginx.conf',readOnly:true}]},[{name:'config',configMap:{name:'nginx-config'}}],edge.memory),service('edge',[8088]));
 const imageIdsFile = path.join(out, 'images.json');
 if (fs.existsSync(imageIdsFile)) {
   const ids = JSON.parse(fs.readFileSync(imageIdsFile, 'utf8'));

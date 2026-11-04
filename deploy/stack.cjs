@@ -24,4 +24,12 @@ function stack(s) {
     'realtime-api': app('realtime', 3006, { NODE_ENV: 'development', PORT: '3006', REDIS_URL: 'redis://redis:6379/2', AUTH_JWKS_URL: 'http://driver-api:3003/.well-known/jwks.json', AUTH_JWT_ISSUER: 'chande-driver-local', AUTH_JWT_AUDIENCE: 'realtime-service', DRIVER_BASE_URL: 'http://driver-api:3003', DRIVER_TIMEOUT_MS: '2500', ROUTING_INBOUND_TOKEN: s.routingRealtime, DRIVER_ELIGIBILITY_TOKEN: s.realtimeDriver, RABBITMQ_URL: matching.RABBITMQ_URL, MATCHING_BASE_URL: 'http://matching-api:3007', MATCHING_REALTIME_TOKEN: s.realtimeMatching }),
   };
 }
-module.exports = { root, images, stack };
+// Edge nginx sized from the drivers expected online at peak (A9). Each driver WebSocket holds two connections
+// (client -> edge, edge -> Realtime); REST adds about 25%. Memory: ~48 KB per driver measured at 1000 drivers, x1.5.
+const edgeSizing = (peakDrivers = Number(process.env.EDGE_PEAK_DRIVERS || 5000)) => {
+  if (!Number.isInteger(peakDrivers) || peakDrivers < 100 || peakDrivers > 200000) throw new Error('EDGE_PEAK_DRIVERS must be an integer 100..200000');
+  const workerConnections = Math.max(1024, Math.ceil(peakDrivers * 2 * 1.25));
+  const memoryMi = Math.ceil((64 + peakDrivers * 72 / 1024) / 64) * 64;
+  return { peakDrivers, workerConnections, rlimitNofile: workerConnections * 2, memory: memoryMi + 'Mi' };
+};
+module.exports = { root, images, stack, edgeSizing };
