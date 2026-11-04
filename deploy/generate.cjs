@@ -29,16 +29,19 @@ CREATE DATABASE user_db OWNER user_service;
 CREATE DATABASE driver_db OWNER driver_service;
 CREATE DATABASE trip_db OWNER trip_service;
 CREATE DATABASE matching_db OWNER matching_service;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 SQL
 psql -v ON_ERROR_STOP=1 -U driver_service -d driver_db -f /bootstrap/driver.sql
 `;
 fs.writeFileSync(path.join(out, 'init.sh'), init, 'utf8'); fs.writeFileSync(path.join(out, 'driver.sql'), driverSQL, 'utf8');
+// pg_stat_statements (E3): per-query time for load tests; the extension lives in the postgres database and sees all databases.
+const postgresArgs = ['postgres','-c','shared_preload_libraries=pg_stat_statements','-c','pg_stat_statements.track=top'];
 const postgresEnv = { POSTGRES_USER: 'backend_root', POSTGRES_PASSWORD: secrets.rootPassword, POSTGRES_DB: 'postgres', USER_DB_PASSWORD: secrets.userPassword, DRIVER_DB_PASSWORD: secrets.driverPassword, TRIP_DB_PASSWORD: secrets.tripPassword, MATCHING_DB_PASSWORD: secrets.matchingPassword };
 const rabbitEnv = { RABBITMQ_DEFAULT_USER: 'backend', RABBITMQ_DEFAULT_PASS: secrets.rabbitPassword, RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '+S 2:2 +A 4' };
 const absolute = file => path.resolve(file).replaceAll('\\', '/');
 const compose = { name: 'chande-backend', services: {}, volumes: { postgres: {}, redis: {}, rabbit: {} } };
 const health = test => ({ test, interval: '5s', timeout: '3s', retries: 40, start_period: '15s' });
-compose.services.postgres = { image: images.postgres, environment: postgresEnv, volumes: ['postgres:/var/lib/postgresql', `${absolute(path.join(out,'init.sh'))}:/docker-entrypoint-initdb.d/init.sh:ro`,`${absolute(path.join(out,'driver.sql'))}:/bootstrap/driver.sql:ro`], healthcheck: health(['CMD-SHELL','pg_isready -U backend_root -d postgres']) };
+compose.services.postgres = { image: images.postgres, command: postgresArgs, environment: postgresEnv, volumes: ['postgres:/var/lib/postgresql', `${absolute(path.join(out,'init.sh'))}:/docker-entrypoint-initdb.d/init.sh:ro`,`${absolute(path.join(out,'driver.sql'))}:/bootstrap/driver.sql:ro`], healthcheck: health(['CMD-SHELL','pg_isready -U backend_root -d postgres']) };
 compose.services.redis = { image: images.redis, command: ['redis-server','--appendonly','yes'], volumes:['redis:/data'], healthcheck:health(['CMD','redis-cli','ping']) };
 compose.services.rabbitmq = { image: images.rabbit, user:'rabbitmq', hostname:'rabbitmq', environment: rabbitEnv, volumes:['rabbit:/var/lib/rabbitmq'], healthcheck:health(['CMD','rabbitmq-diagnostics','-q','ping']) };
 const route = '/route/v1/driving/105.8542,21.0285;105.8355,21.0272?overview=false';
@@ -72,7 +75,7 @@ function deployment(name, container, volumes = [], memory = '256Mi') {
   return {apiVersion:'apps/v1',kind:'Deployment',metadata:metadata(name),spec:{replicas:1,strategy:{type:'Recreate'},selector:{matchLabels:labels(name)},template:{metadata:{labels:labels(name)},spec:{automountServiceAccountToken:false,terminationGracePeriodSeconds:60,containers:[{name,imagePullPolicy:'IfNotPresent',resources:{requests:{cpu:'50m',memory:'64Mi'},limits:{cpu:'2',memory}},...container}],volumes}}}};
 }
 for (const name of ['postgres','redis','rabbitmq']) infra.push({apiVersion:'v1',kind:'PersistentVolumeClaim',metadata:metadata(name+'-data'),spec:{accessModes:['ReadWriteOnce'],resources:{requests:{storage:name==='postgres'?'2Gi':'1Gi'}}}});
-infra.push(deployment('postgres',{image:images.postgres,envFrom:[{secretRef:{name:'postgres-env'}}],ports:[{containerPort:5432}],readinessProbe:{exec:{command:['pg_isready','-U','backend_root','-d','postgres']},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/var/lib/postgresql'},{name:'init',mountPath:'/docker-entrypoint-initdb.d'},{name:'bootstrap',mountPath:'/bootstrap'}]},[{name:'data',persistentVolumeClaim:{claimName:'postgres-data'}},{name:'init',configMap:{name:'postgres-bootstrap',items:[{key:'init.sh',path:'init.sh'}]}},{name:'bootstrap',configMap:{name:'postgres-bootstrap'}}],'512Mi'),service('postgres',[5432]));
+infra.push(deployment('postgres',{image:images.postgres,args:postgresArgs,envFrom:[{secretRef:{name:'postgres-env'}}],ports:[{containerPort:5432}],readinessProbe:{exec:{command:['pg_isready','-U','backend_root','-d','postgres']},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/var/lib/postgresql'},{name:'init',mountPath:'/docker-entrypoint-initdb.d'},{name:'bootstrap',mountPath:'/bootstrap'}]},[{name:'data',persistentVolumeClaim:{claimName:'postgres-data'}},{name:'init',configMap:{name:'postgres-bootstrap',items:[{key:'init.sh',path:'init.sh'}]}},{name:'bootstrap',configMap:{name:'postgres-bootstrap'}}],'512Mi'),service('postgres',[5432]));
 infra.push(deployment('redis',{image:images.redis,args:['redis-server','--appendonly','yes'],readinessProbe:{exec:{command:['redis-cli','ping']},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/data'}]},[{name:'data',persistentVolumeClaim:{claimName:'redis-data'}}],'256Mi'),service('redis',[6379]));
 infra.push(deployment('rabbitmq',{image:images.rabbit,envFrom:[{secretRef:{name:'rabbitmq-env'}}],readinessProbe:{tcpSocket:{port:5672},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/var/lib/rabbitmq'}]},[{name:'data',persistentVolumeClaim:{claimName:'rabbitmq-data'}}],'512Mi'),service('rabbitmq',[5672]));
 const rabbitPod = infra.find(r=>r.kind==='Deployment' && r.metadata.name==='rabbitmq').spec.template.spec;
