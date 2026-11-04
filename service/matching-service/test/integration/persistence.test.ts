@@ -31,3 +31,15 @@ test('publisher claim on matching_outbox can use the matching_outbox_pending par
     assert.match(plan.map(r => r['QUERY PLAN']).join('\n'), /matching_outbox_pending/);
   } finally { await db.destroy(); }
 });
+test('purgePublished removes only messages published before the retention window', { skip: !process.env.MATCHING_TEST_DATABASE_URL }, async () => {
+  const db = source(process.env.MATCHING_TEST_DATABASE_URL!); await db.initialize(); await db.runMigrations(); const repo = new Repository(db);
+  const old = randomUUID(), recent = randomUUID(), pending = randomUUID(), older = randomUUID();
+  try {
+    await db.query(`INSERT INTO matching_outbox(id,payload,published_at) VALUES ($1,'{}',clock_timestamp()-interval '3 days'),($2,'{}',clock_timestamp()-interval '2 days'),($3,'{}',clock_timestamp()),($4,'{}',NULL)`, [older, old, recent, pending]);
+    // Other tests share this database, so check only this test's rows.
+    const mine = async () => ((await db.query('SELECT id::text FROM matching_outbox WHERE id = ANY($1::uuid[])', [[old, recent, pending, older]])) as { id: string }[]).map(r => r.id).sort();
+    assert.equal(await repo.purgePublished(86400000, 1), 1);
+    while (await repo.purgePublished(86400000, 1000) > 0) { /* drain everything past retention */ }
+    assert.deepEqual(await mine(), [recent, pending].sort());
+  } finally { await db.destroy(); }
+});

@@ -19,11 +19,14 @@ async function main() {
   // Search jobs run in a pool of WORKER_CONCURRENCY slots that refills as soon as a job ends (ADR-0008).
   const worker = new MatchingWorker(repo, new MatchDriver(repo, clients, c.pollMs, () => publishing.wake()), new AssignDriver(repo, clients), c, () => { console.warn('matching_worker_dependency_unavailable'); });
   const expiry = new OfferExpiry(repo);
+  // Published messages are kept OUTBOX_RETENTION_MS (default 24 h) for diagnosis, then deleted in batches of 1000.
+  const purging = new DrainLoop(async () => { const n = await repo.purgePublished(c.outboxRetentionMs, 1000); if (n) console.info(JSON.stringify({ event: 'outbox_purged', rows: n })); return n >= 1000; },
+    c.outboxPurgeIntervalMs, () => { console.warn('matching_outbox_purge_failed'); });
   let stop = false; let expiring: Promise<void> | undefined;
   const expire = () => { if (stop || expiring) return; expiring = expiry.tick().then(expired => { if (expired) worker.wake(); }).catch(() => { console.warn('matching_expiry_dependency_unavailable'); }).finally(() => { expiring = undefined; }); };
-  const expiryTimer = setInterval(expire, c.scanMs); expire(); worker.start(); publishing.start();
+  const expiryTimer = setInterval(expire, c.scanMs); expire(); worker.start(); publishing.start(); purging.start();
   const server = createServer((req, res) => { if (req.url !== '/health/live' && req.url !== '/health/ready') { res.writeHead(404); res.end(); return; } const ready = !stop && (req.url === '/health/live' || worker.lastProgress > Date.now() - 90000); res.writeHead(ready ? 200 : 503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: ready ? 'ok' : 'unavailable' })); }); server.listen(Number(process.env.WORKER_HEALTH_PORT ?? 3017), c.host);
-  const shutdown = async () => { if (stop) return; stop = true; clearInterval(expiryTimer); await Promise.all([worker.stop(), expiring, publishing.stop()]); await publisher.close(); await new Promise<void>(r => server.close(() => r())); await db.destroy(); };
+  const shutdown = async () => { if (stop) return; stop = true; clearInterval(expiryTimer); await Promise.all([worker.stop(), expiring, publishing.stop(), purging.stop()]); await publisher.close(); await new Promise<void>(r => server.close(() => r())); await db.destroy(); };
   process.once('SIGTERM', () => { void shutdown(); }); process.once('SIGINT', () => { void shutdown(); });
 }
 void main().catch(() => { console.error('Matching worker startup failed'); process.exitCode = 1; });

@@ -25,6 +25,20 @@ export class PgOutbox {
   async finish(id: string, owner: string, status: 'pending' | 'delivered' | 'blocked' | 'skipped', error: string | null = null, retryMs = 0): Promise<boolean> {
     const [, count]: [unknown[], number] = await this.db.query("UPDATE outbox_deliveries SET status=$3,last_error=$4,next_retry_at=now()+$5*interval '1 millisecond',lease_owner=NULL,lease_until=NULL WHERE id=$1 AND lease_owner=$2::uuid AND status='processing' AND lease_until>now()", [id, owner, status, error, retryMs]); return count === 1;
   }
+  /** Deletes up to `limit` messages older than `retentionMs` whose deliveries are all delivered or skipped. Blocked or pending work is kept. */
+  async purge(retentionMs: number, limit: number): Promise<number> {
+    // TypeORM returns [rows, affectedCount] for DELETE statements.
+    const [, count]: [unknown[], number] = await this.db.query(`
+      WITH done AS (
+        SELECT o.id FROM outbox o
+        WHERE o.created_at < now() - $1*interval '1 millisecond'
+          AND NOT EXISTS (SELECT 1 FROM outbox_deliveries d WHERE d.outbox_id=o.id AND d.status NOT IN ('delivered','skipped'))
+        ORDER BY o.created_at LIMIT $2 FOR UPDATE SKIP LOCKED
+      ), deliveries AS (DELETE FROM outbox_deliveries d USING done WHERE d.outbox_id=done.id)
+      DELETE FROM outbox o USING done WHERE o.id=done.id
+    `, [retentionMs, limit]);
+    return count;
+  }
   async requeue(id: string): Promise<boolean> {
     const [, count]: [unknown[], number] = await this.db.query("UPDATE outbox_deliveries SET status='pending',next_retry_at=now(),last_error=NULL WHERE id=$1 AND status='blocked'", [id]); return count === 1;
   }

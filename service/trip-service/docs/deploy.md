@@ -105,6 +105,7 @@ Các artifact đã tồn tại. `.github/workflows/trip-service.yml` chạy lint
 | `OUTBOX_BATCH_SIZE` / `OUTBOX_CONCURRENCY` | 100 / 5 | 100 / 5, tune theo DB/đích; lô đầy thì chạy lượt kế ngay | Worker |
 | `OUTBOX_LEASE_MS` | 30000 | 30000, lớn hơn timeout HTTP; renew lease khi cần | Worker |
 | `OUTBOX_RETRY_BASE_MS` / `OUTBOX_RETRY_MAX_MS` | 1000 / 300000 | 1000 / 300000 + jitter | Worker |
+| `OUTBOX_RETENTION_MS` / `OUTBOX_PURGE_INTERVAL_MS` | 86400000 / 600000 | Giữ tin đã gửi xong 24 giờ để tra cứu, dọn mỗi 10 phút theo lô 1000; tin `blocked` hoặc còn đang gửi không bị xoá | Worker |
 | `WORKER_HEARTBEAT_MAX_AGE_MS` | 30000 | 30000; cập nhật khi poll và có tiến triển delivery | Worker probe |
 | `SWAGGER_ENABLED` | true | false mặc định; staging chỉ private | API |
 | `LOG_LEVEL` | debug/info | info, log đã loại secret | Cả hai |

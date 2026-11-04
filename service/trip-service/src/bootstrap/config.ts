@@ -9,7 +9,7 @@ export interface Config {
   routingUrl: string; pricingUrl: string; matchingUrl: string; gatewayUrl: string; notificationUrl: string;
   routingToken: string; pricingToken: string; matchingToken: string; gatewayToken: string; notificationToken: string;
   httpTimeout: number; pollInterval: number; batchSize: number; concurrency: number;
-  leaseMs: number; retryBase: number; retryMax: number; heartbeatMaxAge: number; swagger: boolean;
+  leaseMs: number; retryBase: number; retryMax: number; retentionMs: number; purgeInterval: number; heartbeatMaxAge: number; swagger: boolean;
 }
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, kind: ProcessKind = 'api'): Config {
   const production = env.NODE_ENV === 'production';
@@ -62,6 +62,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, kind: ProcessKi
     gatewayToken: secret('GATEWAY_EVENTS_TOKEN', worker), notificationToken: secret('NOTIFICATION_TOKEN', worker),
     httpTimeout, leaseMs, retryBase, retryMax,
     pollInterval: integer('OUTBOX_POLL_INTERVAL_MS', 250), batchSize: integer('OUTBOX_BATCH_SIZE', 100, 1000), concurrency: integer('OUTBOX_CONCURRENCY', 5, 100),
+    retentionMs: integer('OUTBOX_RETENTION_MS', 86400000, 2592000000), purgeInterval: integer('OUTBOX_PURGE_INTERVAL_MS', 600000, 86400000),
     heartbeatMaxAge: integer('WORKER_HEARTBEAT_MAX_AGE_MS', 30000), swagger: env.SWAGGER_ENABLED === 'true',
   };
 }

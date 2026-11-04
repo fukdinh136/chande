@@ -46,3 +46,21 @@ test('transient send failure stays pending and cancelled Trip suppresses late se
   await new OutboxDispatcher(outbox, { send: async () => { sent = true; } }, config).tick();
   assert.equal(sent, false); const skipped: { status: string }[] = await store.db.query('SELECT status FROM outbox_deliveries'); assert.equal(skipped[0]?.status, 'skipped');
 });
+test('purge removes only old messages whose deliveries are all delivered or skipped', async () => {
+  await seed();
+  const [{ tripId }] = await store.db.query('SELECT trip_id::text AS "tripId" FROM outbox') as [{ tripId: string }];
+  for (let version = 3; version <= 5; version++) await store.transaction(tx => tx.enqueue({ id: randomUUID(), tripId, tripVersion: version, kind: 'event', payload: {} }, ['gateway', 'notification']));
+  const ids = (await store.db.query('SELECT id::text FROM outbox ORDER BY created_at') as { id: string }[]).map(r => r.id);
+  const [done, skipped, blocked, recent] = ids as [string, string, string, string];
+  await store.db.query("UPDATE outbox SET created_at=now()-interval '2 days' WHERE id = ANY($1::uuid[])", [[done, skipped, blocked]]);
+  await store.db.query("UPDATE outbox_deliveries SET status='delivered'");
+  await store.db.query("UPDATE outbox_deliveries SET status='skipped' WHERE outbox_id=$1", [skipped]);
+  await store.db.query("UPDATE outbox_deliveries SET status='blocked' WHERE outbox_id=$1 AND destination='gateway'", [blocked]);
+  assert.equal(await outbox.purge(86400000, 1), 1);
+  assert.equal(await outbox.purge(86400000, 1000), 1);
+  assert.equal(await outbox.purge(86400000, 1000), 0);
+  const left = (await store.db.query('SELECT id::text FROM outbox') as { id: string }[]).map(r => r.id).sort();
+  assert.deepEqual(left, [blocked, recent].sort());
+  const orphans: { n: number }[] = await store.db.query('SELECT count(*)::int AS n FROM outbox_deliveries WHERE outbox_id = ANY($1::uuid[])', [[done, skipped]]);
+  assert.equal(orphans[0]!.n, 0);
+});

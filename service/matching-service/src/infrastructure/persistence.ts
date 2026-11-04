@@ -24,7 +24,12 @@ export class MatchingOutboxPending1793750400000 implements MigrationInterface {
   async up(q: QueryRunner) { await q.query('CREATE INDEX IF NOT EXISTS matching_outbox_pending ON matching_outbox(due_at) WHERE published_at IS NULL'); }
   async down(q: QueryRunner) { await q.query('DROP INDEX IF EXISTS matching_outbox_pending'); }
 }
-export function source(url: string) { return new DataSource({ type: 'postgres', url, migrations: [MatchingInitial1791244800000, MatchingOutboxPending1793750400000], synchronize: false, logging: false, extra: { max: 10, connectionTimeoutMillis: 5000, query_timeout: 10000 } }); }
+// The retention purge deletes the oldest published messages first.
+export class MatchingOutboxPublished1793750400001 implements MigrationInterface {
+  async up(q: QueryRunner) { await q.query('CREATE INDEX IF NOT EXISTS matching_outbox_published ON matching_outbox(published_at) WHERE published_at IS NOT NULL'); }
+  async down(q: QueryRunner) { await q.query('DROP INDEX IF EXISTS matching_outbox_published'); }
+}
+export function source(url: string) { return new DataSource({ type: 'postgres', url, migrations: [MatchingInitial1791244800000, MatchingOutboxPending1793750400000, MatchingOutboxPublished1793750400001], synchronize: false, logging: false, extra: { max: 10, connectionTimeoutMillis: 5000, query_timeout: 10000 } }); }
 export class Tx {
   constructor(readonly db: EntityManager) {}
   async lock(scope: string) { await this.db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [scope]); }
@@ -45,6 +50,12 @@ export class Tx {
 }
 export class Repository {
   constructor(readonly db: DataSource) {}
+  /** Deletes up to `limit` messages published more than `retentionMs` ago; unpublished messages are never touched. */
+  async purgePublished(retentionMs: number, limit: number): Promise<number> {
+    // TypeORM returns [rows, affectedCount] for DELETE statements.
+    const [, count]: [unknown[], number] = await this.db.query(`DELETE FROM matching_outbox WHERE id IN (SELECT id FROM matching_outbox WHERE published_at < clock_timestamp() - $1*interval '1 millisecond' ORDER BY published_at LIMIT $2)`, [retentionMs, limit]);
+    return count;
+  }
   transaction<T>(work: (tx: Tx) => Promise<T>) { return this.db.transaction(async db => { await db.query("SET LOCAL lock_timeout='5s'"); return work(new Tx(db)); }); }
   async getSearch(id: string): Promise<Search | null> { const rows: { data: Search }[] = await this.db.query('SELECT data FROM matching_searches WHERE trip_id=$1', [id]); return rows[0]?.data ?? null; }
   async getOffer(id: string): Promise<Offer | null> { const rows: { data: Offer }[] = await this.db.query('SELECT data FROM matching_offers WHERE id=$1', [id]); return rows[0]?.data ?? null; }
