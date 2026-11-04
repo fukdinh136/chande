@@ -51,6 +51,6 @@ Nearby thuộc Realtime GET /internal/realtime/nearby-drivers cho Routing. Offer
 
 ## Ingress chính thức
 
-Giữ nguyên status, envelope, X-Request-Id, Retry-After, Authorization, Idempotency-Key và replay header của upstream. Không public Matching/Realtime internal endpoints. Nếu forward IP cho rate limit, Gateway phải dùng credential riêng và X-Driver-Client-IP theo client-address.ts; direct mode lấy socket remoteAddress, bỏ qua header không được xác thực.
+Giữ nguyên status, envelope, X-Request-Id, Retry-After, Authorization, Idempotency-Key và replay header của upstream. Không public Matching/Realtime internal endpoints. Gateway chuyển IP thật của client bằng X-Driver-Client-IP kèm X-Driver-Proxy-Token (`DRIVER_PROXY_TOKEN` của Gateway = `GATEWAY_PROXY_TOKEN` của Driver), xử lý theo client-address.ts; direct mode lấy socket remoteAddress, bỏ qua header không được xác thực.
 
 Gateway mode của app là tùy chọn có xác nhận path mapping, không tham chiếu thư mục Gateway demo. Không dùng service credential thay JWT DRIVER trên route Trip.

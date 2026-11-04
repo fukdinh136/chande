@@ -19,6 +19,9 @@ spring:
 server:
   port: ${PORT:8080}
   shutdown: graceful
+  # IP client lấy từ X-Forwarded-For do edge đặt. Tomcat chỉ tin header này khi kết nối đến từ
+  # proxy nội bộ (dải IP private/loopback mặc định); Gateway không được mở trực tiếp ra Internet.
+  forward-headers-strategy: native
   tomcat:
     accept-count: 500
     connection-timeout: 10s
@@ -60,6 +63,11 @@ gateway:
         instances: ${DRIVER_SERVICE_URLS:http://localhost:3003}
         paths: /driver-auth/**, /drivers/**
         max-concurrent-requests: 256
+        # Driver giới hạn OTP theo IP: chuyển IP thật kèm credential mà Driver tin (GATEWAY_PROXY_TOKEN)
+        client-address:
+          header: X-Driver-Client-IP
+          token-header: X-Driver-Proxy-Token
+          token: ${DRIVER_PROXY_TOKEN:}
       trip-service:
         instances: ${TRIP_SERVICE_URLS:http://localhost:3001}
         paths: /trips/**

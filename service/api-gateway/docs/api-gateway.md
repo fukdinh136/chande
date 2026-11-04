@@ -179,7 +179,9 @@ Envelope của lỗi do Gateway tạo; response upstream giữ nguyên. User v2 
 | Thứ tự | Chạy **trước** bước kiểm JWT |
 
 Đây là lớp chặn thô theo IP. User/Driver Service vẫn tự giới hạn theo tài khoản.
-Xem thêm mục 13: ghi chú về IP sau load balancer và trường hợp chạy nhiều instance.
+
+IP là IP thật của client: edge nginx ghi đè `X-Forwarded-For` và `X-Real-IP` bằng IP nó thấy, Gateway bật `server.forward-headers-strategy: native`. Tomcat chỉ tin `X-Forwarded-For` khi kết nối đến từ proxy nội bộ (dải private/loopback mặc định), nên Gateway không được mở trực tiếp ra Internet. Với route Driver, Gateway chuyển IP này xuống bằng `X-Driver-Client-IP` kèm `X-Driver-Proxy-Token` (`DRIVER_PROXY_TOKEN`, cùng giá trị với `GATEWAY_PROXY_TOKEN` của Driver), luôn xoá bản client tự gửi. Cấu hình ở `gateway.routing.services.<id>.client-address`.
+Xem thêm mục 13: trường hợp chạy nhiều instance.
 
 ## 6. WebSocket `/ws`
 
@@ -445,6 +447,7 @@ Request bị chặn ở bước 2–3 **không bị đọc body** và không ch�
 | `TRIP_SERVICE_TOKEN` | giá trị dev | ≥ 32 ký tự, **bắt buộc đổi khi deploy** |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | `localhost`, `6379`, trống | Timeout lệnh và kết nối 2 giây |
 | `AUTH_MAX_ATTEMPTS` | `5` | Số lần thử mỗi cửa sổ |
+| `DRIVER_PROXY_TOKEN` | rỗng | Credential để Driver tin `X-Driver-Client-IP`; trùng `GATEWAY_PROXY_TOKEN` của Driver. Rỗng thì không chuyển IP |
 
 ### 10.2 Thuộc tính trong `application.yaml`
 
@@ -511,6 +514,7 @@ cd api-gateway && ./mvnw test
 
 | Test | Kiểm tra |
 | --- | --- |
+| `ClientAddressIntegrationTest`, `ClientAddressTest` | IP từ `X-Forwarded-For` của proxy tin cậy dùng cho rate limit; mỗi IP một ngân sách; Driver nhận IP thật và credential, header client tự gửi bị thay |
 | `GatewayRoutingIntegrationTest` | Định tuyến mọi prefix và bỏ `/api/v1`; nhiều request đồng thời; giữ query/header và xoá `X-Service-Token`; round-robin; failover gửi lại đúng body; 503 khi quá tải; 401/403 theo role; token giả hoặc của issuer khác; route ẩn danh bỏ qua token hết hạn; không lộ `/internal`; `X-Request-Id`; CORS; 413; tách cổng nội bộ; service token; nhận/từ chối sự kiện chuyến |
 | `GatewayTimeoutIntegrationTest` | Service chậm thì 504; service chết giữa lúc trả lời thì vẫn trả lỗi gateway |
 | `IssuerRoutingJwtDecoderTest` | `at+jwt`, ES256, role ngoài phạm vi issuer, issuer lạ, khoá sai, lệch đồng hồ 30 giây, `exp`/`sub`, từ chối HS256/`none`, `aud`, đổi role thành authority |
@@ -519,9 +523,7 @@ cd api-gateway && ./mvnw test
 
 ## 13. Lưu ý và rủi ro (phát hiện khi đọc code)
 
-1. **Rate limit đứng sau load balancer.**
-   - `AuthRateLimitFilter` lấy IP bằng `request.getRemoteAddr()`, còn `application.yaml` chưa đặt `server.forward-headers-strategy`. Khi gateway đứng sau load balancer hoặc reverse proxy, mọi client sẽ có chung IP của load balancer, tức **cả hệ thống chỉ có 5 lần đăng nhập/phút**.
-   - Cần bật `server.forward-headers-strategy: native` (hoặc `framework`), và chỉ tin `X-Forwarded-For` từ proxy của mình.
+1. **Rate limit đứng sau load balancer (đã xử lý).** Trước đây mọi client sau edge chung một IP, tức cả hệ thống chỉ có 5 lần đăng nhập/phút. Nay dùng `forward-headers-strategy: native` và edge ghi đè `X-Forwarded-For` (mục 5). Còn lại: nếu đặt thêm load balancer trước edge, edge phải lấy IP từ header của load balancer đó (`real_ip_header`) thay vì `$remote_addr`.
 2. **Rate limit lưu trong bộ nhớ của từng instance.** Với N instance chia tải round-robin, giới hạn thực tế của một IP là khoảng N × 5/phút. Nếu cần chính xác thì chuyển bộ đếm sang Redis.
 3. **Rate limit đếm mọi request**, kể cả đăng nhập thành công. Người dùng gõ sai rồi đúng vẫn bị tính lượt.
 4. **Phân quyền thô.** Mọi method dưới `/api/v1/users/**`, `/drivers/**`, `/trips/**` đều được chuyển xuống nếu đúng role. Service phải tự trả 405/404 và tự kiểm quyền trên dữ liệu.
@@ -537,10 +539,10 @@ cd api-gateway && ./mvnw test
 4. Contract Gateway → Realtime Location (hiện chỉ ghi log) và Notification → Gateway.
 5. Routing/Matching proxy đã nối; Web quản trị ngoài phạm vi.
 6. Whitelist đã khớp User v2, bỏ OTP/quên mật khẩu chưa tồn tại.
-7. Cách lấy IP client sau load balancer (mục 13.1), và có chuyển rate limit sang Redis không.
+7. Có chuyển rate limit sang Redis không (mục 13.2). Cách lấy IP client sau edge đã chốt ở mục 5.
 
 ## 15. Deployment backend và kiểm chứng
 
-75 tests Gateway pass với Redis test riêng. Backend Docker/Kubernetes local smoke User thật → Gateway → Trip/Routing/Price/Matching, Socket.IO GPS/offer qua Nginx và trip.event qua Gateway /ws/Redis. CORS/replay/scopes và JWT trước restart đã kiểm. [Báo cáo](../../../docs/bao-cao-tich-hop-backend.md).
+80 tests Gateway pass với Redis test riêng. Backend Docker/Kubernetes local smoke User thật → Gateway → Trip/Routing/Price/Matching, Socket.IO GPS/offer qua Nginx và trip.event qua Gateway /ws/Redis. CORS/replay/scopes và JWT trước restart đã kiểm. [Báo cáo](../../../docs/bao-cao-tich-hop-backend.md).
 
-Public ingress là Nginx, Java Gateway vẫn xử lý REST và /ws. Realtime Socket.IO Engine.IO path /socket.io vào namespace /realtime; không chuyển GPS qua legacy LoggingLocationForwarder của Gateway. Internal receiver 8090, matrix/probes/Price và backend ports không publish ra host. Local rate-limit override 30; trusted proxy IP, TLS/HA và production chưa nghiệm thu.
+Public ingress là Nginx, Java Gateway vẫn xử lý REST và /ws. Realtime Socket.IO Engine.IO path /socket.io vào namespace /realtime; không chuyển GPS qua legacy LoggingLocationForwarder của Gateway. Internal receiver 8090, matrix/probes/Price và backend ports không publish ra host. Local rate-limit override 1000 lần/phút để seed tài khoản kiểm thử tải; edge chuyển IP thật qua `X-Forwarded-For`; TLS/HA và production chưa nghiệm thu.

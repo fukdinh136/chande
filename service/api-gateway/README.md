@@ -112,7 +112,8 @@ Production cần bật AOF cho Redis (`appendonly yes`) để "đã lưu" thật
 | `DRIVER_JWT_ISSUER`, `DRIVER_JWKS_URI` | `https://identity.example.invalid/driver`, `http://localhost:3003/.well-known/jwks.json` | Issuer token tài xế |
 | `TRIP_SERVICE_TOKEN` | giá trị dev | Token Trip dùng gọi `/internal/events/trips` (≥ 32 ký tự, **đổi khi deploy**) |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | localhost, 6379 | Redis |
-| `AUTH_MAX_ATTEMPTS` | 5 | Số lần thử đăng nhập/OTP mỗi phút mỗi IP |
+| `AUTH_MAX_ATTEMPTS` | 5 | Số lần thử đăng nhập/OTP mỗi phút mỗi IP (IP thật từ `X-Forwarded-For` do edge đặt) |
+| `DRIVER_PROXY_TOKEN` | rỗng | Credential để Driver tin `X-Driver-Client-IP` do Gateway gửi; trùng `GATEWAY_PROXY_TOKEN` của Driver |
 
 Load balancer nên kiểm tra `GET /actuator/health/readiness` (không phụ thuộc Redis).
 

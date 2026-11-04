@@ -105,6 +105,8 @@ public final class StubService implements AutoCloseable {
             echo.put("idempotencyKey", exchange.getRequestHeaders().getFirst("Idempotency-Key"));
             echo.put("requestId", exchange.getRequestHeaders().getFirst("X-Request-Id"));
             echo.put("serviceToken", exchange.getRequestHeaders().getFirst("X-Service-Token"));
+            echo.put("driverClientIp", exchange.getRequestHeaders().getFirst("X-Driver-Client-IP"));
+            echo.put("driverProxyToken", exchange.getRequestHeaders().getFirst("X-Driver-Proxy-Token"));
             byte[] response = JSON.writeValueAsBytes(echo);
 
             exchange.getResponseHeaders().add("Content-Type", "application/json");
