@@ -6,9 +6,9 @@
 | Rà soát | 2026-10-06 |
 | Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
 
-Service nhận GPS tài xế và cung cấp danh sách tài xế gần điểm đón cho Routing của Chande.
+Service nhận GPS tài xế và trả vị trí tài xế gần điểm đón cho Matching của Chande.
 
-Ngày đối chiếu mã nguồn: 06/10/2026. GPS/nearby/offer đã chạy với Redis, Driver/Routing/Matching thật trong Docker local Hà Nội. Thiết bị/background, ingress production và nhiều replica chưa nghiệm thu.
+Ngày đối chiếu mã nguồn: 06/10/2026. GPS/offer đã chạy với Redis, Driver/Matching thật trong Docker local Hà Nội; từ 2026-11-05 Realtime không gọi Driver ([ADR-0001](../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)). Thiết bị/background, ingress production và nhiều replica chưa nghiệm thu.
 
 ## Tài liệu
 
@@ -25,7 +25,7 @@ Ngày đối chiếu mã nguồn: 06/10/2026. GPS/nearby/offer đã chạy với
 ## Phạm vi v1
 
 1. Driver App gửi vị trí qua Socket.IO khi bật GPS, đã đăng nhập, có xe chọn, ý định ONLINE, màn hình Driver đang focus và app foreground. Chu kỳ mục tiêu 10 giây; hệ điều hành hoặc mạng có thể làm chậm.
-2. Routing gọi HTTP nội bộ để tìm nhiều tài xế quanh điểm đón: bán kính mặc định/tối đa 2.000 m, lọc BIKE/CAR_4/CAR_7, tối đa 50 tài xế đủ điều kiện theo snapshot Driver, sắp gần → xa.
+2. Matching gọi HTTP nội bộ `driver-locations` để lấy tối đa 200 vị trí còn mới quanh điểm đón (bán kính 2.000 m), gần → xa; không lọc loại xe hay trạng thái.
 
 Realtime sở hữu GPS và Redis của mình. Driver sở hữu tài khoản, ý định ONLINE/OFFLINE, xe chọn và eligibility; Trip sở hữu chuyến/assignment. Realtime không truy cập PostgreSQL hoặc key Redis riêng của Driver/Trip, không cần Gateway demo. GPS mới không tự đổi ONLINE thành AVAILABLE.
 
@@ -57,12 +57,11 @@ service/realtime-service/
 | --- | --- | --- |
 | GPS 10 giây | App use-driver-gps.ts, SocketLocationClient; LocationGateway | Có mã foreground và ACK; chưa kiểm thử thiết bị/background |
 | Freshness 30 giây | LocationPolicy, Redis Lua, loadConfig | Đã áp dụng; tuổi đạt ngưỡng đã bị loại; cấu hình chỉ cho giảm xuống dưới/tới 30.000 ms |
-| Nearby 2 km / 50 | NearbyPolicy, FindNearby, NearbyController | Đã áp dụng trong mã; 50 là hằng số, không phải biến môi trường |
-| JWT/JWKS và service credential | JwksTokenVerifier, DriverSocketGuard, RoutingServiceGuard | Đã liên thông JWT Driver và credential Routing trong smoke Docker |
-| Eligibility theo lô | DriverEligibilityClient và POST nội bộ Driver | Có hai phía; trạng thái UNKNOWN trả lỗi, không tự coi AVAILABLE |
+| Vị trí 2 km / 200 | ListDriverLocations, DriverLocationsController | `limit` tối đa 200; Redis GEOSEARCH COUNT |
+| JWT/JWKS và service credential | JwksTokenVerifier, DriverSocketGuard, MatchingServiceGuard | Đã liên thông JWT Driver và credential Matching trong smoke Docker |
 | Redis ordering/cleanup | RedisLocationRepository, location.scripts.ts | Redis thật chạy trong smoke; multi-replica chưa nghiệm thu |
 | Health | HealthController | Có live và ready; ready chỉ PING Redis |
-| Routing client / production ingress | Routing có HTTP Realtime adapter | Nearby/matrix đã chạy thật; ingress production chưa nghiệm thu |
+| Production ingress | — | Chưa nghiệm thu |
 | Operational AVAILABLE/BUSY | Driver đối soát active Trip và reservation Matching | BUSY/AVAILABLE đã kiểm tra trong smoke; snapshot không thay thế reservation DB |
 | Offer delivery/reconnect | Rabbit consumer, Redis version/tombstone, Matching lookup | 2 consumer tests và smoke WebSocket/reconnect pass; không reset deadline |
 

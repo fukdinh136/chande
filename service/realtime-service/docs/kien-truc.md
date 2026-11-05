@@ -10,7 +10,7 @@ Ngày đối chiếu mã: 06/10/2026. C3 dưới đây mô tả implementation h
 
 ## 1. Phạm vi và cách đọc
 
-Realtime nhận GPS, cung cấp nearby cho Routing và giao offer qua Socket.IO. Driver cấp identity/eligibility; Redis giữ GPS/version/tombstone. Không có PostgreSQL hoặc Trip client; OfferConsumer dùng RabbitMQ và Matching HTTP state lookup. Gateway WebSocket thuần là kênh khác.
+Realtime nhận GPS, trả vị trí thô cho Matching ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)) và giao offer qua Socket.IO. Driver cấp identity (JWKS); Redis giữ GPS/version/tombstone. Không có PostgreSQL hoặc Trip client; OfferConsumer dùng RabbitMQ và Matching HTTP state lookup. Gateway WebSocket thuần là kênh khác.
 
 Mũi tên liền thể hiện lời gọi lúc chạy; mũi tên nét đứt từ adapter đến port thể hiện triển khai interface. Bootstrap nối dependency, không phải một bước nghiệp vụ bắt buộc sau Infrastructure. Application/Domain dùng TypeScript thuần, không import NestJS, ioredis, jose hay HTTP client.
 
@@ -19,30 +19,29 @@ Mũi tên liền thể hiện lời gọi lúc chạy; mũi tên nét đứt t�
 ```mermaid
 flowchart TB
     App["Driver App - Expo foreground GPS"]
-    Routing["Routing Service - caller nội bộ"]
+    Matching["Matching Service - caller nội bộ"]
 
     subgraph RT["Container: Realtime Service - NestJS"]
         direction TB
         subgraph P["Layer 1: Presentation"]
             Gateway["LocationGateway - Socket.IO"]
-            Nearby["NearbyController - HTTP"]
+            Locations["DriverLocationsController - HTTP"]
             Health["HealthController - probes"]
-            Guards["DriverSocketGuard / RoutingServiceGuard"]
-            DTO["LocationDto / NearbyDto / ErrorFilter"]
+            Guards["DriverSocketGuard / MatchingServiceGuard"]
+            DTO["LocationDto / DriverLocationsDto / ErrorFilter"]
         end
         subgraph A["Layer 2: Application"]
             Update["UpdateLocation"]
-            Find["FindNearby"]
+            Find["ListDriverLocations"]
             Clean["CleanupStale"]
-            Ports["Ports: LocationStore / EligibilityProvider / TokenVerifier"]
+            Ports["Ports: LocationStore / TokenVerifier"]
         end
         subgraph D["Layer 3: Domain"]
             Model["DriverLocation / LocationReceipt / NearbyLocation"]
-            Policy["LocationPolicy / NearbyPolicy / RealtimeError"]
+            Policy["LocationPolicy / RealtimeError"]
         end
         subgraph I["Layer 4: Infrastructure"]
             Store["RedisLocationRepository + Lua"]
-            Client["DriverEligibilityClient"]
             Verify["JwksTokenVerifier"]
             Scheduler["CleanupScheduler"]
         end
@@ -51,11 +50,11 @@ flowchart TB
             SocketAdapter["RealtimeSocketAdapter - origins"]
         end
         Gateway --> Guards
-        Nearby --> Guards
+        Locations --> Guards
         Gateway --> DTO
-        Nearby --> DTO
+        Locations --> DTO
         Gateway --> Update
-        Nearby --> Find
+        Locations --> Find
         Health --> Ports
         Gateway -->|"Handshake verifier"| Ports
         Update --> Policy
@@ -65,7 +64,6 @@ flowchart TB
         Find --> Ports
         Clean --> Ports
         Store -.->|"Triển khai"| Ports
-        Client -.->|"Triển khai"| Ports
         Verify -.->|"Triển khai"| Ports
         Scheduler --> Clean
         Config -.->|"DI / cấu hình"| A
@@ -73,16 +71,15 @@ flowchart TB
         Config -.-> SocketAdapter
     end
 
-    Driver["Driver Service - batch eligibility và JWKS"]
+    Driver["Driver Service - JWKS"]
     Redis[("Redis của Realtime - realtime:{gps}:*")]
     App -->|"JWT / driver.location.update"| Gateway
-    Routing -->|"HTTP / X-Service-Token"| Nearby
-    Client -->|"POST eligibility/batch"| Driver
+    Matching -->|"HTTP / X-Service-Token"| Locations
     Verify -->|"GET JWKS khi cần key"| Driver
     Store -->|"EVAL / GEO / HASH / ZSET"| Redis
 ```
 
-Guards không truy vấn PostgreSQL. Xác thực socket ban đầu nằm trong middleware do LocationGateway đăng ký; DriverSocketGuard kiểm identity/expiry trên từng event. RoutingServiceGuard kiểm credential được inject. DTO/error mapping thuộc Presentation; health dùng LocationStore.ready, không truy cập Redis client trực tiếp.
+Guards không truy vấn PostgreSQL. Xác thực socket ban đầu nằm trong middleware do LocationGateway đăng ký; DriverSocketGuard kiểm identity/expiry trên từng event. MatchingServiceGuard kiểm credential được inject. DTO/error mapping thuộc Presentation; health dùng LocationStore.ready, không truy cập Redis client trực tiếp.
 
 ### Component và dependency thực tế
 
@@ -90,15 +87,14 @@ Guards không truy vấn PostgreSQL. Xác thực socket ban đầu nằm trong m
 | --- | --- | --- | --- |
 | Presentation | presentation/socket/location.gateway.ts | Namespace, auth middleware, DTO, ACK và disconnect cleanup | TokenVerifier, UpdateLocation, DriverSocketGuard |
 | Presentation | presentation/socket/guards/driver-socket.guard.ts | Actor từ socket session, kiểm expiry | DriverIdentity trong port |
-| Presentation | presentation/http/controllers/nearby.controller.ts | GET nội bộ, query và envelope | FindNearby, RoutingServiceGuard |
+| Presentation | presentation/http/controllers/driver-locations.controller.ts | GET nội bộ, query và envelope | ListDriverLocations, MatchingServiceGuard |
 | Presentation | presentation/http/controllers/health.controller.ts | live và Redis readiness | LocationStore |
 | Presentation | Các dto, response.ts, filters/error.filter.ts | Kiểu input, whitelist, requestId, HTTP/error mapping | class-validator/class-transformer, RealtimeError |
 | Application | use-cases/update-location.ts | Validate domain rồi ghi store | LocationPolicy, LocationStore |
-| Application | use-cases/find-nearby.ts | Hai lần đọc GPS, batch eligibility, lọc/sort/limit | LocationStore, EligibilityProvider, hai policy |
+| Application | use-cases/list-driver-locations.ts | Kiểm query, đọc tối đa `limit` vị trí, lọc vị trí cũ | LocationStore, LocationPolicy |
 | Application | use-cases/cleanup-stale.ts | Yêu cầu dọn dữ liệu | LocationStore |
 | Domain | location/driver-location.ts | Input, thời gian đo/nhận, distance, receipt | TypeScript thuần |
 | Domain | policies/location.policy.ts | Tọa độ, accuracy, stale/future, freshness hai timestamp | RealtimeError |
-| Domain | policies/nearby.policy.ts | BIKE/CAR_4/CAR_7, radius 1–2.000, tối đa 50 | RealtimeError |
 | Infrastructure | redis/redis-location.repository.ts, location.scripts.ts | Adapter port, metadata mapping, EVAL và PING | ioredis, RedisConnection |
 | Infrastructure | clients/driver-eligibility.client.ts | Batch HTTP, deadline và validate response | fetch/AbortSignal, Driver API |
 | Infrastructure | auth/jwks-token.verifier.ts | JWT RS256 qua remote JWKS | jose |
@@ -116,8 +112,8 @@ service/realtime-service/
   src/
     presentation/
       http/
-        controllers/{nearby,health}.controller.ts
-        dto/nearby.dto.ts
+        controllers/{driver-locations,health}.controller.ts
+        dto/driver-locations.dto.ts
         guards/routing-service.guard.ts
         filters/error.filter.ts
         response.ts
@@ -127,10 +123,10 @@ service/realtime-service/
         guards/driver-socket.guard.ts
     application/
       ports/{location-store,eligibility-provider,token-verifier}.port.ts
-      use-cases/{update-location,find-nearby,cleanup-stale}.ts
+      use-cases/{update-location,list-driver-locations,cleanup-stale}.ts
     domain/
       location/driver-location.ts
-      policies/{location,nearby}.policy.ts
+      policies/location.policy.ts
       errors.ts
     infrastructure/
       auth/jwks-token.verifier.ts
@@ -156,8 +152,7 @@ Chưa có thư mục test hoặc Dockerfile/Compose/lockfile trong Realtime. Cá
 
 | Port | Phương thức | Adapter |
 | --- | --- | --- |
-| LocationStore | update(driverId, location), nearby(query), cleanup(), ready() | RedisLocationRepository |
-| EligibilityProvider | find(driverIds, vehicleType?) | DriverEligibilityClient |
+| LocationStore | update(driverId, location), nearest(query), cleanup(), ready() | RedisLocationRepository |
 | TokenVerifier | verify(token) → DriverIdentity {driverId, expiresAt} | JwksTokenVerifier |
 
 RealtimeModule dùng factory provider để truyền config và port vào use case thuần. main.ts đọc dotenv, tạo Nest, middleware requestId/no-store, body limit 8 KB, global HTTP validation/filter, Socket adapter và shutdown hooks; listen trên 0.0.0.0 ở PORT. Không có global /api/v1 prefix.
@@ -197,9 +192,9 @@ Năm key dưới đây hardcode trong RedisLocationRepository, cùng hash tag {g
 
 | Key | Kiểu / member | Writer và reader |
 | --- | --- | --- |
-| realtime:{gps}:geo | GEO ZSET, member driverId | Update ghi; nearby đọc; cleanup ZREM |
-| realtime:{gps}:meta | HASH driverId → JSON GPS, recordedAt, recordedAtMs, receivedAtMs | Update ghi; nearby/duplicate đọc; cleanup HDEL |
-| realtime:{gps}:expiry | ZSET driverId → min(recordedAtMs, receivedAtMs) + freshnessMs | Update ghi; nearby đọc; cleanup đọc/xóa |
+| realtime:{gps}:geo | GEO ZSET, member driverId | Update ghi; driver-locations đọc; cleanup ZREM |
+| realtime:{gps}:meta | HASH driverId → JSON GPS, recordedAt, recordedAtMs, receivedAtMs | Update ghi; driver-locations/duplicate đọc; cleanup HDEL |
+| realtime:{gps}:expiry | ZSET driverId → min(recordedAtMs, receivedAtMs) + freshnessMs | Update ghi; driver-locations đọc; cleanup đọc/xóa |
 | realtime:{gps}:order | HASH driverId → recordedAtMs gần nhất | Update so sánh/ghi; cleanup watermark HDEL |
 | realtime:{gps}:order-expiry | ZSET driverId → receivedAtMs + orderRetentionMs | Update ghi; cleanup watermark đọc/xóa |
 
@@ -211,53 +206,31 @@ Expiry là logic theo member/field, không TTL vật lý của whole HASH/GEO. C
 
 Các Lua dùng cùng {gps} để colocate key nếu có cluster; RedisConnection hiện chỉ tạo ioredis Redis client, chưa cấu hình/test Redis Cluster. Cùng hash tag không phải bằng chứng đã hỗ trợ deployment cluster hoặc HA.
 
-## 7. Sequence nearby
+## 7. Sequence driver-locations
 
 ```mermaid
 sequenceDiagram
-    participant Q as Routing
-    participant C as NearbyController
-    participant U as FindNearby
-    participant R as Redis repository
-    participant D as Driver batch API
-
-    Q->>C: GET nearby-drivers và credential nội bộ
-    C->>C: Guard và DTO
-    C->>U: execute(query)
-    U->>R: GEOSEARCH và metadata còn mới
-    R-->>U: Candidates
-    alt Không còn candidates mới
-        U-->>C: drivers: []
-    else Có candidates mới
-        loop Tối đa 100 UUID mỗi batch, deadline chung
-            U->>D: POST eligibility/batch
-            D-->>U: Items hoặc lỗi phụ thuộc
-        end
-        U->>R: Đọc lại vị trí sau HTTP
-        R-->>U: Vị trí mới nhất trong radius
-        U->>U: Freshness, known, eligible, type, sort, limit 50
-        U-->>C: Danh sách hoặc lỗi 503
-    end
-    C-->>Q: Envelope với requestId
+    participant M as Matching
+    participant C as DriverLocationsController
+    participant U as ListDriverLocations
+    participant R as Redis
+    M->>C: GET driver-locations và MATCHING_LOCATION_TOKEN
+    C->>U: latitude, longitude, radiusMeters, limit
+    U->>R: EVAL FIND_NEAREST (GEOSEARCH ... ASC COUNT limit)
+    R-->>U: tối đa limit vị trí chưa hết hạn
+    U-->>C: lọc lại độ mới theo đồng hồ process
+    C-->>M: 200 {radiusMeters, drivers}
 ```
 
-GEOSEARCH ASC WITHDIST không COUNT 50. Capacity default 5.000 là trần tổng GEO rows trong radius trước lọc stale; vượt trả 503, không cắt một prefix rồi gọi là danh sách đủ. Client Driver dùng batch tuần tự, một AbortSignal deadline chung default 3.000 ms cho toàn lần find, không 3.000 ms cho từng lô.
-
-Read lần hai tránh trả tọa độ đã hết hạn/ra ngoài radius trong lúc HTTP. New arrival chưa có quyết định Driver không được trả. Sau read cuối vẫn có thể có di chuyển, OFFLINE hoặc assignment mới; không có lease hay transaction xuyên service. Race này cần Matching/Trip bảo vệ lúc phân công.
+Một lời gọi đọc Redis đúng một lần; không gọi Driver. Thay cho sequence nearby cũ (Routing → Realtime → Driver) đã gỡ theo [ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md).
 
 ## 8. Eligibility và phần còn chờ
 
-Đích đã có mã: POST /internal/drivers/eligibility/batch, RealtimeInternalController và BatchEligibilityUseCase ở Driver. Credential riêng REALTIME_INBOUND_TOKEN; không dùng MATCHING_INBOUND_TOKEN của endpoint từng tài xế. Driver tự đọc PostgreSQL/Redis của Driver; Realtime chỉ kiểm contract qua HTTP.
-
-Batch trả profileEligible, eligible, availabilityKnown, vehicleType, operationalStatus và reasons. Hồ sơ/xe không hợp lệ hoặc OFFLINE/legacy: loại. Hợp lệ nhưng projection không chứng minh ONLINE và AVAILABLE/BUSY/OFFLINE: availabilityKnown=false. Chỉ profile hợp lệ + projection ONLINE + AVAILABLE mới eligible.
-
-Driver batch đối soát active Trip và reservation Matching bằng hai internal lookup credentials, rồi project Redis do Driver sở hữu. Realtime không gọi Trip hoặc đọc key Matching/Driver. Snapshot có thể stale sau lần đọc; reservation DB Matching và constraints Trip bảo vệ lúc gán.
+Realtime không kiểm điều kiện tài xế. Matching gọi Driver `POST /internal/drivers/eligibility/candidates` cho danh sách vị trí nhận được; trạng thái bận do reservation của Matching và ràng buộc một chuyến mở ở Trip quyết định ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)).
 
 Các contract cần chốt:
 
-- Driver: producer/đối soát và bộ mã xe đã triển khai; rotation production còn cần vận hành.
-- Routing: query/response mapping, cap 50, radius 2000 m và lat/lng ↔ latitude/longitude đã smoke; sizing production còn cần đo.
-- Gateway chính thức: proxy Socket.IO namespace/auth/origin, TLS/private routes; không đổi actor hoặc làm nguồn eligibility.
+- Gateway chính thức: proxy Socket.IO namespace/auth/origin, TLS/private routes; không đổi actor.
 - Consumer cũ: Driver docs mô tả Gateway ghi drivers:geo:{vehicle_type}. V1 này sở hữu realtime:{gps}:*; chưa dual-write/di chuyển consumer cũ.
 - US8: phân quyền theo assignment và trip room/history là thiết kế tương lai, chưa có endpoint/event trong v1.
 
