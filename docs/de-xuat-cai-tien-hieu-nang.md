@@ -146,8 +146,8 @@ Nhóm D không nâng thông lượng. Nhóm này giúp hệ thống trả lỗi 
 
 | ADR | Trạng thái đề xuất | Căn cứ từ lần đo 2026-11-04 | Cần đo khi triển khai |
 | --- | --- | --- | --- |
-| [0008](adr/0008-xu-ly-hang-doi-lien-tuc.md) Xử lý hàng đợi liên tục | **Đề nghị chuyển sang Chấp nhận** | Đã triển khai và đạt cả hai tiêu chí đo lại: p95 ≤ 10 giây ở 4 chuyến/giây (đo được 0,9 giây), offer → publish ≤ 200 ms (12 ms). Bổ sung partial index outbox Matching | Giữ trong bộ đo hồi quy |
-| [0001](adr/0001-matching-so-huu-tim-ung-vien.md) Matching tự tìm ứng viên | **Ưu tiên cao nhất tiếp theo** | Bước tìm và kiểm tra tài xế là điểm nghẽn mới. Bổ sung cho ADR: endpoint batch phải truy vấn theo lô (B7), nếu không, giới hạn 200 ứng viên vẫn tốn khoảng 1000 câu SQL mỗi lần tìm | Câu SQL mỗi chuyến; CPU driver-api và PostgreSQL ở 8–12 chuyến/giây |
+| [0008](adr/0008-xu-ly-hang-doi-lien-tuc.md) Xử lý hàng đợi liên tục | **Đã chấp nhận 2026-11-05** | Đã triển khai và đạt cả hai tiêu chí đo lại: p95 ≤ 10 giây ở 4 chuyến/giây (đo được 0,9 giây), offer → publish ≤ 200 ms (12 ms). Bổ sung partial index outbox Matching | Giữ trong bộ đo hồi quy |
+| [0001](adr/0001-matching-so-huu-tim-ung-vien.md) Matching tự tìm ứng viên | **Đã chấp nhận 2026-11-05**, đã triển khai đủ 3 bước ([báo cáo tải, mục 11](bao-cao-kiem-thu-tai.md#11-đo-lại-sau-b7-và-adr-0001-2026-11-05)) | Bước tìm và kiểm tra tài xế là điểm nghẽn mới. Bổ sung cho ADR: endpoint batch phải truy vấn theo lô (B7), nếu không, giới hạn 200 ứng viên vẫn tốn khoảng 1000 câu SQL mỗi lần tìm | Câu SQL mỗi chuyến; CPU driver-api và PostgreSQL ở 8–12 chuyến/giây |
 | [0003](adr/0003-observability-opentelemetry.md) Observability | Nên làm cùng 0001 | Hai hiện tượng chưa giải thích được vì thiếu metrics phía server; bổ sung exporter cho `pg_stat_statements` (E3 đã bật) | RAM thật của bộ observability |
 | [0002](adr/0002-truc-su-kien-rabbitmq.md) Trục sự kiện RabbitMQ | Không còn gấp về hiệu năng | Outbox Trip không còn là trần sau A1 | Thời gian publish và confirm |
 | [0004](adr/0004-gioi-han-thoi-gian-tim-xe.md) Giới hạn thời gian tìm xe | Không đổi | Với thông lượng mới, số chuyến bị huỷ `NO_DRIVER_FOUND` trong đợt đột biến giảm mạnh ([mục 8](#8-kỳ-vọng-cho-kịch-bản-3000-khách)) | Số chuyến `NO_DRIVER_FOUND` trong kịch bản đợt |
@@ -158,7 +158,7 @@ Nhóm D không nâng thông lượng. Nhóm này giúp hệ thống trả lỗi 
 | Thời điểm | Việc | Đo lại bằng | Mục tiêu (ước tính, cần xác nhận) |
 | --- | --- | --- | --- |
 | Đã xong | Nhóm A, index outbox Matching, E1–E3 | 21 lần đo ngày 2026-11-04 | Đạt: 6 chuyến/giây trong ngưỡng, 5000 tài xế |
-| Ngay, 1 tuần | B7 (code xong 2026-11-05); chuyển ADR-0008 sang Chấp nhận | Loạt 2 (giống app) ở 6, 8, 10, 12 chuyến/giây; `sql.json` | Câu SQL kiểm tra tài xế dưới 20 mỗi chuyến; đạt ngưỡng ở 10 chuyến/giây |
+| Ngay, 1 tuần | B7 (code xong 2026-11-05); ADR-0008 đã chấp nhận 2026-11-05 | Loạt 2 (giống app) ở 6, 8, 10, 12 chuyến/giây; `sql.json` | Câu SQL kiểm tra tài xế dưới 20 mỗi chuyến; đạt ngưỡng ở 10 chuyến/giây |
 | Phase 1 | B1 (xong cả contract và đo 2026-11-05: đạt 12 chuyến/giây), B6 (P1.1, P1.4); B2 nếu còn thời gian | Như trên với 2000 và 5000 tài xế; dashboard | Trần không giảm khi tăng từ 1000 lên 5000 tài xế; giải thích được hai hiện tượng còn mở |
 | Phase 2 | B5, B4, B3, D1 (cùng P2.5) | Tài xế lên ca đồng loạt; chạy lâu 2 giờ; tắt Routing trong lúc đo | Không có đợt chậm khi làm mới token; RAM ổn định; báo giá trả lỗi ngay khi Routing tắt |
 | Trước bảo vệ | E6, D2, D3, D4; tuỳ chọn E4 | Kịch bản 3500 tài xế + 3000 chuyến; deploy trong lúc chạy tải; diễn tập khôi phục | Ghi lại thời gian gán hết 3000 chuyến; 0% lỗi HTTP khi deploy; RTO đo được |

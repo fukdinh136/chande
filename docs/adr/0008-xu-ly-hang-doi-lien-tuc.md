@@ -3,12 +3,12 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Trip, Matching |
-| Rà soát | 2026-10-30 |
+| Rà soát | 2026-11-05 |
 | Quy ước | [Format và số liệu](../quy-uoc-tai-lieu.md) |
 
 ## Trạng thái
 
-Đề xuất. Chưa có trong danh mục cải tiến của [kiến trúc mục tiêu](../kien-truc-muc-tieu.md); đề xuất làm trong Phase 1, cùng lúc với [ADR-0002](0002-truc-su-kien-rabbitmq.md) vì cả hai sửa worker outbox của Trip. Đây là mục A1, A2, A3, A5 trong [đề xuất cải tiến hiệu năng](../de-xuat-cai-tien-hieu-nang.md).
+**Đã chấp nhận** — nhóm duyệt ngày 2026-11-05, sau khi đạt cả hai tiêu chí đo lại ([đề xuất, mục 6](../de-xuat-cai-tien-hieu-nang.md#6-đối-chiếu-với-adr)). Chưa có trong danh mục cải tiến của [kiến trúc mục tiêu](../kien-truc-muc-tieu.md); làm trong Phase 1, cùng lúc với [ADR-0002](0002-truc-su-kien-rabbitmq.md) vì cả hai sửa worker outbox của Trip. Đây là mục A1, A2, A3, A5 trong [đề xuất cải tiến hiệu năng](../de-xuat-cai-tien-hieu-nang.md).
 
 ## Bối cảnh
 

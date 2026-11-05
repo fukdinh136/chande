@@ -8,7 +8,7 @@
 
 ## Trạng thái
 
-Đề xuất — phase 1, cải tiến P1.1 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md). Đã triển khai đủ ba bước expand, migrate và contract ngày 2026-11-05, xem [Triển khai](#triển-khai). Trạng thái chuyển sang Đã chấp nhận khi nhóm duyệt.
+**Đã chấp nhận** — nhóm duyệt ngày 2026-11-05. Phase 1, cải tiến P1.1 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md). Đã triển khai đủ ba bước expand, migrate và contract ngày 2026-11-05, xem [Triển khai](#triển-khai).
 
 ## Bối cảnh
 
