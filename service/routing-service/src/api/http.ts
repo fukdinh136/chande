@@ -5,10 +5,10 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import { NestFactory } from '@nestjs/core';
 import { Catch, Controller, Get, Post, HttpCode, Inject, Module, Req, Res, HttpException, type ArgumentsHost, type ExceptionFilter, type INestApplication } from '@nestjs/common';
 import { ApiBody, ApiSecurity, ApiTags, ApiOkResponse, DocumentBuilder, SwaggerModule, type SchemaObject } from '@nestjs/swagger';
-import { envelopeSchema, summaryResponse, routeResponse, matrixResponse, etaMatrixResponse, navigationResponse } from './documentation';
+import { envelopeSchema, summaryResponse, routeResponse, etaMatrixResponse, navigationResponse } from './documentation';
 import { RoutingRuntime } from '../bootstrap/runtime';
 import { RoutingError } from '../domain/errors';
-import { estimateSchema, routeRequestSchema, matrixRequestSchema, etaMatrixRequestSchema, recalculateSchema } from '../domain/requests';
+import { estimateSchema, routeRequestSchema, etaMatrixRequestSchema, recalculateSchema } from '../domain/requests';
 import type { Context } from '../application/ports/clients';
 import { checkpoint } from '../application/context';
 interface RoutingRequest extends Request { routing: { requestId: string; started: number } }
@@ -63,11 +63,6 @@ class RoutingController {
   @ApiOkResponse({ schema: bodySchema(envelopeSchema(routeResponse)) })
   route(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
     return this.execute(req, res, 'gateway', ctx => this.runtime.route.full(req.body, ctx));
-  }
-  @Post('routes/matrix') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(matrixRequestSchema) })
-  @ApiOkResponse({ schema: bodySchema(envelopeSchema(matrixResponse)) })
-  matrix(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
-    return this.execute(req, res, 'matching', ctx => this.runtime.matrix.execute(req.body, ctx));
   }
   @Post('internal/routes/eta-matrix') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(etaMatrixRequestSchema) })
   @ApiOkResponse({ schema: bodySchema(envelopeSchema(etaMatrixResponse)) })

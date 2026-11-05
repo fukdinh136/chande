@@ -24,13 +24,13 @@ async function post(url, path, caller, body) {
 }
 async function main() {
   try {
-    const env = { NODE_ENV: 'test', APP_ENV: 'test', HOST: '0.0.0.0', PORT: '3004', INTEGRATION_MODE: 'mock', REALTIME_INTEGRATION_MODE: 'mock', SUPPORTED_VEHICLE_TYPES: 'MOCK_BIKE', VEHICLE_PROFILES_FILE: 'config/vehicle-profiles.example.json', ROUTING_TRIP_TOKEN: tokens.trip, ROUTING_MATCHING_TOKEN: tokens.matching, ROUTING_GATEWAY_TOKEN: tokens.gateway, SHUTDOWN_GRACE_MS: '1000', RATE_LIMIT_REQUESTS_PER_SECOND: '1000', RATE_LIMIT_BURST: '100' };
+    const env = { NODE_ENV: 'test', APP_ENV: 'test', HOST: '0.0.0.0', PORT: '3004', INTEGRATION_MODE: 'mock', SUPPORTED_VEHICLE_TYPES: 'MOCK_BIKE', VEHICLE_PROFILES_FILE: 'config/vehicle-profiles.example.json', ROUTING_TRIP_TOKEN: tokens.trip, ROUTING_MATCHING_TOKEN: tokens.matching, ROUTING_GATEWAY_TOKEN: tokens.gateway, SHUTDOWN_GRACE_MS: '1000', RATE_LIMIT_REQUESTS_PER_SECOND: '1000', RATE_LIMIT_BURST: '100' };
     docker(['run', '-d', '--name', name, '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '-p', '127.0.0.1::3004', ...Object.entries(env).flatMap(([k, v]) => ['-e', k + '=' + v]), image]);
     let url = 'http://' + docker(['port', name, '3004/tcp']); await ready(url);
     const input = { pickup: point, destination: point, vehicleType: 'MOCK_BIKE' };
     assert.deepEqual(await post(url, '/internal/routes/estimate', 'trip', input), { distanceMeters: 4000, durationSeconds: 600 });
     assert.ok((await post(url, '/routes', 'gateway', { origin: point, destination: point, vehicleType: 'MOCK_BIKE' })).polyline.value);
-    const matrix = await post(url, '/routes/matrix', 'matching', { pickup: point, vehicleType: 'MOCK_BIKE' }); assert.equal(matrix.radiusMeters, 2000); assert.equal(matrix.entries.length, 2);
+    const matrix = await post(url, '/internal/routes/eta-matrix', 'matching', { destination: point, vehicleType: 'MOCK_BIKE', origins: [{ id: 'driver-a', lat: point.lat, lng: point.lng }, { id: 'driver-b', lat: point.lat, lng: point.lng }] }); assert.deepEqual(matrix.entries.map(e => e.id), ['driver-a', 'driver-b']);
     assert.ok((await post(url, '/routes/recalculate', 'gateway', { currentLocation: point, destination: point, vehicleType: 'MOCK_BIKE' })).polyline.value);
     const started = performance.now();
     const burst = await Promise.all(Array.from({ length: 20 }, () => post(url, '/internal/routes/estimate', 'trip', input)));

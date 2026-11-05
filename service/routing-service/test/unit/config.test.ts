@@ -9,13 +9,13 @@ const profiles = JSON.stringify({ schemaVersion: 1, vehicleTypes: { CAR: { profi
 test('Hanoi deployment profile enables real CAR only and refuses BIKE without a verified profile', () => {
   const env = { ...testEnv, INTEGRATION_MODE: 'real', EXTERNAL_MAP_BASE_URL: 'http://osrm:5000', EXTERNAL_MAP_ALLOWED_HOSTS: 'osrm', EXTERNAL_MAP_ALLOW_HTTP: 'true', SUPPORTED_VEHICLE_TYPES: 'CAR', VEHICLE_PROFILES_FILE: 'config/vehicle-profiles.osrm.json' };
   const config = readConfig(env);
-  assert.equal(config.profiles.CAR?.profile, 'driving'); assert.equal(config.map.mode, 'real'); assert.equal(config.realtime.mode, 'mock');
+  assert.equal(config.profiles.CAR?.profile, 'driving'); assert.equal(config.map.mode, 'real');
   assert.throws(() => readConfig({ ...env, SUPPORTED_VEHICLE_TYPES: 'CAR,BIKE' }), /VEHICLE_PROFILES_FILE/);
   assert.throws(() => readConfig({ ...env, EXTERNAL_MAP_ALLOW_HTTP: 'false' }), /EXTERNAL_MAP_BASE_URL/);
 });
-test('mock defaults preserve bounded queue, radius and separate integrations', () => {
-  const c = loadConfig(testEnv); assert.equal(c.map.mode, 'mock'); assert.equal(c.realtime.mode, 'mock');
-  assert.equal(c.realtime.radius, 2000); assert.equal(c.limits.workers, 2); assert.equal(c.limits.deadline, 4000);
+test('mock defaults preserve the bounded queue', () => {
+  const c = loadConfig(testEnv); assert.equal(c.map.mode, 'mock');
+  assert.equal(c.limits.workers, 2); assert.equal(c.limits.deadline, 4000);
 });
 test('self-hosted OSRM raises the rate limit defaults; explicit values still win', () => {
   const env = { ...testEnv, INTEGRATION_MODE: 'real', SUPPORTED_VEHICLE_TYPES: 'CAR', EXTERNAL_MAP_BASE_URL: 'http://osrm:5000', EXTERNAL_MAP_ALLOWED_HOSTS: 'osrm', EXTERNAL_MAP_ALLOW_HTTP: 'true' };
@@ -46,15 +46,10 @@ test('secret files trim input, reject ambiguous sources and sanitize read errors
   assert.throws(() => loadConfig({ ...testEnv, ROUTING_TRIP_TOKEN: '', ROUTING_TRIP_TOKEN_FILE: 'secret' }, { read: () => { throw new Error('sensitive content'); } }), (e: unknown) => e instanceof Error && !e.message.includes('sensitive content'));
 });
 test('reject invalid numeric limits and string boolean traps', () => {
-  for (const env of [{ QUEUE_MAX_SIZE: '0' }, { PORT: '65536' }, { WORKER_POOL_SIZE: '-1' }, { REQUEST_DEADLINE_MS: '5000' }, { UPSTREAM_TIMEOUT_MS: 'NaN' }, { SWAGGER_ENABLED: 'yes' }, { NEARBY_DRIVER_RADIUS_METERS: '1000' }]) assert.throws(() => loadConfig({ ...testEnv, ...env }));
+  for (const env of [{ QUEUE_MAX_SIZE: '0' }, { PORT: '65536' }, { WORKER_POOL_SIZE: '-1' }, { REQUEST_DEADLINE_MS: '5000' }, { UPSTREAM_TIMEOUT_MS: 'NaN' }, { SWAGGER_ENABLED: 'yes' }]) assert.throws(() => loadConfig({ ...testEnv, ...env }));
   assert.equal(loadConfig({ ...testEnv, SWAGGER_ENABLED: 'false' }).swagger, false);
 });
 test('distinct caller credentials and production real modes are required', () => {
   assert.throws(() => loadConfig({ ...testEnv, ROUTING_GATEWAY_TOKEN: testEnv.ROUTING_TRIP_TOKEN }), /ROUTING_SERVICE_TOKENS/);
   assert.throws(() => loadConfig({ ...testEnv, APP_ENV: 'production' }), /INTEGRATION_MODE/);
-});
-test('Realtime mode and credential remain independent of OSRM', () => {
-  assert.throws(() => loadConfig({ ...testEnv, REALTIME_INTEGRATION_MODE: 'real' }), /REALTIME_BASE_URL/);
-  const c = loadConfig({ ...testEnv, REALTIME_INTEGRATION_MODE: 'real', REALTIME_BASE_URL: 'https://realtime.internal', REALTIME_TOKEN: 'test-realtime-token' });
-  assert.equal(c.map.mode, 'mock'); assert.equal(c.realtime.token, 'test-realtime-token');
 });

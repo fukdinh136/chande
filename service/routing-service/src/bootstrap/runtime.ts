@@ -1,27 +1,23 @@
 import type { BeforeApplicationShutdown } from '@nestjs/common';
 import type { Config } from './config';
-import { systemClock, type Clock, type MapProvider, type RealtimeLocationPort } from '../application/ports/clients';
+import { systemClock, type Clock, type MapProvider } from '../application/ports/clients';
 import { MockMapProvider } from '../infrastructure/map/mock';
 import { OsrmProvider } from '../infrastructure/map/osrm';
 import { RateLimiter } from '../infrastructure/pipeline/limiter';
 import { WorkerPool } from '../infrastructure/pipeline/pool';
 import { CalculateRoute } from '../application/use-cases/route';
-import { CalculateEtaMatrix } from '../application/use-cases/matrix';
 import { CalculateEtaForOrigins } from '../application/use-cases/eta-matrix';
 import { RecalculateRoute } from '../application/use-cases/recalculate';
-import { MockRealtimeLocations, RealtimeClient } from '../infrastructure/realtime/client';
 import { busy } from '../domain/errors';
-import { HttpRealtimeLocations } from '../infrastructure/realtime/http';
 export class RoutingRuntime implements BeforeApplicationShutdown {
-  readonly pool: WorkerPool; readonly route: CalculateRoute; readonly matrix: CalculateEtaMatrix; readonly etaMatrix: CalculateEtaForOrigins; readonly recalculate: RecalculateRoute;
+  readonly pool: WorkerPool; readonly route: CalculateRoute; readonly etaMatrix: CalculateEtaForOrigins; readonly recalculate: RecalculateRoute;
   private requests = new Set<AbortController>(); private requestDrained: (() => void)[] = [];
-  constructor(readonly config: Config, readonly clock: Clock = systemClock, provider?: MapProvider, realtime?: RealtimeLocationPort) {
+  constructor(readonly config: Config, readonly clock: Clock = systemClock, provider?: MapProvider) {
     const map = provider ?? (config.map.mode === 'mock' ? new MockMapProvider(clock) : new OsrmProvider(config, clock));
     this.pool = new WorkerPool(map, new RateLimiter(config.limits, clock), config.limits, clock);
     this.route = new CalculateRoute(this.pool, clock, config.vehicleTypes);
     this.recalculate = new RecalculateRoute(this.route);
     this.etaMatrix = new CalculateEtaForOrigins(this.pool, clock, config.vehicleTypes, config.limits);
-    this.matrix = new CalculateEtaMatrix(new RealtimeClient(realtime ?? (config.realtime.mode === 'real' ? new HttpRealtimeLocations(config.realtime) : new MockRealtimeLocations(clock)), config.realtime, clock), this.pool, clock, config.vehicleTypes, config.limits);
   }
   track(controller: AbortController): () => void {
     if (!this.pool.stats.accepting || this.requests.size >= this.config.limits.queueSize + this.config.limits.workers) throw busy();

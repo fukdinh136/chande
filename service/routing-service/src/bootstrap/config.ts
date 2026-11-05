@@ -12,7 +12,6 @@ export interface Config {
   production: boolean; host: string; port: number; swagger: boolean; logLevel: string;
   vehicleTypes: string[]; profiles: Record<string, Profile>; tokens: { trip: string; matching: string; gateway: string };
   map: { mode: Mode; auth: 'none' | 'header'; key: string; keyHeader: string; baseUrl: string };
-  realtime: { mode: Mode; baseUrl: string; token: string; timeout: number; maxResponse: number; radius: 2000 };
   limits: { deadline: number; upstreamTimeout: number; attempts: number; retryBase: number; maxResponse: number;
     queueSize: number; admissionTimeout: number; queueWait: number; workers: number; rps: number; burst: number;
     rateWait: number; elementsPerMinute: number; matrixCandidates: number; matrixBatch: number; shutdownGrace: number };
@@ -45,7 +44,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, options: { root
     const value = checked(z.enum(['mock', 'real']), text(name, 'mock'), name);
     if (production && value === 'mock') return invalid(name); return value;
   };
-  const mapMode = mode('INTEGRATION_MODE'); const realtimeMode = mode('REALTIME_INTEGRATION_MODE');
+  const mapMode = mode('INTEGRATION_MODE');
   checked(z.literal('osrm'), text('EXTERNAL_MAP_PROVIDER', 'osrm'), 'EXTERNAL_MAP_PROVIDER');
   const auth = checked(z.enum(['none', 'header']), text('EXTERNAL_MAP_AUTH_MODE', 'none'), 'EXTERNAL_MAP_AUTH_MODE');
   const allowHttp = boolean('EXTERNAL_MAP_ALLOW_HTTP', false);
@@ -80,20 +79,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, options: { root
   }
   const tokens = { trip: secret('ROUTING_TRIP_TOKEN', true), matching: secret('ROUTING_MATCHING_TOKEN', true), gateway: secret('ROUTING_GATEWAY_TOKEN', true) };
   if (new Set(Object.values(tokens)).size !== 3) return invalid('ROUTING_SERVICE_TOKENS');
-  const realtimeUrl = text('REALTIME_BASE_URL');
-  if (realtimeUrl) {
-    let url: URL; try { url = new URL(realtimeUrl); } catch { return invalid('REALTIME_BASE_URL'); }
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || !['', '/'].includes(url.pathname) || (production && url.protocol !== 'https:')) return invalid('REALTIME_BASE_URL');
-  }
-  if (realtimeMode === 'real' && !realtimeUrl) return invalid('REALTIME_BASE_URL');
-  const radius = integer('NEARBY_DRIVER_RADIUS_METERS', 2000, 2000); if (radius !== 2000) return invalid('NEARBY_DRIVER_RADIUS_METERS');
   return {
     production, host: checked(z.string().min(1).max(253).regex(/^[A-Za-z0-9.:-]+$/), text('HOST', '127.0.0.1'), 'HOST'),
     port: integer('PORT', 3004, 65535), swagger: boolean('SWAGGER_ENABLED', !production),
     logLevel: checked(z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']), text('LOG_LEVEL', 'INFO'), 'LOG_LEVEL'),
     tokens, vehicleTypes, profiles, map: { mode: mapMode, auth, key, keyHeader, baseUrl },
-    realtime: { mode: realtimeMode, baseUrl: realtimeUrl.replace(/\/$/, ''), token: secret('REALTIME_TOKEN', realtimeMode === 'real'),
-      timeout: integer('REALTIME_TIMEOUT_MS', 1000, 60000), maxResponse: integer('REALTIME_MAX_RESPONSE_BYTES', 1048576, 16777216), radius: 2000 },
     limits: {
       deadline: integer('REQUEST_DEADLINE_MS', 4000, 4999), upstreamTimeout: integer('UPSTREAM_TIMEOUT_MS', 1200, 60000),
       attempts: integer('UPSTREAM_MAX_ATTEMPTS', 2, 3), retryBase: integer('UPSTREAM_RETRY_BASE_MS', 100, 5000), maxResponse: integer('UPSTREAM_MAX_RESPONSE_BYTES', 1048576, 16777216),
