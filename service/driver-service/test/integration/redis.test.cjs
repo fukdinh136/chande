@@ -45,7 +45,7 @@ test(
   },
 );
 test(
-  "Redis batch read matches read(), and the conditional projection skips drivers that changed",
+  "Redis batch read returns the same state as read(), in input order",
   { skip: !url },
   async () => {
     storageTarget("redis", url);
@@ -60,19 +60,6 @@ test(
       const before = await state.readMany(ids);
       assert.deepEqual(before, await Promise.all(ids.map((id) => state.read(id))));
       assert.deepEqual(before[3], { projectedStatus: null, vehicleId: null, realtimeStatus: "UNKNOWN" });
-      // Changes made between the batch read and its write, as a concurrent availability update would.
-      await state.setDesired(wentOffline, "OFFLINE");
-      await state.select(switched, randomUUID());
-      const applied = await state.projectMany(ids.map((id, i) => ({ id, status: "AVAILABLE", vehicleId: before[i].vehicleId })));
-      assert.deepEqual(applied, [true, false, false, false]);
-      const after = await state.readMany(ids);
-      assert.equal(after[0].realtimeStatus, "AVAILABLE");
-      assert.equal(after[1].realtimeStatus, "OFFLINE");
-      assert.equal(after[2].realtimeStatus, "UNKNOWN");
-      assert.equal(after[3].realtimeStatus, "UNKNOWN");
-      // Without an expected vehicle the write is unconditional (dependency failure path).
-      assert.deepEqual(await state.projectMany([{ id: empty, status: "UNKNOWN" }, { id: wentOffline, status: "UNKNOWN" }]), [true, true]);
-      assert.equal((await state.read(wentOffline)).realtimeStatus, "UNKNOWN");
     } finally {
       await redis.del(...keys);
       for (const id of ids) { await redis.zrem("drivers:locations:last_seen", id); await redis.zrem("drivers:geo:BIKE", id); }

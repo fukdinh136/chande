@@ -67,9 +67,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   if (!["redis:", "rediss:"].includes(new URL(redisUrl).protocol))
     throw new Error("Invalid Redis URL");
   const matchingToken = required("MATCHING_INBOUND_TOKEN");
-  const realtimeToken = secret("REALTIME_INBOUND_TOKEN");
-  if (realtimeToken && (realtimeToken.length < 32 || realtimeToken.startsWith("REPLACE_") || realtimeToken === matchingToken))
-    throw new Error("Configure a separate REALTIME_INBOUND_TOKEN of at least 32 characters");
   return {
     production,
     port: integer("PORT", 3003, 65535),
@@ -95,7 +92,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     httpTimeout: integer("HTTP_TIMEOUT_MS", 5000, 60000),
     gatewayProxyToken: secret("GATEWAY_PROXY_TOKEN"),
     matchingToken,
-    realtimeToken,
     tripLookupToken: secret('TRIP_LOOKUP_TOKEN'),
     matchingLookupToken: secret('MATCHING_LOOKUP_TOKEN'),
     matchingUrl: env.MATCHING_BASE_URL ? url('MATCHING_BASE_URL') : '',

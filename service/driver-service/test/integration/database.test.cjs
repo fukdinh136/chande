@@ -120,7 +120,7 @@ test(
         ),
         (error) => error.driverError?.code === "23505",
       );
-      // Batch reads used by eligibility/batch: one query each, unknown ids are absent.
+      // Batch reads used by eligibility/candidates: one query each, unknown ids are absent.
       const missing = randomUUID();
       const batch = await store.read((repo) => repo.drivers([id, missing]));
       assert.deepEqual([...batch.found.keys()], [id]);

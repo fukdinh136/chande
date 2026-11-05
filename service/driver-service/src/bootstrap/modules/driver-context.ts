@@ -2,7 +2,6 @@ import { ProfileUseCases } from "../../application/use-cases/profile/profile.use
 import { VehicleUseCases } from "../../application/use-cases/vehicle/vehicle.use-cases";
 import { AvailabilityUseCases } from "../../application/use-cases/availability/availability.use-cases";
 import { EligibilityUseCase } from "../../application/use-cases/eligibility/eligibility.use-case";
-import { BatchEligibilityUseCase } from "../../application/use-cases/eligibility/batch-eligibility.use-case";
 import { CandidateEligibilityUseCase } from "../../application/use-cases/eligibility/candidate-eligibility.use-case";
 import { EditPolicy } from "../../application/use-cases/vehicle/edit.policy";
 import { DataSource } from "typeorm";
@@ -26,7 +25,6 @@ export class DriverContext {
   readonly vehicle: VehicleUseCases;
   readonly availability: AvailabilityUseCases;
   readonly eligibility: EligibilityUseCase;
-  readonly batchEligibility: BatchEligibilityUseCase;
   readonly candidates: CandidateEligibilityUseCase;
   private readonly redis: Redis;
   constructor(
@@ -95,7 +93,6 @@ export class DriverContext {
       state,
       config.vehicleTypes,
     );
-    this.batchEligibility = new BatchEligibilityUseCase(this.store, state, config.vehicleTypes, occupancy);
     this.candidates = new CandidateEligibilityUseCase(this.store, state, config.vehicleTypes);
   }
   async onModuleInit() {
