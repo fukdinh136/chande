@@ -10,6 +10,8 @@ export interface Transaction {
   saveQuote(quote: Quote): Promise<void>;
   consumeQuote(id: string, tripId: string): Promise<void>;
   active(principal: Principal): Promise<TripData | null>;
+  /** Active trip id per driver, read in one query; drivers without an active trip are absent. */
+  activeTripsByDriver(driverIds: readonly string[]): Promise<Map<string, string>>;
   list(principal: Principal, limit: number, status?: string, cursor?: PageKey): Promise<TripData[]>;
   history(id: string): Promise<HistoryEntry[]>;
   addHistory(id: string, entries: HistoryEntry[]): Promise<void>;

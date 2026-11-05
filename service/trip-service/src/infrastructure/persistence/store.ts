@@ -33,6 +33,11 @@ class PgTransaction implements Transaction {
     const rows: DataRow<TripData>[] = await this.db.query(`SELECT data FROM trips WHERE ${field}=$1 AND status IN ('CREATED','SEARCHING','ASSIGNED','DRIVER_ARRIVED','IN_PROGRESS')`, [principal.sub]);
     return rows[0]?.data ?? null;
   }
+  async activeTripsByDriver(driverIds: readonly string[]): Promise<Map<string, string>> {
+    // uq_trips_active_driver covers this filter, so it stays one index scan for the whole batch.
+    const rows: { driver_id: string; id: string }[] = await this.db.query(`SELECT driver_id,id FROM trips WHERE driver_id=ANY($1::uuid[]) AND status IN ('CREATED','SEARCHING','ASSIGNED','DRIVER_ARRIVED','IN_PROGRESS')`, [driverIds]);
+    return new Map(rows.map(row => [row.driver_id, row.id]));
+  }
   async list(principal: Principal, limit: number, status?: string, cursor?: PageKey): Promise<TripData[]> {
     const field = principal.role === 'RIDER' ? 'rider_id' : 'driver_id';
     const rows: DataRow<TripData>[] = await this.db.query(`SELECT data FROM trips WHERE ${field}=$1 AND status IN ('COMPLETED','CANCELLED') AND ($2::text IS NULL OR status=$2) AND ($3::timestamptz IS NULL OR (requested_at,id)<($3::timestamptz,$4::uuid)) ORDER BY requested_at DESC,id DESC LIMIT $5`, [principal.sub, status ?? null, cursor?.requestedAt ?? null, cursor?.tripId ?? null, limit]);

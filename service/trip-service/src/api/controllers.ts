@@ -63,9 +63,8 @@ export class DriverLookupController {
   async activeDrivers(@Req() req: TripRequest, @Body() input: unknown) {
     verifyServiceCredential(req.header('X-Service-Token'), this.context.config.driverLookupToken ?? '');
     const { driverIds } = parse(z.object({ driverIds: z.array(uuid).min(1).max(100).refine(ids => new Set(ids).size === ids.length) }).strict(), input);
-    const items = await this.context.store.transaction(async tx => {
-      const result = []; for (const driverId of driverIds) { const trip = await tx.active({ sub: driverId, role: 'DRIVER' }); result.push({ driverId, tripId: trip?.tripId ?? null }); } return result;
-    });
+    const active = await this.context.store.transaction(tx => tx.activeTripsByDriver(driverIds));
+    const items = driverIds.map(driverId => ({ driverId, tripId: active.get(driverId) ?? null }));
     return envelope(req, { items });
   }
 }
