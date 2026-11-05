@@ -34,14 +34,13 @@ PostgreSQL test: Trip 55434, Matching 55435; Matching local DB 55436; Trip local
 | --- | --- | --- |
 | Quote Trip | 300000 ms (5 phút) | Chính sách v1; EstimateTrip |
 | Active Trip | Một chuyến / khách và một chuyến / tài xế | Domain + unique DB constraints Trip |
-| Bán kính nearby | 2000 m (2 km) | Routing cố định; Realtime default/tối đa |
+| Bán kính tìm xe | 2000 m (2 km) | Matching gửi cố định `radiusMeters=2000`; Realtime default/tối đa |
 | GPS freshness | 30000 ms | Realtime default/tối đa; Matching lọc lại khi chọn |
-| GPS future tolerance | 5000 ms | Default Realtime và filter Routing/Matching |
-| Realtime result cap | 50 tài xế | NearbyPolicy.maximumResults; khác GEO scan cap 5000 |
-| Routing matrix cap / batch | 50 / 25 ứng viên | Defaults config; ETA luôn driver → pickup |
-| Routing deadline | 4000 ms | Cả lookup, queue, limiter, map và batches |
+| GPS future tolerance | 5000 ms | Default Realtime; Matching lọc lại khi xếp hạng |
+| Vị trí mỗi lần tìm | 200 tài xế | `NEARBY_LIMIT` của Matching; Realtime `driver-locations` trả tối đa 200, gần nhất trước (Redis `GEOSEARCH ... COUNT`) |
+| Routing matrix cap / batch | 50 / 25 ứng viên | Defaults config `eta-matrix`; Matching gửi 25 (`MATRIX_CANDIDATES`); ETA luôn driver → pickup |
+| Routing deadline | 4000 ms | Cả queue, limiter, map và batches |
 | Routing async workers | 2 | Cùng process, xử lý I/O; không phải worker threads |
-| Routing Realtime lookup timeout | Default 1000 ms; Matching stack override 3000 ms | Luôn cắt theo deadline còn lại |
 | Offer TTL | 20000 ms (20 giây) | Tính ở DB/server; retry/reconnect không reset |
 | Search polling / expiry scan | 5000 ms / 250 ms | Defaults Matching; worker nghỉ 250 ms khi không còn search tới hạn ([ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md)); không deadline kết thúc tìm xe |
 | Matching concurrent jobs / lease | 16 / 60000 ms | Worker lease khác reservation; pending callback không hết theo TTL offer |
@@ -72,11 +71,8 @@ Nguồn: [policy Price](../service/price-service/config/fare-policy.example.json
 | Matching → Realtime | GET /internal/realtime/driver-locations; latitude/longitude/radiusMeters/limit ≤200 | `MATCHING_LOCATION_TOKEN`; vị trí thô, gần nhất trước ([ADR-0001](adr/0001-matching-so-huu-tim-ung-vien.md)) |
 | Matching → Driver (lô) | POST /internal/drivers/eligibility/candidates; driverIds ≤100, vehicleType | Credential Matching; luật giống eligibility đơn, kèm snapshot; không hỏi Trip / Matching |
 | Matching → Routing (ETA) | POST /internal/routes/eta-matrix; destination, vehicleType, origins ≤50 | Credential Matching; Routing không gọi Realtime |
-| Matching → Routing (cũ) | POST /routes/matrix; pickup/vehicleType | Credential Matching; chỉ dùng khi `CANDIDATE_SOURCE=routing` |
-| Routing → Realtime | GET /internal/realtime/nearby-drivers | X-Service-Token; latitude/longitude/radiusMeters/vehicleType |
-| Realtime → Driver | POST /internal/drivers/eligibility/batch | Credential Realtime riêng; cả lô 2 câu SQL, 2 script Redis, không khoá từng tài xế |
-| Driver → Trip / Matching | POST /internal/trips/active-drivers/batch; POST /internal/matching/reservations/batch | Credential lookup Driver riêng; chỉ internal; mỗi phía 1 câu SQL cho cả lô |
-| Matching → Driver | GET /internal/drivers/:driverId/eligibility | Credential Matching; snapshot lấy server |
+| Driver → Trip / Matching | POST /internal/trips/active-drivers/batch; POST /internal/matching/reservations/batch | Credential lookup Driver riêng; chỉ internal; mỗi phía 1 câu SQL cho cả lô; dùng khi tài xế đổi trạng thái hoặc xe, không dùng khi tìm xe |
+| Matching → Driver | GET /internal/drivers/:driverId/eligibility | Credential Matching; snapshot lấy server; chỉ còn dùng để kiểm lại trước khi gán |
 | Matching → Trip | POST /internal/trips/:id/assignment; GET /internal/trips/:id/matching-state | Matching callback token; assignment 202 sau commit |
 | Driver REST → Matching | GET active/detail offer; POST accept/decline | JWT DRIVER, issuer/JWKS Driver, audience matching-service; decision có Idempotency-Key |
 | Matching → Realtime | Rabbit DRIVER_TRIP_OFFER / UPDATED, đọc state Matching | Publisher confirms/manual ACK; WS driver.trip.offer / updated |

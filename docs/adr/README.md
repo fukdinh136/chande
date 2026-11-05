@@ -20,7 +20,7 @@ Không sửa nội dung một ADR đã chấp nhận. Khi đổi quyết định
 
 | ADR | Quyết định | Phase | Trạng thái |
 | --- | --- | --- | --- |
-| [0001](0001-matching-so-huu-tim-ung-vien.md) | Matching sở hữu việc tìm ứng viên, gỡ vòng gọi qua Routing / Realtime / Driver | 1 | Đề xuất; đã triển khai expand + migrate |
+| [0001](0001-matching-so-huu-tim-ung-vien.md) | Matching sở hữu việc tìm ứng viên, gỡ vòng gọi qua Routing / Realtime / Driver | 1 | Đề xuất; đã triển khai đủ expand, migrate, contract |
 | [0002](0002-truc-su-kien-rabbitmq.md) | Event của Trip phát qua RabbitMQ topic exchange, không dùng Kafka | 1 | Đề xuất |
 | [0003](0003-observability-opentelemetry.md) | OpenTelemetry + Prometheus + Grafana + Jaeger | 1 | Đề xuất |
 | [0004](0004-gioi-han-thoi-gian-tim-xe.md) | Deadline tìm xe, huỷ bởi hệ thống với lý do `NO_DRIVER_FOUND` | 1 | Đề xuất |

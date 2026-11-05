@@ -78,9 +78,9 @@ B7 và B1 đã có code, test và smoke. Cột "Sau" mô tả theo code; kết q
 | B7 — Trip | `active-drivers/batch` chạy 1 câu SQL mỗi tài xế (100 câu cho lô 100) | 1 câu `driver_id = ANY` cho cả lô | Test đơn vị Trip | `d48fe7c` |
 | B7 — Driver | `eligibility/batch` khoá từng tài xế, khoảng 400 câu SQL và 200 lệnh Redis cho lô 100 | 2 câu SQL, 2 script Redis; ghi trạng thái có điều kiện thay cho advisory lock, tài xế đổi trạng thái giữa chừng trả `DRIVER_STATE_CHANGED` | Test đơn vị đếm số lần truy cập; test tích hợp trên PostgreSQL và Redis thật | `3cb0d8a` |
 | B1 — expand | Routing hỏi Realtime, Realtime hỏi Driver, Driver hỏi Trip và Matching | Ba API mới: Realtime `driver-locations` (tối đa 200, `GEOSEARCH COUNT`), Driver `eligibility/candidates` (2 câu SQL, không khoá), Routing `eta-matrix` | Test từng service; candidates so khớp với eligibility đơn | `bcc8ecd`, `50f4f17`, `d6df2f9` |
-| B1 — migrate | Matching gọi `/routes/matrix` rồi gọi Driver cho từng ứng viên | Matching gọi Realtime, Driver (theo lô 100), Routing (25 người gần nhất) mỗi service một lần; `CANDIDATE_SOURCE=routing` để lùi | Test tích hợp trên PostgreSQL; smoke CAR_4 / CAR_7 xanh trên Docker với cả `direct` và `routing`, trên Kubernetes với `direct`; `restart-check.cjs` xanh | `80093e0` |
+| B1 — migrate | Matching gọi `/routes/matrix` rồi gọi Driver cho từng ứng viên | Matching gọi Realtime, Driver (theo lô 100), Routing (25 người gần nhất) mỗi service một lần | Test tích hợp trên PostgreSQL; smoke CAR_4 / CAR_7 xanh trên Docker với cả `direct` và `routing`, trên Kubernetes với `direct`; `restart-check.cjs` xanh | `80093e0` |
 
-Ước tính mỗi lần tìm xe (theo code): câu SQL kiểm tra tài xế từ khoảng 1000 xuống khoảng 10; ETA tối đa 25 người thay vì 50; chi phí có trần ở 200 vị trí dù khu vực đông bao nhiêu. Đường cũ (`/routes/matrix`, `/nearby-drivers`, `eligibility/batch`) giữ lại tới khi đo xong ([ADR-0001, mục Triển khai](adr/0001-matching-so-huu-tim-ung-vien.md#triển-khai)).
+Ước tính mỗi lần tìm xe (theo code): câu SQL kiểm tra tài xế từ khoảng 1000 xuống khoảng 10; ETA tối đa 25 người thay vì 50; chi phí có trần ở 200 vị trí dù khu vực đông bao nhiêu. Sau khi đo, bước contract đã xoá đường cũ (`/routes/matrix`, `/nearby-drivers`, `eligibility/batch`, cờ `CANDIDATE_SOURCE`); smoke và `restart-check.cjs` xanh trên Kubernetes ([ADR-0001, mục Triển khai](adr/0001-matching-so-huu-tim-ung-vien.md#triển-khai)). Lưu ý: các số đo ở mục 11 của báo cáo tải chạy trước bước contract, khi `eligibility/batch` theo lô (B7) vẫn còn nhưng không nằm trên đường tìm xe.
 
 ## 4. Ràng buộc chi phí
 
@@ -159,7 +159,7 @@ Nhóm D không nâng thông lượng. Nhóm này giúp hệ thống trả lỗi 
 | --- | --- | --- | --- |
 | Đã xong | Nhóm A, index outbox Matching, E1–E3 | 21 lần đo ngày 2026-11-04 | Đạt: 6 chuyến/giây trong ngưỡng, 5000 tài xế |
 | Ngay, 1 tuần | B7 (code xong 2026-11-05); chuyển ADR-0008 sang Chấp nhận | Loạt 2 (giống app) ở 6, 8, 10, 12 chuyến/giây; `sql.json` | Câu SQL kiểm tra tài xế dưới 20 mỗi chuyến; đạt ngưỡng ở 10 chuyến/giây |
-| Phase 1 | B1 (code xong và đo 2026-11-05: đạt 12 chuyến/giây; còn bước contract), B6 (P1.1, P1.4); B2 nếu còn thời gian | Như trên với 2000 và 5000 tài xế; dashboard | Trần không giảm khi tăng từ 1000 lên 5000 tài xế; giải thích được hai hiện tượng còn mở |
+| Phase 1 | B1 (xong cả contract và đo 2026-11-05: đạt 12 chuyến/giây), B6 (P1.1, P1.4); B2 nếu còn thời gian | Như trên với 2000 và 5000 tài xế; dashboard | Trần không giảm khi tăng từ 1000 lên 5000 tài xế; giải thích được hai hiện tượng còn mở |
 | Phase 2 | B5, B4, B3, D1 (cùng P2.5) | Tài xế lên ca đồng loạt; chạy lâu 2 giờ; tắt Routing trong lúc đo | Không có đợt chậm khi làm mới token; RAM ổn định; báo giá trả lỗi ngay khi Routing tắt |
 | Trước bảo vệ | E6, D2, D3, D4; tuỳ chọn E4 | Kịch bản 3500 tài xế + 3000 chuyến; deploy trong lúc chạy tải; diễn tập khôi phục | Ghi lại thời gian gán hết 3000 chuyến; 0% lỗi HTTP khi deploy; RTO đo được |
 

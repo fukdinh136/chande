@@ -8,7 +8,7 @@
 
 ## Trạng thái
 
-Đề xuất — phase 1, cải tiến P1.1 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md). Đã triển khai PR 1 (expand) và PR 2 (migrate) ngày 2026-11-05, xem [Triển khai](#triển-khai); PR 3 (contract) chờ kết quả đo Phase 1.
+Đề xuất — phase 1, cải tiến P1.1 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md). Đã triển khai đủ ba bước expand, migrate và contract ngày 2026-11-05, xem [Triển khai](#triển-khai). Trạng thái chuyển sang Đã chấp nhận khi nhóm duyệt.
 
 ## Bối cảnh
 
@@ -84,8 +84,8 @@ Ngày 2026-11-05, nhánh `perf/adr-0008-trip-outbox`. Smoke CAR_4 / CAR_7 xanh t
 | PR | Commit | Đã làm |
 | --- | --- | --- |
 | 1 — Expand | `bcc8ecd`, `50f4f17`, `d6df2f9` | Ba API ở bảng dưới, kèm test; endpoint cũ giữ nguyên |
-| 2 — Migrate | `80093e0` | `DirectCandidates` và `RoutingCandidates` trong `application/candidates.ts`; cờ `CANDIDATE_SOURCE`; `deploy/stack.cjs` cấp credential mới |
-| 3 — Contract | Chưa làm | Xoá đường cũ sau khi đo Phase 1 đạt |
+| 2 — Migrate | `80093e0` | `DirectCandidates` trong `application/candidates.ts` (kèm `RoutingCandidates` và cờ `CANDIDATE_SOURCE` để lùi, đã gỡ ở bước 3); `deploy/stack.cjs` cấp credential mới |
+| 3 — Contract | `304cf6f`, `cceae34`, `a3cd200`, `fe97068`, `5c03191`, `720fa49` | Xoá `/routes/matrix`, Calculate ETA Matrix và client Realtime ở Routing; `/nearby-drivers`, FindNearby và client Driver ở Realtime; `/eligibility/batch` ở Driver; cờ `CANDIDATE_SOURCE` và `RoutingCandidates` ở Matching; secret `routingRealtime`, `realtimeDriver` và các biến `REALTIME_*` ở Routing, `DRIVER_*` ở Realtime |
 
 API đã triển khai, khác bản thiết kế ở tên trường và credential:
 
@@ -95,6 +95,8 @@ API đã triển khai, khác bản thiết kế ở tên trường và credentia
 | Driver | `POST /internal/drivers/eligibility/candidates` `{driverIds ≤100, vehicleType}` | `vehicleType` bắt buộc. Trả `{items[{driverId, eligible, reasons, vehicleId, driverSnapshot, vehicleSnapshot}]}` cùng luật với `GET /:id/eligibility`; 2 câu SQL và 1 script Redis cho cả lô, không khoá, không ghi |
 | Routing | `POST /internal/routes/eta-matrix` `{destination, vehicleType, origins[{id, lat, lng}] ≤50}` | Trả `{entries[{id, status, distanceMeters, durationSeconds}], calculatedAt}` |
 
-Cấu hình Matching: `CANDIDATE_SOURCE` (`direct` mặc định, `routing` để lùi), `REALTIME_BASE_URL`, `REALTIME_MATCHING_TOKEN`, `NEARBY_LIMIT` (200), `MATRIX_CANDIDATES` (25). Realtime nhận `MATCHING_LOCATION_TOKEN`; thiếu biến này thì `/driver-locations` từ chối mọi caller. Hai biến dùng chung secret `matchingLocation`.
+Cấu hình Matching: `REALTIME_BASE_URL`, `REALTIME_MATCHING_TOKEN` (bắt buộc), `NEARBY_LIMIT` (200), `MATRIX_CANDIDATES` (25). Realtime nhận `MATCHING_LOCATION_TOKEN` (bắt buộc, khác `MATCHING_REALTIME_TOKEN`). Hai biến dùng chung secret `matchingLocation`.
+
+Sau bước contract, smoke CAR_4 / CAR_7 và `restart-check.cjs` xanh trên Kubernetes; pod Routing không còn biến `REALTIME_*`, pod Realtime không còn biến `DRIVER_*` (tiêu chí Config). Hai lỗi công cụ deploy lộ ra ở bước này đã sửa trong `720fa49`: Secret giữ lại biến đã xoá, và `restart-check.cjs` kiểm tra trước khi pod mới thật sự nhận kết nối.
 
 Hệ quả `realtimeStatus` đã kiểm: app tài xế đọc trường này qua `GET /drivers/me/availability`, và endpoint đó tự hỏi Trip và Matching rồi ghi lại trạng thái mỗi lần gọi, nên luồng mới không làm app hiển thị sai.
