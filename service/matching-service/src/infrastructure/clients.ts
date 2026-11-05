@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { CandidateClients, Clients } from '../application/ports';
 import type { Config } from '../bootstrap/config';
-import { uuid, type Assignment, type Command } from '../domain/models';
+import { uuid, type Assignment } from '../domain/models';
 /** A failed call to another service: HTTP status (0 when there was no response), its error code, and its Retry-After. */
 export class UpstreamError extends Error {
   constructor(readonly status: number, readonly code = 'HTTP_' + status, readonly dependency = 'unknown', readonly retryAfterMs: number | null = null) { super('UPSTREAM_ERROR'); }
@@ -19,7 +19,6 @@ async function failure(r: Response, dependency: string): Promise<UpstreamError> 
   const after = Number(r.headers.get('retry-after'));
   return new UpstreamError(r.status, code, dependency, Number.isFinite(after) && after > 0 ? Math.min(after, 60) * 1000 : null);
 }
-const matrix = z.object({ entries: z.array(z.object({ driverId: uuid, observedAt: z.iso.datetime(), status: z.enum(['OK', 'NO_ROUTE']), distanceMeters: z.number().int().nonnegative().nullable(), durationSeconds: z.number().int().nonnegative().nullable() })).max(50), radiusMeters: z.literal(2000) });
 const eligibility = z.object({ driverId: uuid, profileEligible: z.boolean(), desiredStatus: z.string(), vehicleId: uuid.nullable(), driverSnapshot: z.object({ fullName: z.string().min(1).max(100), avatarUrl: z.string().nullable() }).nullable(), vehicleSnapshot: z.object({ vehicleType: z.string(), licensePlate: z.string().min(1).max(15), brand: z.string().nullable(), color: z.string().nullable() }).nullable() });
 const snapshotsOf = { driverSnapshot: eligibility.shape.driverSnapshot, vehicleSnapshot: eligibility.shape.vehicleSnapshot };
 const locations = z.object({ radiusMeters: z.number().int().positive(), drivers: z.array(z.object({ driverId: uuid, latitude: z.number().min(-85.0511).max(85.0511), longitude: z.number().min(-180).max(180), distanceMeters: z.number().nonnegative(), recordedAt: z.iso.datetime() })).max(200) });
@@ -38,7 +37,6 @@ export class HttpClients implements Clients, CandidateClients {
     const chunks: Uint8Array[] = []; let bytes = 0; for await (const chunk of r.body) { bytes += chunk.length; if (bytes > 1048576) throw new UpstreamError(503, 'RESPONSE_TOO_LARGE', dependency); chunks.push(chunk); }
     const result = z.object({ data: schema }).safeParse(JSON.parse(Buffer.concat(chunks).toString('utf8'))); if (!result.success) throw new UpstreamError(503, 'INVALID_RESPONSE', dependency); return result.data.data;
   }
-  async matrix(command: Command) { return (await this.request(this.c.routingUrl, '/routes/matrix', this.c.routingToken, matrix, { pickup: command.pickup, vehicleType: command.vehicleType })).entries; }
   async driver(id: string, type: string) { const data = await this.request(this.c.driverUrl, `/internal/drivers/${id}/eligibility?vehicleType=${encodeURIComponent(type)}`, this.c.driverToken, eligibility); if (data.driverId !== id) throw new UpstreamError(503, 'INVALID_RESPONSE', 'driver'); return data; }
   async locations(pickup: { lat: number; lng: number }, limit: number) {
     const query = new URLSearchParams({ latitude: String(pickup.lat), longitude: String(pickup.lng), radiusMeters: '2000', limit: String(limit) });

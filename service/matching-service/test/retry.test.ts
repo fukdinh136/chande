@@ -4,10 +4,10 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { HttpClients, UpstreamError } from '../src/infrastructure/clients';
 import { BUSY_RETRY_MAX_MS, describeFailure, retryDelay } from '../src/application/retry';
-import { MatchingError, type Command } from '../src/domain/models';
+import { MatchingError } from '../src/domain/models';
 import type { Config } from '../src/bootstrap/config';
 
-const command = { pickup: { lat: 21.0285, lng: 105.8542 }, vehicleType: 'CAR_4' } as Command;
+const pickup = { lat: 21.0285, lng: 105.8542 }, origins = [{ id: 'driver-a', lat: 21.03, lng: 105.85 }];
 async function routing(status: number, body: string, headers: Record<string, string> = {}): Promise<{ server: Server; url: string }> {
   const server = createServer((_req, res) => { res.writeHead(status, { 'Content-Type': 'application/json', ...headers }); res.end(body); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -18,7 +18,7 @@ const clients = (routingUrl: string) => new HttpClients({ routingUrl, routingTok
 test('a busy Routing answer keeps its error code, dependency and Retry-After', async () => {
   const { server, url } = await routing(503, JSON.stringify({ error: { code: 'ROUTING_BUSY', message: 'ROUTING_BUSY' } }), { 'Retry-After': '1' });
   try {
-    const error = await clients(url).matrix(command).then(() => null, (e: unknown) => e);
+    const error = await clients(url).eta(pickup, 'CAR_4', origins).then(() => null, (e: unknown) => e);
     assert.ok(error instanceof UpstreamError);
     assert.deepEqual(describeFailure(error), { dependency: 'routing', code: 'ROUTING_BUSY', status: 503, retryAfterMs: 1000 });
   } finally { server.close(); }
@@ -26,8 +26,8 @@ test('a busy Routing answer keeps its error code, dependency and Retry-After', a
 
 test('an unparseable error body falls back to HTTP_<status>; an unreachable service is UNREACHABLE', async () => {
   const { server, url } = await routing(500, '<html>oops</html>');
-  try { assert.equal(describeFailure(await clients(url).matrix(command).catch((e: unknown) => e)).code, 'HTTP_500'); } finally { server.close(); }
-  const failure = describeFailure(await clients('http://127.0.0.1:1').matrix(command).catch((e: unknown) => e));
+  try { assert.equal(describeFailure(await clients(url).eta(pickup, 'CAR_4', origins).catch((e: unknown) => e)).code, 'HTTP_500'); } finally { server.close(); }
+  const failure = describeFailure(await clients('http://127.0.0.1:1').eta(pickup, 'CAR_4', origins).catch((e: unknown) => e));
   assert.equal(failure.code, 'UNREACHABLE'); assert.equal(failure.dependency, 'routing'); assert.equal(failure.status, null);
 });
 

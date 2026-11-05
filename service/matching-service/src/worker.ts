@@ -6,7 +6,7 @@ import { source, Repository } from './infrastructure/persistence';
 import { HttpClients } from './infrastructure/clients';
 import { OfferPublisher } from './infrastructure/publisher';
 import { MatchDriver } from './application/match';
-import { DirectCandidates, RoutingCandidates } from './application/candidates';
+import { DirectCandidates } from './application/candidates';
 import { AssignDriver } from './application/decisions';
 import { MatchingWorker } from './application/worker';
 import { OfferExpiry } from './application/expiry';
@@ -18,9 +18,7 @@ async function main() {
   const publisher = new OfferPublisher(repo, c.rabbitUrl, c.publisherBatchMax);
   const publishing = new DrainLoop(() => publisher.tick(), c.publisherScanMs, () => { console.warn('matching_publisher_dependency_unavailable'); });
   // Search jobs run in a pool of WORKER_CONCURRENCY slots that refills as soon as a job ends (ADR-0008).
-  const candidates = c.candidateSource === 'direct' ? new DirectCandidates(clients, c) : new RoutingCandidates(clients);
-  console.info(JSON.stringify({ event: 'matching_candidate_source', source: c.candidateSource }));
-  const worker = new MatchingWorker(repo, new MatchDriver(repo, clients, c.pollMs, () => publishing.wake(), candidates), new AssignDriver(repo, clients), c, () => { console.warn('matching_worker_dependency_unavailable'); });
+  const worker = new MatchingWorker(repo, new MatchDriver(repo, new DirectCandidates(clients, c), c.pollMs, () => publishing.wake()), new AssignDriver(repo, clients), c, () => { console.warn('matching_worker_dependency_unavailable'); });
   const expiry = new OfferExpiry(repo);
   // Published messages are kept OUTBOX_RETENTION_MS (default 24 h) for diagnosis, then deleted in batches of 1000.
   const purging = new DrainLoop(async () => { const n = await repo.purgePublished(c.outboxRetentionMs, 1000); if (n) console.info(JSON.stringify({ event: 'outbox_purged', rows: n })); return n >= 1000; },

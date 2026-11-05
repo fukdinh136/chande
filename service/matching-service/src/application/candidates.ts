@@ -1,17 +1,7 @@
 import type { Candidate, Command } from '../domain/models';
 import { rank } from '../domain/models';
-import type { CandidateClients, CandidateEligibility, CandidateSource, Clients, Ranked } from './ports';
+import type { CandidateClients, CandidateEligibility, CandidateSource, Ranked } from './ports';
 const BATCH = 100; // Driver's batch limit
-// Previous path, kept behind CANDIDATE_SOURCE=routing for rollback: Routing asks Realtime, Realtime asks
-// Driver (which asks Trip and Matching), then each ranked candidate is checked again with one Driver call.
-export class RoutingCandidates implements CandidateSource {
-  constructor(private readonly clients: Clients) {}
-  async find(command: Command, exclude: (ids: string[]) => Promise<Set<string>>): Promise<Ranked[]> {
-    const matrix = await this.clients.matrix(command);
-    const skip = await exclude(matrix.map(c => c.driverId));
-    return rank(matrix, skip, new Set(), Date.now()).map(candidate => ({ candidate, eligibility: () => this.clients.driver(candidate.driverId, command.vehicleType) }));
-  }
-}
 // ADR-0001: Matching runs the search and calls each service once. Realtime gives the nearest raw
 // locations, Matching drops drivers it already offered or reserved, Driver checks the rest in batches,
 // and Routing measures ETA for the `matrixCandidates` nearest eligible drivers only.

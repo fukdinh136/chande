@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { CandidateSource, Clients } from './ports';
-import { RoutingCandidates } from './candidates';
+import type { CandidateSource } from './ports';
 import { Repository } from '../infrastructure/persistence';
 import { held, type Offer } from '../domain/models';
 const OFFER_TTL_MS = 20000;
@@ -8,9 +7,9 @@ const OFFER_TTL_MS = 20000;
 // right away. Its own due time is only a safety net, set just after the offer expires (ADR-0008).
 const OFFER_RECHECK_SLACK_MS = 500;
 export class MatchDriver {
-  /** `onEnqueued` runs after a transaction that queued an offer message commits, so the publisher can send it right away.
-   * `source` finds and ranks candidates; the worker picks it from CANDIDATE_SOURCE (default: the direct search of ADR-0001). */
-  constructor(private readonly repo: Repository, clients: Clients, private readonly pollMs = 5000, private readonly onEnqueued: () => void = () => {}, private readonly source: CandidateSource = new RoutingCandidates(clients)) {}
+  /** `source` finds and ranks candidates (ADR-0001). `onEnqueued` runs after a transaction that queued an offer message
+   * commits, so the publisher can send it right away. */
+  constructor(private readonly repo: Repository, private readonly source: CandidateSource, private readonly pollMs = 5000, private readonly onEnqueued: () => void = () => {}) {}
   async execute(tripId: string) {
     const started = Date.now();
     const search = await this.repo.getSearch(tripId); if (!search || search.status !== 'SEARCHING' || !search.command) return;

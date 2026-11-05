@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { DirectCandidates, RoutingCandidates } from '../src/application/candidates';
-import type { CandidateClients, CandidateEligibility, Clients } from '../src/application/ports';
+import { DirectCandidates } from '../src/application/candidates';
+import type { CandidateClients, CandidateEligibility } from '../src/application/ports';
 import type { Command } from '../src/domain/models';
 const command = (): Command => ({ commandId: randomUUID(), tripId: randomUUID(), type: 'matching.search.requested', tripVersion: 2, occurredAt: new Date().toISOString(), riderId: randomUUID(), pickup: { lat: 21.0285, lng: 105.8542, address: 'Hồ Gươm' }, destination: { lat: 21.0272, lng: 105.8355 }, vehicleType: 'CAR_4', route: { distanceMeters: 2546, durationSeconds: 258 }, fare: { currency: 'VND', amount: '27460' } });
 const location = (i: number) => ({ driverId: randomUUID(), latitude: 21.0285 + i / 10000, longitude: 105.8542, distanceMeters: i * 11, recordedAt: new Date(Date.now() - 1000).toISOString() });
@@ -53,12 +53,4 @@ test('direct search: ineligible, wrong vehicle type and stale drivers are not of
   const empty = fake(0);
   assert.deepEqual(await new DirectCandidates(empty.clients, { nearbyLimit: 200, matrixCandidates: 25 }).find(command(), none), []);
   assert.equal(empty.calls.candidates.length, 0);
-});
-test('routing search (rollback path): asks Driver per candidate only when its turn comes', async () => {
-  const driverId = randomUUID(), reserved = randomUUID(); let driverCalls = 0;
-  const clients = { matrix: async () => [driverId, reserved].map(id => ({ driverId: id, observedAt: new Date().toISOString(), status: 'OK' as const, durationSeconds: 10, distanceMeters: 100 })),
-    driver: async (id: string) => { driverCalls++; return { driverId: id, profileEligible: true, desiredStatus: 'ONLINE', vehicleId: null, driverSnapshot: null, vehicleSnapshot: null }; } } as unknown as Clients;
-  const ranked = await new RoutingCandidates(clients).find(command(), async () => new Set([reserved]));
-  assert.deepEqual(ranked.map(r => r.candidate.driverId), [driverId]);
-  assert.equal(driverCalls, 0); await ranked[0]!.eligibility(); assert.equal(driverCalls, 1);
 });

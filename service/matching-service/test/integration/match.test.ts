@@ -7,15 +7,16 @@ import { Commands } from '../../src/application/commands';
 import { MatchDriver } from '../../src/application/match';
 import { OfferExpiry } from '../../src/application/expiry';
 import { DirectCandidates } from '../../src/application/candidates';
-import type { CandidateClients, Clients } from '../../src/application/ports';
+import type { CandidateClients } from '../../src/application/ports';
+import { listed, type ListedClients } from './listed-source';
 import type { Command } from '../../src/domain/models';
 export const command = (): Command => ({ commandId: randomUUID(), tripId: randomUUID(), type: 'matching.search.requested', tripVersion: 2, occurredAt: new Date().toISOString(), riderId: randomUUID(), pickup: { lat: 21.0285, lng: 105.8542 }, destination: { lat: 21.0272, lng: 105.8355 }, vehicleType: 'CAR_4', route: { distanceMeters: 2546, durationSeconds: 258 }, fare: { currency: 'VND', amount: '27460' } });
 test('concurrent trips hold one driver; empty matrix stays SEARCHING; expired never offered twice', { skip: !process.env.MATCHING_TEST_DATABASE_URL }, async () => {
   const db = source(process.env.MATCHING_TEST_DATABASE_URL!); await db.initialize(); await db.runMigrations(); const repo = new Repository(db), commands = new Commands(repo), driverId = randomUUID();
-  const clients: Clients = { matrix: async () => [{ driverId, observedAt: new Date().toISOString(), status: 'OK', durationSeconds: 10, distanceMeters: 100 }], driver: async () => ({ driverId, profileEligible: true, desiredStatus: 'ONLINE', vehicleId: randomUUID(), driverSnapshot: { fullName: 'Test', avatarUrl: null }, vehicleSnapshot: { vehicleType: 'CAR_4', licensePlate: 'TEST', brand: null, color: null } }), assign: async () => {}, trip: async id => ({ tripId: id, status: 'SEARCHING', driverId: null, version: 2 }) };
+  const clients: ListedClients = { matrix: async () => [{ driverId, observedAt: new Date().toISOString(), status: 'OK', durationSeconds: 10, distanceMeters: 100 }], driver: async () => ({ driverId, profileEligible: true, desiredStatus: 'ONLINE', vehicleId: randomUUID(), driverSnapshot: { fullName: 'Test', avatarUrl: null }, vehicleSnapshot: { vehicleType: 'CAR_4', licensePlate: 'TEST', brand: null, color: null } }), assign: async () => {}, trip: async id => ({ tripId: id, status: 'SEARCHING', driverId: null, version: 2 }) };
   const a = command(), b = command();
   try {
-    await commands.search(a); await commands.search(b); const match = new MatchDriver(repo, clients);
+    await commands.search(a); await commands.search(b); const match = new MatchDriver(repo, listed(clients));
     await Promise.all([match.execute(a.tripId), match.execute(b.tripId)]);
     const held = await repo.reservations([driverId]); assert.ok(held[0]?.tripId);
     const winner = held[0]!.tripId!, loser = winner === a.tripId ? b.tripId : a.tripId;
@@ -27,7 +28,7 @@ test('concurrent trips hold one driver; empty matrix stays SEARCHING; expired ne
     await commands.stop(randomUUID(), loser, {}, 'CANCELLED');
   } finally { await db.destroy(); }
 });
-test('direct source: offer uses the batch snapshot, skips drivers held by another trip, no per-driver Driver call', { skip: !process.env.MATCHING_TEST_DATABASE_URL }, async () => {
+test('direct search: offer uses the batch snapshot and skips drivers held by another trip', { skip: !process.env.MATCHING_TEST_DATABASE_URL }, async () => {
   const db = source(process.env.MATCHING_TEST_DATABASE_URL!); await db.initialize(); await db.runMigrations(); const repo = new Repository(db), commands = new Commands(repo);
   const busy = randomUUID(), free = randomUUID(), vehicleId = randomUUID(); let asked: string[][] = [];
   const located = (driverId: string, distanceMeters: number) => ({ driverId, latitude: 21.0285, longitude: 105.8542, distanceMeters, recordedAt: new Date().toISOString() });
@@ -36,11 +37,10 @@ test('direct source: offer uses the batch snapshot, skips drivers held by anothe
     candidates: async ids => { asked.push(ids); return ids.map(driverId => ({ driverId, eligible: true, reasons: [], vehicleId, driverSnapshot: { fullName: 'Batch', avatarUrl: null }, vehicleSnapshot: { vehicleType: 'CAR_4', licensePlate: 'BATCH', brand: null, color: null } })); },
     eta: async (_d, _t, origins) => origins.map(o => ({ id: o.id, status: 'OK' as const, distanceMeters: 100, durationSeconds: o.id === busy ? 10 : 20 })),
   };
-  const legacy: Clients = { matrix: async () => assert.fail('direct must not call /routes/matrix'), driver: async () => assert.fail('direct must not check drivers one by one'), assign: async () => {}, trip: async id => ({ tripId: id, status: 'SEARCHING', driverId: null, version: 2 }) };
   const first = command(), second = command();
   try {
     await commands.search(first); await commands.search(second);
-    const match = new MatchDriver(repo, legacy, 5000, () => {}, new DirectCandidates(direct, { nearbyLimit: 200, matrixCandidates: 25 }));
+    const match = new MatchDriver(repo, new DirectCandidates(direct, { nearbyLimit: 200, matrixCandidates: 25 }));
     await match.execute(first.tripId);
     const held = (await repo.reservations([busy, free])).find(r => r.tripId === first.tripId)!;
     assert.equal(held.driverId, busy); // shortest ETA
