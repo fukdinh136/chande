@@ -10,6 +10,7 @@ const { RealtimeServiceGuard } = require("../../src/presentation/http/guards/rea
 const { UserGuard, ServiceGuard, ErrorFilter } = require("../../src/presentation/http");
 const { CONTEXT } = require("../../src/bootstrap/modules/driver-context");
 const { BatchEligibilityUseCase } = require("../../src/application/use-cases/eligibility/batch-eligibility.use-case");
+const { CandidateEligibilityUseCase } = require("../../src/application/use-cases/eligibility/candidate-eligibility.use-case");
 const { fixture } = require("../helpers/fixture.cjs");
 
 // HTTP presentation + real Driver use cases; storage/Trip ports are in memory.
@@ -21,6 +22,7 @@ test("direct Driver HTTP: session, owned vehicle, intent, active Trip and pendin
     auth: f.auth,
     ...f.app.groups,
     batchEligibility: new BatchEligibilityUseCase(f.store, f.state, ["BIKE"]),
+    candidates: new CandidateEligibilityUseCase(f.store, f.state, ["BIKE"]),
     tokens: f.tokens,
     store: f.store,
     config: { matchingToken: "test-service", realtimeToken, gatewayProxyToken: "" },
@@ -97,6 +99,14 @@ test("direct Driver HTTP: session, owned vehicle, intent, active Trip and pendin
     assert.equal(batch.status, 200);
     assert.equal(batch.body.data.items[0].eligible, false);
     assert.equal(batch.body.data.items[0].availabilityKnown, false);
+    // Matching's batch endpoint takes the Matching credential, not Realtime's, and needs vehicleType.
+    expectError(await call("POST", "/internal/drivers/eligibility/candidates", { driverIds: [f.driver.id], vehicleType: "BIKE" }, { "X-Service-Token": realtimeToken }), 401, "INVALID_SERVICE_CREDENTIAL");
+    expectError(await call("POST", "/internal/drivers/eligibility/candidates", { driverIds: [f.driver.id] }, { "X-Service-Token": "test-service" }), 400, "INVALID_REQUEST");
+    const candidates = await call("POST", "/internal/drivers/eligibility/candidates", { driverIds: [f.driver.id], vehicleType: "BIKE" }, { "X-Service-Token": "test-service" });
+    assert.equal(candidates.status, 200);
+    assert.equal(candidates.body.data.items[0].driverId, f.driver.id);
+    assert.equal(candidates.body.data.items[0].eligible, true);
+    assert.equal(candidates.body.data.items[0].vehicleSnapshot.vehicleType, "BIKE");
     const active = { tripId: randomUUID(), vehicleId };
     f.active(active);
     f.cache.realtimeStatus = "BUSY";

@@ -108,3 +108,38 @@ test("batch eligibility: rejects invalid input before any read", async () => {
   await assert.rejects(use.execute(w.ids, "BUS"), (e) => e.code === "INVALID_REQUEST");
   assert.equal(w.calls.drivers + w.calls.readMany, 0);
 });
+
+const { CandidateEligibilityUseCase } = require("../../src/application/use-cases/eligibility/candidate-eligibility.use-case");
+const { EligibilityUseCase } = require("../../src/application/use-cases/eligibility/eligibility.use-case");
+
+test("candidates: 100 drivers in 2 SQL and 1 Redis read, with offer snapshots and no writes", async () => {
+  const w = world(100);
+  const { items } = await new CandidateEligibilityUseCase(w.store, w.state, ["BIKE"]).execute(w.ids, "BIKE");
+  assert.deepEqual(w.calls, { drivers: 1, vehicles: 1, readMany: 1, projectMany: 0, coordinate: 0 });
+  assert.ok(items.every(item => item.eligible));
+  const first = items[0], vehicle = w.vehicles.get(w.states.get(w.ids[0]).vehicleId);
+  assert.deepEqual(first, { driverId: w.ids[0], eligible: true, reasons: [], vehicleId: vehicle.id,
+    driverSnapshot: { fullName: "D0", avatarUrl: null }, vehicleSnapshot: { vehicleType: "BIKE", licensePlate: vehicle.vehiclePlate, brand: null, color: null } });
+});
+
+test("candidates: same answer as the single eligibility check, without asking who is busy", async () => {
+  const w = world(5);
+  const [offline, noVehicle, inactive, wrongType, busyInRedis] = w.ids;
+  w.drivers.get(offline).desiredStatus = "OFFLINE";
+  w.states.get(noVehicle).vehicleId = null;
+  w.vehicles.get(w.states.get(inactive).vehicleId).isActive = false;
+  w.vehicles.get(w.states.get(wrongType).vehicleId).vehicleType = "CAR_4";
+  w.states.get(busyInRedis).realtimeStatus = "BUSY"; // Matching's reservations decide this now
+  const { items } = await new CandidateEligibilityUseCase(w.store, w.state, ["BIKE", "CAR_4"]).execute(w.ids, "BIKE");
+  const single = new EligibilityUseCase(
+    { coordinate: (_, work) => work(), read: (fn) => fn({ driver: async (id) => w.drivers.get(id) ?? null, vehicle: async (owner, id) => { const v = w.vehicles.get(id); return v && v.driverId === owner ? v : null; } }) },
+    { read: async (id) => ({ ...w.states.get(id) }) }, ["BIKE", "CAR_4"]);
+  for (const item of items) {
+    const one = await single.eligibility(item.driverId, "BIKE");
+    assert.equal(item.eligible, one.profileEligible, item.driverId);
+    assert.deepEqual(item.reasons, one.reasons);
+    assert.deepEqual([item.driverSnapshot, item.vehicleSnapshot], [one.driverSnapshot, one.vehicleSnapshot]);
+  }
+  assert.equal(items[4].eligible, true);
+  await assert.rejects(new CandidateEligibilityUseCase(w.store, w.state, ["BIKE"]).execute(w.ids, "BUS"), (e) => e.code === "INVALID_REQUEST");
+});

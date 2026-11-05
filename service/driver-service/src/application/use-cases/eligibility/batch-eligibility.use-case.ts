@@ -4,6 +4,7 @@ import { DriverError } from '../../../domain/value-objects/error';
 import { eligibilityReasons } from '../../../domain/policies/eligibility.policy';
 import { Occupancy } from '../../ports/occupancy.port';
 import { Driver } from '../../../domain/driver/driver';
+import { batchIds, readBatch } from './read-batch';
 import { Vehicle } from '../../../domain/vehicle/vehicle';
 export interface BatchEligibility {
   driverId: string;
@@ -14,27 +15,19 @@ export interface BatchEligibility {
   operationalStatus: string;
   reasons: string[];
 }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // Checks a batch with a fixed number of round trips: drivers (1 SQL), Redis state (1 script),
 // vehicles (1 SQL) and, when occupancy is known, the projected status (1 script). The batch
 // used to take an advisory lock per driver around ~4 SQL statements and 2 Redis commands.
 export class BatchEligibilityUseCase {
   constructor(private readonly store: Store, private readonly state: State, private readonly types: readonly string[], private readonly occupancy?: Occupancy) {}
   async execute(driverIds: readonly string[], type?: string) {
-    const ids = driverIds.map(id => id.toLowerCase());
-    if (!driverIds.length || driverIds.length > 100 || new Set(ids).size !== driverIds.length || driverIds.some(id => !UUID.test(id)) ||
-        (type !== undefined && !this.types.includes(type))) throw new DriverError('INVALID_REQUEST');
+    const ids = batchIds(driverIds, this.types, type);
     // Cross-service reads come first. Never infer AVAILABLE on a failed lookup.
     const occupied = this.occupancy ? await this.occupancy.lookup(ids).catch(async () => {
       await this.state.projectMany?.(ids.map(id => ({ id, status: 'UNKNOWN' }))).catch(() => {});
       throw new DriverError('DEPENDENCY_UNAVAILABLE');
     }) : undefined;
-    const [{ found, migrationRequired }, states] = await Promise.all([
-      this.store.read(repo => repo.drivers(ids)),
-      this.state.readMany(ids),
-    ]).catch(() => { throw new DriverError('DEPENDENCY_UNAVAILABLE'); });
-    const vehicleIds = ids.flatMap((id, i) => found.get(id)?.desiredStatus === 'ONLINE' && states[i]!.vehicleId ? [states[i]!.vehicleId!] : []);
-    const vehicles = new Map((await this.store.read(repo => repo.vehiclesById(vehicleIds)).catch(() => { throw new DriverError('DEPENDENCY_UNAVAILABLE'); })).map(v => [v.id, v]));
+    const { found, migrationRequired, states, vehicle: vehicleOf } = await readBatch(this.store, this.state, ids);
     const projections: Projection[] = [];
     const items = ids.map((id, i): BatchEligibility => {
       if (migrationRequired.has(id)) return rejected(id, 'DRIVER_STATUS_MIGRATION_REQUIRED');
@@ -42,10 +35,7 @@ export class BatchEligibilityUseCase {
       if (!driver) return rejected(id, 'DRIVER_NOT_FOUND');
       if (driver.desiredStatus === 'OFFLINE') return rejected(id, 'DRIVER_OFFLINE');
       const cache = { ...states[i]! };
-      const selected = cache.vehicleId ? vehicles.get(cache.vehicleId) : undefined;
-      // A vehicle id that belongs to another driver counts as no vehicle, as the single read did.
-      const vehicle = selected && selected.driverId === id ? selected : null;
-      const item = decide(id, driver, vehicle, cache, type, occupied?.get(id));
+      const item = decide(id, driver, vehicleOf(id, i), cache, type, occupied?.get(id));
       if (occupied !== undefined) projections.push({ id, status: cache.realtimeStatus as Projection['status'], vehicleId: cache.vehicleId });
       return item;
     });

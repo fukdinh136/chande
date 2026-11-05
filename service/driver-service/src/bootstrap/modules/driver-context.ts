@@ -3,6 +3,7 @@ import { VehicleUseCases } from "../../application/use-cases/vehicle/vehicle.use
 import { AvailabilityUseCases } from "../../application/use-cases/availability/availability.use-cases";
 import { EligibilityUseCase } from "../../application/use-cases/eligibility/eligibility.use-case";
 import { BatchEligibilityUseCase } from "../../application/use-cases/eligibility/batch-eligibility.use-case";
+import { CandidateEligibilityUseCase } from "../../application/use-cases/eligibility/candidate-eligibility.use-case";
 import { EditPolicy } from "../../application/use-cases/vehicle/edit.policy";
 import { DataSource } from "typeorm";
 import Redis from "ioredis";
@@ -26,6 +27,7 @@ export class DriverContext {
   readonly availability: AvailabilityUseCases;
   readonly eligibility: EligibilityUseCase;
   readonly batchEligibility: BatchEligibilityUseCase;
+  readonly candidates: CandidateEligibilityUseCase;
   private readonly redis: Redis;
   constructor(
     readonly config: Config,
@@ -94,6 +96,7 @@ export class DriverContext {
       config.vehicleTypes,
     );
     this.batchEligibility = new BatchEligibilityUseCase(this.store, state, config.vehicleTypes, occupancy);
+    this.candidates = new CandidateEligibilityUseCase(this.store, state, config.vehicleTypes);
   }
   async onModuleInit() {
     await this.store.assertSchema();
