@@ -1,7 +1,21 @@
 import Redis from "ioredis";
-import { State } from "../../application/ports/state.port";
+import { Projection, State, StateSnapshot } from "../../application/ports/state.port";
 import { DesiredStatus } from "../../domain/driver/status";
 import { DriverError } from "../../domain/value-objects/error";
+const stateKeys = (id: string) => [`driver:${id}:availability`, `driver:${id}:state`];
+function snapshot(desired: string, vehicleId: string, status: string): StateSnapshot {
+  return {
+    projectedStatus: desired === "ONLINE" ? "ONLINE" : desired === "OFFLINE" ? "OFFLINE" : null,
+    vehicleId: vehicleId || null,
+    realtimeStatus: ["AVAILABLE", "BUSY", "OFFLINE"].includes(status) ? status : "UNKNOWN",
+  };
+}
+// KEYS: availability and state key per driver. Same fields as read(), for the whole batch.
+const READ_MANY = "local out={} for i=1,#KEYS,2 do out[#out+1]=redis.call('GET',KEYS[i]) or '' out[#out+1]=redis.call('HGET',KEYS[i+1],'vehicle_id') or '' out[#out+1]=redis.call('HGET',KEYS[i+1],'status') or 'UNKNOWN' end return out";
+// ARGV per driver: status, then '*' (write always) or the vehicle id read earlier ('' = none).
+// A conditional write is skipped when the driver went OFFLINE or changed vehicle since that read.
+// This replaces the per-driver advisory lock the batch used to hold around read and write.
+const PROJECT_MANY = "local out={} for i=1,#KEYS,2 do local status=ARGV[i] local expected=ARGV[i+1] local ok=expected=='*' or (redis.call('GET',KEYS[i])=='ONLINE' and (redis.call('HGET',KEYS[i+1],'vehicle_id') or '')==expected) if ok then redis.call('HSET',KEYS[i+1],'status',status) out[#out+1]=1 else out[#out+1]=0 end end return out";
 export class RedisState implements State {
   project(id: string, status: 'AVAILABLE' | 'BUSY' | 'OFFLINE' | 'UNKNOWN') { return this.command(async () => { await this.redis.hset(`driver:${id}:state`, 'status', status); }); }
   constructor(
@@ -15,6 +29,23 @@ export class RedisState implements State {
       if (error instanceof DriverError) throw error;
       throw new DriverError("DEPENDENCY_UNAVAILABLE");
     }
+  }
+  readMany(ids: readonly string[]) {
+    return this.command(async () => {
+      if (!ids.length) return [];
+      const values = (await this.redis.eval(READ_MANY, ids.length * 2, ...ids.flatMap(stateKeys))) as string[];
+      if (values.length !== ids.length * 3) throw new DriverError("DEPENDENCY_UNAVAILABLE");
+      return ids.map((_, i) => snapshot(values[i * 3]!, values[i * 3 + 1]!, values[i * 3 + 2]!));
+    });
+  }
+  projectMany(entries: readonly Projection[]) {
+    return this.command(async () => {
+      if (!entries.length) return [];
+      const args = entries.flatMap((e) => [e.status, e.vehicleId === undefined ? "*" : (e.vehicleId ?? "")]);
+      const applied = (await this.redis.eval(PROJECT_MANY, entries.length * 2, ...entries.flatMap((e) => stateKeys(e.id)), ...args)) as number[];
+      if (applied.length !== entries.length) throw new DriverError("DEPENDENCY_UNAVAILABLE");
+      return applied.map((value) => value === 1);
+    });
   }
   read(id: string) {
     return this.command(async () => {

@@ -120,6 +120,16 @@ test(
         ),
         (error) => error.driverError?.code === "23505",
       );
+      // Batch reads used by eligibility/batch: one query each, unknown ids are absent.
+      const missing = randomUUID();
+      const batch = await store.read((repo) => repo.drivers([id, missing]));
+      assert.deepEqual([...batch.found.keys()], [id]);
+      assert.equal(batch.found.get(id).desiredStatus, "OFFLINE");
+      assert.equal(batch.migrationRequired.size, 0);
+      const [owned] = await store.read((repo) => repo.vehicles(id));
+      const vehicles = await store.read((repo) => repo.vehiclesById([owned.id, missing]));
+      assert.deepEqual(vehicles.map((v) => [v.id, v.driverId, v.vehicleType]), [[owned.id, id, "BIKE"]]);
+      assert.deepEqual(await store.read((repo) => repo.vehiclesById([])), []);
       const otp = new MockOtp(runtime, "123456", 60, 1, 5),
         tokens = new RsaTokens(
           "https://isolated-driver.test",

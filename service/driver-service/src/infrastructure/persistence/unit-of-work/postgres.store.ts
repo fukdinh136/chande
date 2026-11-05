@@ -20,10 +20,12 @@ function repositories(manager: EntityManager): Repositories {
     token = new PostgresRefreshTokenRepository(manager);
   return {
     driver: (...args) => driver.driver(...args),
+    drivers: (...args) => driver.drivers(...args),
     driverByPhone: (...args) => driver.driverByPhone(...args),
     saveDriver: (...args) => driver.saveDriver(...args),
     vehicles: (...args) => vehicle.vehicles(...args),
     vehicle: (...args) => vehicle.vehicle(...args),
+    vehiclesById: (...args) => vehicle.vehiclesById(...args),
     saveVehicle: (...args) => vehicle.saveVehicle(...args),
     refresh: (...args) => token.refresh(...args),
     saveRefresh: (...args) => token.saveRefresh(...args),

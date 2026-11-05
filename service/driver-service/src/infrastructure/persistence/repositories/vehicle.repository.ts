@@ -1,7 +1,7 @@
 import { Vehicle as VehicleEntity } from "../entities/vehicle.entity";
 import { Vehicle } from "../../../domain/vehicle/vehicle";
 import { vehicleModel } from "../mappers/vehicle.mapper";
-import { EntityManager } from "typeorm";
+import { EntityManager, In } from "typeorm";
 import { VehicleRepository } from "../../../application/ports/vehicle-repository.port";
 export class PostgresVehicleRepository implements VehicleRepository {
   constructor(private readonly manager: EntityManager) {}
@@ -17,6 +17,10 @@ export class PostgresVehicleRepository implements VehicleRepository {
     return vehicleModel(
       await this.manager.findOne(VehicleEntity, { where: { id, driverId } }),
     );
+  }
+  async vehiclesById(ids: readonly string[]) {
+    if (!ids.length) return [];
+    return (await this.manager.find(VehicleEntity, { where: { id: In([...ids]) } })).map((row) => vehicleModel(row)!);
   }
   async saveVehicle(vehicle: Vehicle) {
     return vehicleModel(
