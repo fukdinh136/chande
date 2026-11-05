@@ -3,9 +3,8 @@ import { checkpoint } from '../context';
 import { etaMatrixRequestSchema, request } from '../../domain/requests';
 import { requireVehicle, measurement, type Cell } from '../../domain/models';
 import { busy, invalidProvider } from '../../domain/errors';
-// ETA from origins chosen by Matching to one destination (ADR-0001). Unlike CalculateEtaMatrix it does
-// not look up drivers, so Routing has no Realtime dependency on this path. Batches run in sequence to
-// keep provider load bounded; a failed batch fails the whole request.
+// ETA from origins chosen by Matching to one destination (ADR-0001); Routing does not look up drivers.
+// Batches run in sequence to keep provider load bounded; a failed batch fails the whole request.
 export class CalculateEtaForOrigins {
   constructor(private readonly dispatcher: MapDispatcher, private readonly clock: Clock, private readonly vehicles: readonly string[], private readonly capacity: { matrixCandidates: number; matrixBatch: number; elementsPerMinute: number }) {}
   async execute(value: unknown, context: Context) {
