@@ -4,7 +4,7 @@ const out = path.join(__dirname, '.local', 'backend');
 fs.mkdirSync(out, { recursive: true });
 const secretFile = path.join(out, 'credentials.json');
 {
-  const keys = ['rootPassword','userPassword','driverPassword','tripPassword','matchingPassword','rabbitPassword','userInternal','cursor','matchingTrip','driverTrip','tripRouting','tripPrice','tripMatching','tripGateway','driverMatching','realtimeMatching','matchingRouting','matchingDriver','realtimeDriver','routingRealtime','gatewayRouting','driverProxy'];
+  const keys = ['rootPassword','userPassword','driverPassword','tripPassword','matchingPassword','rabbitPassword','userInternal','cursor','matchingTrip','driverTrip','tripRouting','tripPrice','tripMatching','tripGateway','driverMatching','realtimeMatching','matchingRouting','matchingDriver','realtimeDriver','routingRealtime','gatewayRouting','driverProxy','matchingLocation'];
   // Existing secrets are kept; only keys added after the file was created are generated.
   const current = fs.existsSync(secretFile) ? JSON.parse(fs.readFileSync(secretFile, 'utf8')) : {};
   const missing = keys.filter(k => !current[k]);

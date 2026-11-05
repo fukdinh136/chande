@@ -11,8 +11,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const integer = (key: string, fallback: number, max: number) => { const v = Number(value(key, String(fallback))); if (!Number.isInteger(v) || v < 1 || v > max) throw new Error('Invalid ' + key); return v; };
   const tokens = { trip: token('MATCHING_TRIP_TOKEN'), driver: token('MATCHING_DRIVER_TOKEN'), realtime: token('MATCHING_REALTIME_TOKEN') };
   if (new Set(Object.values(tokens)).size !== 3) throw new Error('Separate inbound tokens required');
+  // ADR-0001: `direct` (default) searches Realtime, Driver and Routing itself; `routing` is the previous path, kept for rollback.
+  const candidateSource = value('CANDIDATE_SOURCE', 'direct');
+  if (candidateSource !== 'direct' && candidateSource !== 'routing') throw new Error('Invalid CANDIDATE_SOURCE');
+  const direct = candidateSource === 'direct';
   return { port: integer('PORT', 3007, 65535), host: value('HOST', '127.0.0.1'), databaseUrl: url('DATABASE_URL', ['postgres:', 'postgresql:']), rabbitUrl: url('RABBITMQ_URL', ['amqp:', 'amqps:']), tokens,
     routingUrl: http('ROUTING_BASE_URL'), routingToken: token('ROUTING_MATCHING_TOKEN'), driverUrl: http('DRIVER_BASE_URL'), driverToken: token('DRIVER_MATCHING_TOKEN'), tripUrl: http('TRIP_BASE_URL'), tripToken: token('TRIP_MATCHING_TOKEN'),
+    candidateSource, realtimeUrl: direct ? http('REALTIME_BASE_URL') : '', realtimeToken: direct ? token('REALTIME_MATCHING_TOKEN') : '',
+    nearbyLimit: integer('NEARBY_LIMIT', 200, 200), matrixCandidates: integer('MATRIX_CANDIDATES', 25, 50),
     jwksUrl: http('AUTH_JWKS_URL'), issuer: required('AUTH_JWT_ISSUER'), audience: value('AUTH_JWT_AUDIENCE', 'matching-service'), httpTimeout: integer('HTTP_TIMEOUT_MS', 4500, 10000),
     workers: integer('WORKER_CONCURRENCY', 16, 16), pollMs: integer('SEARCH_POLL_MS', 5000, 60000), scanMs: integer('WORKER_SCAN_MS', 250, 5000), leaseMs: 60000,
     publisherBatchMax: integer('PUBLISHER_BATCH_MAX', 200, 1000), publisherScanMs: integer('PUBLISHER_SCAN_MS', 250, 5000),

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import type { Clients } from '../application/ports';
+import type { CandidateClients, Clients } from '../application/ports';
 import type { Config } from '../bootstrap/config';
 import { uuid, type Assignment, type Command } from '../domain/models';
 /** A failed call to another service: HTTP status (0 when there was no response), its error code, and its Retry-After. */
@@ -21,10 +21,16 @@ async function failure(r: Response, dependency: string): Promise<UpstreamError> 
 }
 const matrix = z.object({ entries: z.array(z.object({ driverId: uuid, observedAt: z.iso.datetime(), status: z.enum(['OK', 'NO_ROUTE']), distanceMeters: z.number().int().nonnegative().nullable(), durationSeconds: z.number().int().nonnegative().nullable() })).max(50), radiusMeters: z.literal(2000) });
 const eligibility = z.object({ driverId: uuid, profileEligible: z.boolean(), desiredStatus: z.string(), vehicleId: uuid.nullable(), driverSnapshot: z.object({ fullName: z.string().min(1).max(100), avatarUrl: z.string().nullable() }).nullable(), vehicleSnapshot: z.object({ vehicleType: z.string(), licensePlate: z.string().min(1).max(15), brand: z.string().nullable(), color: z.string().nullable() }).nullable() });
-export class HttpClients implements Clients {
+const snapshotsOf = { driverSnapshot: eligibility.shape.driverSnapshot, vehicleSnapshot: eligibility.shape.vehicleSnapshot };
+const locations = z.object({ radiusMeters: z.number().int().positive(), drivers: z.array(z.object({ driverId: uuid, latitude: z.number().min(-85.0511).max(85.0511), longitude: z.number().min(-180).max(180), distanceMeters: z.number().nonnegative(), recordedAt: z.iso.datetime() })).max(200) });
+const candidates = z.object({ items: z.array(z.object({ driverId: uuid, eligible: z.boolean(), reasons: z.array(z.string()), vehicleId: uuid.nullable(), ...snapshotsOf })).max(100) });
+const eta = z.object({ entries: z.array(z.object({ id: z.string(), status: z.enum(['OK', 'NO_ROUTE']), distanceMeters: z.number().int().nonnegative().nullable(), durationSeconds: z.number().int().nonnegative().nullable() })).max(50), calculatedAt: z.iso.datetime() });
+/** True when `got` holds exactly the ids in `want`, once each. */
+const sameIds = (want: string[], got: string[]) => got.length === want.length && new Set(got).size === got.length && got.every(id => want.includes(id));
+export class HttpClients implements Clients, CandidateClients {
   constructor(private readonly c: Config) {}
   async request<T>(base: string, path: string, token: string, schema: z.ZodType<T>, body?: unknown, expected = 200): Promise<T> {
-    const dependency = base === this.c.routingUrl ? 'routing' : base === this.c.driverUrl ? 'driver' : base === this.c.tripUrl ? 'trip' : 'unknown';
+    const dependency = base === this.c.routingUrl ? 'routing' : base === this.c.driverUrl ? 'driver' : base === this.c.tripUrl ? 'trip' : base === this.c.realtimeUrl ? 'realtime' : 'unknown';
     let r: Response;
     try { r = await fetch(base + path, { method: body === undefined ? 'GET' : 'POST', redirect: 'error', signal: AbortSignal.timeout(this.c.httpTimeout), headers: { 'X-Service-Token': token, 'X-Request-Id': randomUUID(), 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); }
     catch (error) { throw new UpstreamError(0, error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'UNREACHABLE', dependency); }
@@ -34,6 +40,22 @@ export class HttpClients implements Clients {
   }
   async matrix(command: Command) { return (await this.request(this.c.routingUrl, '/routes/matrix', this.c.routingToken, matrix, { pickup: command.pickup, vehicleType: command.vehicleType })).entries; }
   async driver(id: string, type: string) { const data = await this.request(this.c.driverUrl, `/internal/drivers/${id}/eligibility?vehicleType=${encodeURIComponent(type)}`, this.c.driverToken, eligibility); if (data.driverId !== id) throw new UpstreamError(503, 'INVALID_RESPONSE', 'driver'); return data; }
+  async locations(pickup: { lat: number; lng: number }, limit: number) {
+    const query = new URLSearchParams({ latitude: String(pickup.lat), longitude: String(pickup.lng), radiusMeters: '2000', limit: String(limit) });
+    const data = await this.request(this.c.realtimeUrl, '/internal/realtime/driver-locations?' + query.toString(), this.c.realtimeToken, locations);
+    if (data.drivers.length > limit || new Set(data.drivers.map(d => d.driverId)).size !== data.drivers.length) throw new UpstreamError(503, 'INVALID_RESPONSE', 'realtime');
+    return data.drivers;
+  }
+  async candidates(driverIds: string[], vehicleType: string) {
+    const data = await this.request(this.c.driverUrl, '/internal/drivers/eligibility/candidates', this.c.driverToken, candidates, { driverIds, vehicleType });
+    if (!sameIds(driverIds, data.items.map(i => i.driverId))) throw new UpstreamError(503, 'INVALID_RESPONSE', 'driver');
+    return data.items;
+  }
+  async eta(destination: { lat: number; lng: number }, vehicleType: string, origins: { id: string; lat: number; lng: number }[]) {
+    const data = await this.request(this.c.routingUrl, '/internal/routes/eta-matrix', this.c.routingToken, eta, { destination, vehicleType, origins });
+    if (!sameIds(origins.map(o => o.id), data.entries.map(e => e.id))) throw new UpstreamError(503, 'INVALID_RESPONSE', 'routing');
+    return data.entries;
+  }
   async assign(tripId: string, assignment: Assignment) {
     const ack = await this.request(this.c.tripUrl, `/internal/trips/${tripId}/assignment`, this.c.tripToken, z.object({ eventId: uuid, tripId: uuid, accepted: z.literal(true), assignedVersion: z.number().int().positive() }).strict(), assignment, 202);
     if (ack.eventId !== assignment.eventId || ack.tripId !== tripId) throw new UpstreamError(503, 'INVALID_RESPONSE', 'trip');

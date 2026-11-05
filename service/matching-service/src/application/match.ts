@@ -1,14 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import type { Clients } from './ports';
+import type { CandidateSource, Clients } from './ports';
+import { RoutingCandidates } from './candidates';
 import { Repository } from '../infrastructure/persistence';
-import { rank, held, type Offer } from '../domain/models';
+import { held, type Offer } from '../domain/models';
 const OFFER_TTL_MS = 20000;
 // A search with a PENDING offer is not re-checked every second: accept/decline and OfferExpiry make it due
 // right away. Its own due time is only a safety net, set just after the offer expires (ADR-0008).
 const OFFER_RECHECK_SLACK_MS = 500;
 export class MatchDriver {
-  /** `onEnqueued` runs after a transaction that queued an offer message commits, so the publisher can send it right away. */
-  constructor(private readonly repo: Repository, private readonly clients: Clients, private readonly pollMs = 5000, private readonly onEnqueued: () => void = () => {}) {}
+  /** `onEnqueued` runs after a transaction that queued an offer message commits, so the publisher can send it right away.
+   * `source` finds and ranks candidates; the worker picks it from CANDIDATE_SOURCE (default: the direct search of ADR-0001). */
+  constructor(private readonly repo: Repository, clients: Clients, private readonly pollMs = 5000, private readonly onEnqueued: () => void = () => {}, private readonly source: CandidateSource = new RoutingCandidates(clients)) {}
   async execute(tripId: string) {
     const started = Date.now();
     const search = await this.repo.getSearch(tripId); if (!search || search.status !== 'SEARCHING' || !search.command) return;
@@ -22,11 +24,13 @@ export class MatchDriver {
       if (expired) this.onEnqueued();
       return;
     }
-    const candidates = await this.clients.matrix(search.command), tried = await this.repo.tried(tripId);
-    const reservations = await this.repo.reservations(candidates.map(c => c.driverId));
-    for (const c of rank(candidates, tried, new Set(reservations.filter(r => r.tripId !== null).map(r => r.driverId)), Date.now())) {
+    const exclude = async (ids: string[]) => {
+      const tried = await this.repo.tried(tripId), reservations = await this.repo.reservations(ids);
+      return new Set([...tried, ...reservations.filter(r => r.tripId !== null).map(r => r.driverId)]);
+    };
+    for (const { candidate: c, eligibility } of await this.source.find(search.command, exclude)) {
       if (Date.now() - started > 30000) throw new Error('MATCHING_JOB_DEADLINE');
-      const eligible = await this.clients.driver(c.driverId, search.command.vehicleType);
+      const eligible = await eligibility();
       if (!eligible.profileEligible || eligible.desiredStatus !== 'ONLINE' || !eligible.vehicleId || !eligible.driverSnapshot || !eligible.vehicleSnapshot || eligible.vehicleSnapshot.vehicleType !== search.command.vehicleType) continue;
       const created = await this.repo.transaction(async tx => {
         const s = await tx.search(tripId); if (!s || s.status !== 'SEARCHING' || s.offerId) return false;

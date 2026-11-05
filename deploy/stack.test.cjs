@@ -12,6 +12,10 @@ test('real issuer and callback topology keeps credentials scoped and public port
   assert.notEqual(apps['routing-api'].env.ROUTING_GATEWAY_TOKEN,apps['routing-api'].env.ROUTING_MATCHING_TOKEN);
   assert.equal(new Set(Object.values(apps).map(a=>a.port)).size,Object.keys(apps).length);
   assert.equal(apps['matching-api'].env.MATCHING_REALTIME_TOKEN,apps['realtime-api'].env.MATCHING_REALTIME_TOKEN);
+  // ADR-0001: Matching reads raw locations from Realtime with its own credential.
+  assert.equal(apps['matching-worker'].env.REALTIME_MATCHING_TOKEN,apps['realtime-api'].env.MATCHING_LOCATION_TOKEN);
+  assert.equal(apps['matching-worker'].env.CANDIDATE_SOURCE,'direct');
+  assert.equal(new Set([apps['realtime-api'].env.MATCHING_LOCATION_TOKEN,apps['realtime-api'].env.ROUTING_INBOUND_TOKEN,apps['realtime-api'].env.DRIVER_ELIGIBILITY_TOKEN]).size,3);
 });
 test('edge nginx is sized from the drivers online at peak',()=>{
   const {edgeSizing}=require('./stack.cjs');
