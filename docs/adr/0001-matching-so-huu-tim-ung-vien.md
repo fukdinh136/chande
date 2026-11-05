@@ -3,12 +3,12 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Matching, Realtime, Driver, Routing |
-| Rà soát | 2026-10-27 |
+| Rà soát | 2026-11-05 |
 | Quy ước | [Format và số liệu](../quy-uoc-tai-lieu.md) |
 
 ## Trạng thái
 
-Đề xuất — phase 1, cải tiến P1.1 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md).
+Đề xuất — phase 1, cải tiến P1.1 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md). Đã triển khai PR 1 (expand) và PR 2 (migrate) ngày 2026-11-05, xem [Triển khai](#triển-khai); PR 3 (contract) chờ kết quả đo Phase 1.
 
 ## Bối cảnh
 
@@ -76,3 +76,25 @@ Triển khai theo **expand → migrate → contract**:
 - Trace một job tìm xe: Matching gọi Realtime, Driver, Routing mỗi service đúng một lần; không request nào quay về Matching hoặc sang Trip.
 - Test: tài xế đang có reservation không nhận offer thứ hai.
 - Smoke CAR_4 / CAR_7 và `restart-check.cjs` xanh trên Docker và Kubernetes.
+
+## Triển khai
+
+Ngày 2026-11-05, nhánh `perf/adr-0008-trip-outbox`. Smoke CAR_4 / CAR_7 xanh trên Docker với cả `CANDIDATE_SOURCE=direct` và `routing`. Chưa chạy trên Kubernetes và chưa đo tải.
+
+| PR | Commit | Đã làm |
+| --- | --- | --- |
+| 1 — Expand | `bcc8ecd`, `50f4f17`, `d6df2f9` | Ba API ở bảng dưới, kèm test; endpoint cũ giữ nguyên |
+| 2 — Migrate | `80093e0` | `DirectCandidates` và `RoutingCandidates` trong `application/candidates.ts`; cờ `CANDIDATE_SOURCE`; `deploy/stack.cjs` cấp credential mới |
+| 3 — Contract | Chưa làm | Xoá đường cũ sau khi đo Phase 1 đạt |
+
+API đã triển khai, khác bản thiết kế ở tên trường và credential:
+
+| Service | API | Khác thiết kế |
+| --- | --- | --- |
+| Realtime | `GET /internal/realtime/driver-locations?latitude&longitude&radiusMeters&limit` | Trả `{radiusMeters, drivers[{driverId, latitude, longitude, distanceMeters, recordedAt}]}`. Redis dùng `GEOSEARCH ... COUNT limit` nên không có lỗi `SEARCH_CAPACITY_EXCEEDED` |
+| Driver | `POST /internal/drivers/eligibility/candidates` `{driverIds ≤100, vehicleType}` | `vehicleType` bắt buộc. Trả `{items[{driverId, eligible, reasons, vehicleId, driverSnapshot, vehicleSnapshot}]}` cùng luật với `GET /:id/eligibility`; 2 câu SQL và 1 script Redis cho cả lô, không khoá, không ghi |
+| Routing | `POST /internal/routes/eta-matrix` `{destination, vehicleType, origins[{id, lat, lng}] ≤50}` | Trả `{entries[{id, status, distanceMeters, durationSeconds}], calculatedAt}` |
+
+Cấu hình Matching: `CANDIDATE_SOURCE` (`direct` mặc định, `routing` để lùi), `REALTIME_BASE_URL`, `REALTIME_MATCHING_TOKEN`, `NEARBY_LIMIT` (200), `MATRIX_CANDIDATES` (25). Realtime nhận `MATCHING_LOCATION_TOKEN`; thiếu biến này thì `/driver-locations` từ chối mọi caller. Hai biến dùng chung secret `matchingLocation`.
+
+Hệ quả `realtimeStatus` đã kiểm: app tài xế đọc trường này qua `GET /drivers/me/availability`, và endpoint đó tự hỏi Trip và Matching rồi ghi lại trạng thái mỗi lần gọi, nên luồng mới không làm app hiển thị sai.

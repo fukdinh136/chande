@@ -32,6 +32,7 @@ Payload/ACK xem API mục 3. Transport chỉ websocket, không polling fallback.
 | Mã | Method / route | Caller | Authentication | Handler / use case | Exposure / kết quả |
 | --- | --- | --- | --- | --- | --- |
 | R01 | GET /internal/realtime/nearby-drivers | Routing được cấp credential | X-Service-Token = ROUTING_INBOUND_TOKEN, RoutingServiceGuard | NearbyController.nearby → FindNearby.execute | Nội bộ; 200 {data:{radiusMeters,drivers},meta}; tối đa 50 |
+| R02 | GET /internal/realtime/driver-locations | Matching | X-Service-Token = MATCHING_LOCATION_TOKEN, MatchingServiceGuard | DriverLocationsController.locations → ListDriverLocations.execute | Nội bộ; vị trí thô gần nhất trước, `limit` mặc định 50, tối đa 200; không gọi Driver ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)) |
 
 Query latitude/longitude bắt buộc; vehicleType/radiusMeters tùy chọn. Không có actor/trip/limit/cursor query. Routing phải phân biệt 200 drivers:[] với 503 dependency/unknown. Kết quả không phải assignment. Guard chưa có registry/mTLS hoặc allowlist caller name; quyền hiện dựa trên credential riêng và deployment network.
 

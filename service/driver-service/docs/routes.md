@@ -26,6 +26,7 @@ Driver trực tiếp không có global prefix. Path Gateway chính thức phải
 | GET | /drivers/me/availability | UserGuard | AvailabilityController → availability.availability |
 | PUT | /drivers/me/availability | UserGuard | AvailabilityController → availability.setAvailability |
 | GET | /internal/drivers/:driverId/eligibility | ServiceGuard: Matching X-Service-Token | InternalController → eligibility.eligibility |
+| POST | /internal/drivers/eligibility/candidates | ServiceGuard: Matching X-Service-Token | InternalController → candidates.execute |
 | POST | /internal/drivers/eligibility/batch | RealtimeServiceGuard: riêng X-Service-Token | RealtimeInternalController → batchEligibility.execute |
 | GET | /.well-known/jwks.json | Public key discovery | OperationsController → tokens.jwks |
 | GET | /health/live | Probe | OperationsController |

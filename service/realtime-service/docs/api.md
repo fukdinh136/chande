@@ -175,6 +175,12 @@ Trống khi không GPS mới hoặc các tài xế bị loại có căn cứ; kh
 
 HTTP 503 có Retry-After: 1. INVALID_REQUEST không trả chi tiết validation theo từng field trong code hiện tại. Không có Idempotency-Key/version cho GET nearby hoặc GPS; watermark không phải version của Trip.
 
+## 4a. R02 — GET /internal/realtime/driver-locations
+
+Cho Matching tìm ứng viên ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)). X-Service-Token = `MATCHING_LOCATION_TOKEN`; thiếu cấu hình thì mọi caller nhận 401 `INVALID_SERVICE_CREDENTIAL`.
+
+Query: `latitude`, `longitude` bắt buộc; `radiusMeters` 1–2000 (mặc định 2000); `limit` 1–200 (mặc định 50). Data `{radiusMeters, drivers:[{driverId, latitude, longitude, distanceMeters, recordedAt}]}`, gần nhất trước, chỉ vị trí còn mới. Không lọc loại xe hay trạng thái tài xế. Redis dùng `GEOSEARCH ... COUNT limit`, nên khu đông không làm lỗi `SEARCH_CAPACITY_EXCEEDED` như R01.
+
 ## 5. H01/H02 — health đã có
 
 | Endpoint | Status / body | Phạm vi chứng minh |

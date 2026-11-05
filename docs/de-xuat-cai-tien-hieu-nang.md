@@ -69,6 +69,19 @@ Gán 3000 chuyến trong khoảng 2 phút (25 chuyến/giây) vẫn cần nhiề
 
 Tổng công sức thực tế cho nhóm A và E1–E3 nằm trong ước tính 6–7 ngày người, không thêm tài nguyên ngoài RAM edge.
 
+### 3.1 Đã triển khai, chưa đo (2026-11-05)
+
+B7 và B1 đã có code, test và smoke; theo kế hoạch, đo tải sau khi xong Phase 1. Số "sau" dưới đây đếm theo code, chưa phải số đo.
+
+| ID | Trước | Sau | Kiểm chứng | Commit |
+| --- | --- | --- | --- | --- |
+| B7 — Trip | `active-drivers/batch` chạy 1 câu SQL mỗi tài xế (100 câu cho lô 100) | 1 câu `driver_id = ANY` cho cả lô | Test đơn vị Trip | `d48fe7c` |
+| B7 — Driver | `eligibility/batch` khoá từng tài xế, khoảng 400 câu SQL và 200 lệnh Redis cho lô 100 | 2 câu SQL, 2 script Redis; ghi trạng thái có điều kiện thay cho advisory lock, tài xế đổi trạng thái giữa chừng trả `DRIVER_STATE_CHANGED` | Test đơn vị đếm số lần truy cập; test tích hợp trên PostgreSQL và Redis thật | `3cb0d8a` |
+| B1 — expand | Routing hỏi Realtime, Realtime hỏi Driver, Driver hỏi Trip và Matching | Ba API mới: Realtime `driver-locations` (tối đa 200, `GEOSEARCH COUNT`), Driver `eligibility/candidates` (2 câu SQL, không khoá), Routing `eta-matrix` | Test từng service; candidates so khớp với eligibility đơn | `bcc8ecd`, `50f4f17`, `d6df2f9` |
+| B1 — migrate | Matching gọi `/routes/matrix` rồi gọi Driver cho từng ứng viên | Matching gọi Realtime, Driver (theo lô 100), Routing (25 người gần nhất) mỗi service một lần; `CANDIDATE_SOURCE=routing` để lùi | Test tích hợp trên PostgreSQL; smoke CAR_4 / CAR_7 xanh trên Docker với cả `direct` và `routing` | `80093e0` |
+
+Ước tính mỗi lần tìm xe: câu SQL kiểm tra tài xế từ khoảng 1000 xuống khoảng 10; ETA tối đa 25 người thay vì 50; chi phí có trần ở 200 vị trí dù khu vực đông bao nhiêu. Chưa chạy trên Kubernetes vì Kubernetes của Docker Desktop đang tắt. Đường cũ (`/routes/matrix`, `/nearby-drivers`, `eligibility/batch`) giữ lại tới khi đo xong ([ADR-0001, mục Triển khai](adr/0001-matching-so-huu-tim-ung-vien.md#triển-khai)).
+
 ## 4. Ràng buộc chi phí
 
 | Loại chi phí | Ràng buộc (theo [kiến trúc mục tiêu](kien-truc-muc-tieu.md#1-bối-cảnh-và-ràng-buộc)) |
@@ -88,8 +101,8 @@ Xếp theo thứ tự nên làm.
 
 | ID | Cải tiến | Căn cứ đo được | Chỗ sửa | Công sức | Thêm tài nguyên | Hiệu quả ước tính |
 | --- | --- | --- | --- | --- | --- | --- |
-| B7 (mới) | Kiểm tra điều kiện tài xế theo lô thật sự. Driver đọc hồ sơ và xe của cả lô bằng một câu SQL (`WHERE id = ANY($1)`), đọc và ghi trạng thái Redis bằng một lệnh cho cả lô, bỏ advisory lock từng tài xế ở đường chỉ đọc. Trip trả lời `active-drivers/batch` bằng một câu SQL thay vì vòng lặp | Endpoint batch hiện lặp từng tài xế (4 song song): mỗi tài xế 4 câu SQL (đọc hồ sơ, đọc xe, lấy và trả advisory lock) và 2 lệnh Redis ở Driver, 1 câu SQL ở Trip. Ở 12 chuyến/giây: 363000 lần đọc hồ sơ, 363000 lần đọc xe, 727000 lệnh lock/unlock, 362000 câu hỏi chuyến đang mở trong 2,5 phút | `driver-service` batch eligibility use case và repository; `trip-service` controller `active-drivers/batch` | 1,5–2 ngày | Không | Câu SQL kiểm tra tài xế cho mỗi chuyến từ khoảng 1400 xuống khoảng 10–20; CPU driver-api và PostgreSQL ở 8 chuyến/giây giảm mạnh. Rủi ro trung bình: cần giữ đúng ngữ nghĩa khoá khi ghi trạng thái Redis |
-| B1 | Matching tự lấy tối đa 200 vị trí, kiểm điều kiện theo lô, chỉ tính ETA cho 25 người gần nhất | Chi phí mỗi lần tìm tăng tuyến tính theo mật độ: từ 1000 lên 5000 tài xế, CPU driver-api tăng 3,5 lần, PostgreSQL 2,7 lần ở cùng tải | P1.1, [ADR-0001](adr/0001-matching-so-huu-tim-ung-vien.md) | Đã tính trong Phase 1 | Không | Chặn trên chi phí mỗi lần tìm; matrix 25 thay vì 50 element; cùng B7, mức đạt ngưỡng ước tính 10–12 chuyến/giây |
+| B7 (mới) | **Đã triển khai 2026-11-05, chờ đo ([mục 3.1](#31-đã-triển-khai-chưa-đo-2026-11-05)).** Kiểm tra điều kiện tài xế theo lô thật sự. Driver đọc hồ sơ và xe của cả lô bằng một câu SQL (`WHERE id = ANY($1)`), đọc và ghi trạng thái Redis bằng một lệnh cho cả lô, bỏ advisory lock từng tài xế ở đường chỉ đọc. Trip trả lời `active-drivers/batch` bằng một câu SQL thay vì vòng lặp | Endpoint batch hiện lặp từng tài xế (4 song song): mỗi tài xế 4 câu SQL (đọc hồ sơ, đọc xe, lấy và trả advisory lock) và 2 lệnh Redis ở Driver, 1 câu SQL ở Trip. Ở 12 chuyến/giây: 363000 lần đọc hồ sơ, 363000 lần đọc xe, 727000 lệnh lock/unlock, 362000 câu hỏi chuyến đang mở trong 2,5 phút | `driver-service` batch eligibility use case và repository; `trip-service` controller `active-drivers/batch` | 1,5–2 ngày | Không | Câu SQL kiểm tra tài xế cho mỗi chuyến từ khoảng 1400 xuống khoảng 10–20; CPU driver-api và PostgreSQL ở 8 chuyến/giây giảm mạnh. Rủi ro trung bình: cần giữ đúng ngữ nghĩa khoá khi ghi trạng thái Redis |
+| B1 | **Đã triển khai expand + migrate 2026-11-05, chờ đo ([mục 3.1](#31-đã-triển-khai-chưa-đo-2026-11-05)).** Matching tự lấy tối đa 200 vị trí, kiểm điều kiện theo lô, chỉ tính ETA cho 25 người gần nhất | Chi phí mỗi lần tìm tăng tuyến tính theo mật độ: từ 1000 lên 5000 tài xế, CPU driver-api tăng 3,5 lần, PostgreSQL 2,7 lần ở cùng tải | P1.1, [ADR-0001](adr/0001-matching-so-huu-tim-ung-vien.md) | Đã tính trong Phase 1 | Không | Chặn trên chi phí mỗi lần tìm; matrix 25 thay vì 50 element; cùng B7, mức đạt ngưỡng ước tính 10–12 chuyến/giây |
 | B6 | Observability: metrics HTTP, event loop lag, thời gian chờ trong pool Routing, độ dài outbox, HikariCP; dashboard | Hai hiện tượng chưa giải thích được: thông lượng ở 8–10 chuyến/giây thấp hơn ở 12–16; đợt chậm 3 phút khi chạy 30 phút | P1.4, [ADR-0003](adr/0003-observability-opentelemetry.md) | Đã tính trong Phase 1 | khoảng 0,8 GB | Xác định được nguyên nhân hai hiện tượng trên; điều kiện để đo các bước sau |
 | B5 | App tài xế làm mới token trước hạn và kết nối lại có jitter | Đợt chậm khi chạy lâu trùng với lúc 1000 tài xế cùng làm mới token; 2000 lần kết nối lại đúng lúc JWT hết hạn | Mới (app) | 1 ngày | Không | Tránh đợt làm mới và kết nối lại đồng loạt |
 | B4 | 2 replica driver-api | driver-api là process nóng nhất (đỉnh 1,1–1,2 core ở 8–12 chuyến/giây). Phần chuyển IP thật cho Driver đã xong ở A4 | P2.5 | 0,5–1 ngày | khoảng 0,1 GB | Gấp đôi trần của driver-api; làm sau B7 vì B7 có thể đủ |
@@ -145,8 +158,8 @@ Nhóm D không nâng thông lượng. Nhóm này giúp hệ thống trả lỗi 
 | Thời điểm | Việc | Đo lại bằng | Mục tiêu (ước tính, cần xác nhận) |
 | --- | --- | --- | --- |
 | Đã xong | Nhóm A, index outbox Matching, E1–E3 | 21 lần đo ngày 2026-11-04 | Đạt: 6 chuyến/giây trong ngưỡng, 5000 tài xế |
-| Ngay, 1 tuần | B7; chuyển ADR-0008 sang Chấp nhận | Loạt 2 (giống app) ở 6, 8, 10, 12 chuyến/giây; `sql.json` | Câu SQL kiểm tra tài xế dưới 20 mỗi chuyến; đạt ngưỡng ở 10 chuyến/giây |
-| Phase 1 | B1, B6 (P1.1, P1.4); B2 nếu còn thời gian | Như trên với 2000 và 5000 tài xế; dashboard | Trần không giảm khi tăng từ 1000 lên 5000 tài xế; giải thích được hai hiện tượng còn mở |
+| Ngay, 1 tuần | B7 (code xong 2026-11-05); chuyển ADR-0008 sang Chấp nhận | Loạt 2 (giống app) ở 6, 8, 10, 12 chuyến/giây; `sql.json` | Câu SQL kiểm tra tài xế dưới 20 mỗi chuyến; đạt ngưỡng ở 10 chuyến/giây |
+| Phase 1 | B1 (code xong 2026-11-05, còn bước contract), B6 (P1.1, P1.4); B2 nếu còn thời gian; đo B7 + B1 | Như trên với 2000 và 5000 tài xế; dashboard | Trần không giảm khi tăng từ 1000 lên 5000 tài xế; giải thích được hai hiện tượng còn mở |
 | Phase 2 | B5, B4, B3, D1 (cùng P2.5) | Tài xế lên ca đồng loạt; chạy lâu 2 giờ; tắt Routing trong lúc đo | Không có đợt chậm khi làm mới token; RAM ổn định; báo giá trả lỗi ngay khi Routing tắt |
 | Trước bảo vệ | E6, D2, D3, D4; tuỳ chọn E4 | Kịch bản 3500 tài xế + 3000 chuyến; deploy trong lúc chạy tải; diễn tập khôi phục | Ghi lại thời gian gán hết 3000 chuyến; 0% lỗi HTTP khi deploy; RTO đo được |
 

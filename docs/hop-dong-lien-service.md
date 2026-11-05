@@ -69,10 +69,13 @@ Nguồn: [policy Price](../service/price-service/config/fare-policy.example.json
 | Trip → Routing | POST /internal/routes/estimate; data chỉ distanceMeters/durationSeconds | Credential Trip riêng |
 | Trip → Price | POST /internal/fares/estimate | Credential Trip; tiền chuỗi VND |
 | Trip → Matching | POST /internal/matching/requests, cancel, completion | Credential Trip; ACK 202 sau durable write |
-| Matching → Routing | POST /routes/matrix; pickup/vehicleType | Credential Matching; không gửi candidate locations |
+| Matching → Realtime | GET /internal/realtime/driver-locations; latitude/longitude/radiusMeters/limit ≤200 | `MATCHING_LOCATION_TOKEN`; vị trí thô, gần nhất trước ([ADR-0001](adr/0001-matching-so-huu-tim-ung-vien.md)) |
+| Matching → Driver (lô) | POST /internal/drivers/eligibility/candidates; driverIds ≤100, vehicleType | Credential Matching; luật giống eligibility đơn, kèm snapshot; không hỏi Trip / Matching |
+| Matching → Routing (ETA) | POST /internal/routes/eta-matrix; destination, vehicleType, origins ≤50 | Credential Matching; Routing không gọi Realtime |
+| Matching → Routing (cũ) | POST /routes/matrix; pickup/vehicleType | Credential Matching; chỉ dùng khi `CANDIDATE_SOURCE=routing` |
 | Routing → Realtime | GET /internal/realtime/nearby-drivers | X-Service-Token; latitude/longitude/radiusMeters/vehicleType |
-| Realtime → Driver | POST /internal/drivers/eligibility/batch | Credential Realtime riêng |
-| Driver → Trip / Matching | POST /internal/trips/active-drivers/batch; POST /internal/matching/reservations/batch | Credential lookup Driver riêng; chỉ internal |
+| Realtime → Driver | POST /internal/drivers/eligibility/batch | Credential Realtime riêng; cả lô 2 câu SQL, 2 script Redis, không khoá từng tài xế |
+| Driver → Trip / Matching | POST /internal/trips/active-drivers/batch; POST /internal/matching/reservations/batch | Credential lookup Driver riêng; chỉ internal; mỗi phía 1 câu SQL cho cả lô |
 | Matching → Driver | GET /internal/drivers/:driverId/eligibility | Credential Matching; snapshot lấy server |
 | Matching → Trip | POST /internal/trips/:id/assignment; GET /internal/trips/:id/matching-state | Matching callback token; assignment 202 sau commit |
 | Driver REST → Matching | GET active/detail offer; POST accept/decline | JWT DRIVER, issuer/JWKS Driver, audience matching-service; decision có Idempotency-Key |

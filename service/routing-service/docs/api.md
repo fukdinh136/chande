@@ -129,6 +129,10 @@ Batch size là minimum của MATRIX_BATCH_MAX_ELEMENTS và RATE_LIMIT_MATRIX_ELE
 
 Realtime lookup, queue, limiter, OSRM attempts/batches và aggregation cùng chia sẻ deadline 4 giây; không reset deadline sau khi nhận vị trí. R03 đã được triển khai với Realtime HTTP adapter thật và mock; estimate R01 của Trip giữ nguyên.
 
+## 4a. R05 — POST /internal/routes/eta-matrix
+
+Cho Matching ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)); chỉ credential Matching. Body `{destination:{lat,lng}, vehicleType, origins:[{id, lat, lng}]}` với 1–50 origin, `id` không trùng. Data `{entries:[{id, status:"OK"|"NO_ROUTE", distanceMeters, durationSeconds}], calculatedAt}` theo thứ tự origins. Dùng chung worker pool, limiter và batch size với R03, nhưng không tra vị trí ở Realtime. Quá `MATRIX_MAX_CANDIDATES` trả 503 `ROUTING_BUSY`; lỗi một batch OSRM làm cả request lỗi.
+
 ## 5. R04 — POST /routes/recalculate
 
 Caller: Gateway, sau khi Gateway kiểm tra quyền của người dùng. Body:
