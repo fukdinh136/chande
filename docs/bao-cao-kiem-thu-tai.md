@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-04 |
+| Rà soát | 2026-11-05 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Báo cáo kiểm thử hiệu năng cho mục P2.6 trong [kiến trúc mục tiêu](kien-truc-muc-tieu.md), đo ngày 2026-11-04 sau khi hoàn thành nhóm cải tiến A và cải tiến môi trường đo E1–E3 trong [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md). Mọi kết quả được so với mốc ban đầu đo ngày 2026-10-28/29 trên cùng máy và cùng kịch bản. Kế hoạch, test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md); công cụ nằm trong [deploy/load](../deploy/load/README.md).
@@ -31,6 +31,8 @@ Các mức này đo bằng cùng cách đo với mốc ban đầu (GPS mỗi 3 g
 - PostgreSQL lên khoảng 1 core vì số câu lệnh (khoảng 14000 câu/giây), không phải vì câu lệnh chậm ([mục 7.2](#72-postgresql-bận-vì-số-câu-lệnh)).
 
 Hai điểm này đã có hướng xử lý trong lộ trình (ADR-0001 và nhiều replica driver-api); xem [đề xuất cải tiến](de-xuat-cai-tien-hieu-nang.md).
+
+**Đo lại ngày 2026-11-05 sau B7 và ADR-0001** ([mục 11](#11-đo-lại-sau-b7-và-adr-0001-2026-11-05)): ở cách đo giống app với 1000 tài xế, mức cao nhất còn đạt mọi ngưỡng tăng từ 6 lên **12 chuyến/giây** (p95 0,9 giây, 1441/1441 chuyến được gán); tổng câu SQL ở 12 chuyến/giây giảm từ 2,1 triệu xuống 277 nghìn; 5000 tài xế ở 4 chuyến/giây có p95 1,0 giây với số câu SQL giảm 93%. Trần mới: 16 chuyến/giây (giới hạn Routing cho OSRM) và 5000 tài xế ở 8 chuyến/giây.
 
 ## 2. Mục tiêu và phạm vi
 
@@ -338,3 +340,58 @@ k6 run -e STAGES=5,10,15 -e STAGE=1m deploy/load/login.js
 ```
 
 Mỗi lần đo ghi `summary.json`, `k6.json`, `segments.json`, `sql.json`, `pods.json` và `drivers.json` vào `deploy/.local/load/results/<thời điểm>/` (không commit). Danh sách 21 lần đo trong báo cáo này nằm ở `deploy/.local/load/campaign/index.tsv` trên máy đo.
+
+## 11. Đo lại sau B7 và ADR-0001 (2026-11-05)
+
+Mã nguồn: nhánh `perf/adr-0008-trip-outbox`, commit `d8ff195`, gồm B7 (kiểm tra tài xế theo lô ở Driver và Trip) và ADR-0001 bước expand + migrate (Matching tự lấy 200 vị trí, kiểm theo lô, tính ETA cho 25 người gần nhất; [đề xuất, mục 3.1](de-xuat-cai-tien-hieu-nang.md#31-đã-triển-khai-chưa-đo-2026-11-05)). Cùng máy, cùng tham số và cùng lệnh với các lần đo ngày 2026-11-04; mỗi mức đo một lần, riêng loạt 1 ở 6 chuyến/giây đo hai lần. "Trước" là lần đo 2026-11-04 cùng tham số.
+
+### 11.1 Thông lượng, cách đo giống app
+
+1000 tài xế, 2 phút mỗi mức. "Được gán" là số chuyến tới `ASSIGNED` trên số lượt đặt (gồm lượt k6 không kịp chạy).
+
+| Đặt chuyến/giây | Được gán (trước → sau) | p95 tới `ASSIGNED` | Báo giá p95 | Tổng câu SQL | CPU driver-api TB / max | CPU PostgreSQL TB / max | Đạt (trước → sau) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 4 | 481/481 → 481/481 | 0,9 → 0,8 giây | 13 → 21 ms | 368577 → 98412 | 134 / 151 → 44 / 81 m | 188 / 222 → 125 / 176 m | Đạt → Đạt |
+| 6 | 721/721 → 720/720 | 1,0 → 0,9 giây | 25 → 25 ms | 553991 → 142919 | 213 / 349 → 65 / 81 m | 329 / 510 → 170 / 222 m | Đạt → Đạt |
+| 8 | 482/805 → **961/961** | 41,3 → **0,9 giây** | 159 → 18 ms | 1735765 → 189251 | 598 / 1141 → 58 / 86 m | 741 / 1308 → 174 / 275 m | Không → **Đạt** |
+| 10 | 575/1005 → **1201/1201** | 47,7 → **0,9 giây** | 132 → 18 ms | 2032798 → 231806 | 661 / 1184 → 63 / 86 m | 831 / 1439 → 212 / 260 m | Không → **Đạt** |
+| 12 | 1305/1441 → **1441/1441** | 50,0 → **0,9 giây** | 74 → 22 ms | 2114438 → 276744 | 817 / 1185 → 73 / 115 m | 1053 / 1591 → 268 / 476 m | Không → **Đạt** |
+| 16 | 1540/1920 → 1909/1921 | 53,3 → 30,3 giây | 69 → 238 ms | 2205105 → 439698 | 926 / 1177 → 172 / 765 m | 1224 / 1582 → 352 / 598 m | Không → Không |
+
+Ack GPS p95 3 ms và lỗi HTTP 0% ở mọi mức. Hiện tượng "8–10 chuyến/giây kém hơn 12–16" ([mục 9](#9-giới-hạn-của-lần-đo)) không còn: thông lượng nay tăng đơn điệu theo tải.
+
+### 11.2 Tăng mật độ tài xế
+
+| Tài xế, đặt chuyến/giây | Được gán | p95 tới `ASSIGNED` (trước → sau) | Ack GPS p95 | Tổng câu SQL (trước → sau) | CPU driver-api TB | CPU Realtime TB / max | Đạt |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2000, 4 | 721/721 | 1,7 → 0,9 giây | 8 → 3 ms | 965250 → 145916 | 339 → 49 m | 107 / 187 m | Đạt |
+| 5000, 4 | 721/721 | 1,3 → 1,0 giây | 6 → 26 ms | 2234134 → 146141 | 575 → 125 m | 209 / 539 m | Đạt |
+| 5000, 8 (mới) | 947/960 | — → 12,4 giây | — → 1449 ms | — → 185756 | 159 m | 418 / 817 m | Không |
+
+Ở 4 chuyến/giây, tổng câu SQL không còn tăng theo số tài xế (146 nghìn ở cả 2000 lẫn 5000, trước là 0,97 triệu và 2,2 triệu): mỗi lần tìm chỉ xét tối đa 200 vị trí và 25 ETA, đúng mục tiêu của ADR-0001.
+
+### 11.3 Cách đo như mốc ban đầu
+
+1000 tài xế, GPS 3 giây, khách poll 300 ms, qua `kubectl port-forward`.
+
+| Đặt chuyến/giây | Được gán (trước → sau) | p95 tới `ASSIGNED` | Báo giá p95 | Ack GPS p95 | Lỗi HTTP | Đạt (trước → sau) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 6 (hai lần) | 720/720 → 721/721; 720/720 | 1,0 → 1,4; 1,6 giây | 66 → 325; 242 ms | 20 → 390; 246 ms | 0% | Đạt → Không (ack GPS) |
+| 8 | 961/961 → 961/961 | 37,4 → 1,6 giây | 833 → 423 ms | 161 → 243 ms | 0% | Không → Không (báo giá, GPS) |
+| 10 | 437/1054 → 1200/1200 | 51,9 → 4,4 giây | 1250 → 717 ms | 417 → 551 ms | 7,86% → 0% | Không → Không (báo giá, GPS) |
+
+Thời gian tới `ASSIGNED` tốt lên rõ ở 8 và 10 chuyến/giây, nhưng ở cách đo này báo giá và ack GPS p95 ở 6 chuyến/giây xấu hơn lần đo trước, lặp lại ở lần đo thứ hai. Cùng mức tải, cách đo trong cụm cho báo giá 25 ms và ack GPS 3 ms, và không pod nào vượt 0,4 core; giá trị lớn nhất gần như không đổi (GPS 2025 so với 2077 ms). Phần chậm vì vậy nằm trên đường qua `kubectl port-forward` hoặc máy host chứ chưa thấy ở service, nhưng chưa xác định được nguyên nhân.
+
+### 11.4 Điểm nghẽn mới
+
+- **16 chuyến/giây: Routing.** Worker Matching thử lại 5243 lần vì `ROUTING_BUSY`, toàn bộ trong hai phút của lần đo này; không lần đo nào khác quá 20 lần. Giới hạn tốc độ Routing đặt cho OSRM ở A8 lại thành trần. driver-api và PostgreSQL vẫn dưới 0,4 core trung bình.
+- **5000 tài xế ở 8 chuyến/giây: Realtime và đường GPS.** 2697 bản tin GPS hết thời gian chờ ack, đoạn tìm tới tạo offer p95 8,0 giây, báo giá p95 1,4 giây; Realtime 0,42 core trung bình, 0,82 core đỉnh, giữ 5000 kết nối Socket.IO trên một process. Không có `ROUTING_BUSY`; PostgreSQL 0,47 core, driver-api 0,16 core. Tổng CPU các pod trung bình 2,7 core trên 10 core của VM. Cần số đo bên trong process (B6) để xác nhận.
+- Lần đo đầu tiên sau khi khởi động lại cụm có báo giá p95 424 ms và ack GPS 155 ms (JVM Gateway và cache PostgreSQL còn nguội); các lần sau về 18–25 ms và 3 ms. Bảng trên dùng lần đo trong loạt chính, không dùng lần đầu này.
+
+### 11.5 Kết luận
+
+1. B7 và ADR-0001 xử lý đúng điểm nghẽn ở [mục 7.1](#71-driver-api-kiểm-tra-từng-tài-xế-một) và [7.2](#72-postgresql-bận-vì-số-câu-lệnh): câu SQL giảm 73–93% tuỳ mức, CPU driver-api ở 12 chuyến/giây từ 0,82 xuống 0,07 core, PostgreSQL từ 1,05 xuống 0,27 core.
+2. Mức đạt ngưỡng ở cách đo giống app tăng từ 6 lên 12 chuyến/giây; ước tính 10–12 chuyến/giây của đề xuất là đúng.
+3. Bước tiếp theo theo số đo: B6 (metrics bên trong process) để xác nhận trần ở Realtime; xem lại giới hạn Routing cho OSRM tự host (A8) nếu muốn vượt 12–16 chuyến/giây; điều tra ack GPS qua port-forward ở cách đo cũ.
+
+Lệnh đo: [mục 10](#10-phụ-lục-chạy-lại), thêm `--drivers 5000 --ramp 25 --rate 8 --duration 2m` cho dòng mới. Danh sách 13 lần đo nằm trong `index.tsv` của lần chạy trên máy đo; kết quả ở `deploy/.local/load/results/2026-11-05T*`.
