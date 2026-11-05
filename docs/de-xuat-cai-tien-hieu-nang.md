@@ -3,12 +3,12 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-04 |
+| Rà soát | 2026-11-05 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Tài liệu duy nhất gom các đề xuất cải tiến hiệu năng: kết quả nhóm cải tiến đã làm, điểm nghẽn còn lại, đề xuất tiếp theo kèm chi phí, đối chiếu ADR và lộ trình. Mọi căn cứ lấy từ [báo cáo kiểm thử tải](bao-cao-kiem-thu-tai.md) ngày 2026-11-04; test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md).
 
-Các đề xuất bám theo [kiến trúc mục tiêu](kien-truc-muc-tieu.md) và [ADR](adr/README.md), không thêm công nghệ mà tài liệu đó đã loại (Kafka, sharding, service mesh). Con số "sau cải tiến" của các đề xuất chưa làm là ước tính, phải đo lại để xác nhận.
+Các đề xuất bám theo [kiến trúc mục tiêu](kien-truc-muc-tieu.md) và [ADR](adr/README.md), không thêm công nghệ mà tài liệu đó đã loại (Kafka, sharding, service mesh). Con số "sau cải tiến" của các đề xuất chưa làm là ước tính, phải đo lại để xác nhận. Nhóm D (chịu lỗi và vận hành) lấy căn cứ từ code và tài liệu triển khai, không từ bài đo.
 
 ## 1. Tóm tắt
 
@@ -30,6 +30,8 @@ Thêm worker hay tăng tài nguyên không giải quyết được; đã thử R
 | 1 | Kiểm tra điều kiện theo lô thật sự (B7) và giới hạn số ứng viên theo [ADR-0001](adr/0001-matching-so-huu-tim-ung-vien.md) (B1) | khoảng 3–4 ngày người (B1 đã tính trong Phase 1) | Không | Câu SQL kiểm tra tài xế cho mỗi chuyến từ khoảng 1400 xuống khoảng 10–20; mức đạt ngưỡng lên khoảng 10–12 chuyến/giây |
 | 2 | Observability (B6), làm mới token có jitter (B5), 2 replica driver-api (B4) | B6 đã tính trong Phase 1; B5, B4 khoảng 2 ngày | khoảng 0,9 GB | Giải thích được hai hiện tượng còn mở; tài xế lên ca hay làm mới token đồng loạt không gây chậm |
 | 3 | Đo lại trọn kịch bản 3000 khách và 3500 tài xế trong cụm (E6); tuỳ chọn thuê cụm 1 ngày (E4) | khoảng 1 ngày (E6); 2 ngày (E4) | E4: ước tính 5–20 USD | Số liệu thật cho kịch bản đột biến |
+
+Ngoài hiệu năng, [mục 5.4](#54-nhóm-d-chịu-lỗi-và-vận-hành) đề xuất nhóm D: circuit breaker, rolling update, RPO/RTO kèm diễn tập khôi phục, và tài liệu saga cho luồng chuyến đi. Tổng khoảng 3–3,5 ngày người, không thêm tài nguyên thường trực.
 
 Gán 3000 chuyến trong khoảng 2 phút (25 chuyến/giây) vẫn cần nhiều máy; mục tiêu đó vượt hạ tầng demo trên một MacBook ([mục 8](#8-kỳ-vọng-cho-kịch-bản-3000-khách)).
 
@@ -103,6 +105,7 @@ Xếp theo thứ tự nên làm.
 | C3 | Realtime lưu sẵn loại xe và trạng thái tài xế trong Redis để lọc tại chỗ (phương án ADR-0001 đã để sau) | Nếu B7 vẫn chưa đủ ở mật độ cao | Cần event từ Driver sang Realtime |
 | C4 | Realtime đẩy offer kèm dữ liệu, bỏ một lời gọi HTTP mỗi offer | Đoạn publish → accept hiện p95 7–14 ms; chưa cần | Đổi contract event offer |
 | C5 | Cụm production nhiều node, autoscaling | Khi cần khoảng 25 chuyến/giây hoặc có tải thật | Ngoài phạm vi đồ án |
+| C6 (mới) | Cache hồ sơ tài xế và xe trong Redis (cache-aside, TTL ngắn, xoá khi ghi) | Khi đã làm B7 mà PostgreSQL vẫn là pod nóng nhất. B7 đã giảm câu SQL kiểm tra tài xế từ khoảng 1400 xuống khoảng 10–20 mỗi chuyến, nên cache chỉ còn lợi ích nhỏ | Phải xoá cache đúng lúc khi tài xế bị khoá hoặc đổi xe; thêm một nguồn dữ liệu có thể lệch với PostgreSQL |
 
 ### 5.3 Môi trường đo
 
@@ -114,6 +117,17 @@ Xếp theo thứ tự nên làm.
 | E4 | Thuê cụm thử nghiệm 1 ngày: 3 node ứng dụng khoảng 4 vCPU / 16 GB, 1 node PostgreSQL, 2 máy tạo tải | Một node local không tách được tranh chấp CPU giữa các service | khoảng 2 ngày người | Ước tính 6 máy × 8 giờ × 0,1–0,4 USD/giờ, tức khoảng 5–20 USD. **Cần kiểm tra bảng giá hiện tại** |
 | E5 | Cấp VM Docker ít nhất 10 GB khi chạy observability cùng bài đo | Bài đo 5000 tài xế đã dùng thêm khoảng 0,4 GB cho pod tạo tải; B6 thêm khoảng 0,8 GB | 0 | Giảm RAM còn lại cho macOS |
 | E6 (mới) | Chạy trọn kịch bản 3000 khách + 3500 tài xế trong cụm; mỗi mức tải đo ít nhất 3 lần | Kịch bản đợt mới chỉ ước tính; ở 8–10 chuyến/giây kết quả dao động 3,2–4,4 chuyến/giây giữa các lần | 1 ngày | 0 đồng |
+
+### 5.4 Nhóm D: chịu lỗi và vận hành
+
+Nhóm D không nâng thông lượng. Nhóm này giúp hệ thống trả lỗi nhanh khi một service hỏng, deploy không gián đoạn và khôi phục được dữ liệu. Các pattern đã có thì không đề xuất lại: chia service theo nghiệp vụ, Gateway xác thực JWT, event qua RabbitMQ và outbox, bulkhead ở Gateway (tối đa 256 request chờ cho mỗi service, Routing 128). Xếp theo thứ tự nên làm.
+
+| ID | Cải tiến | Căn cứ | Chỗ sửa | Công sức | Thêm tài nguyên | Hiệu quả và cách chứng minh |
+| --- | --- | --- | --- | --- | --- | --- |
+| D1 | Circuit breaker và ngân sách thử lại cho client HTTP giữa các service Node. Breaker đếm lỗi `TIMEOUT`, `UNREACHABLE` và 5xx; sau vài lỗi liên tiếp thì trả lỗi ngay, vài giây sau mới cho một request thử. Lỗi bận có `Retry-After` vẫn đi theo cơ chế của A7, nhưng tổng số lần thử lại có giới hạn | Ở 8 chuyến/giây trở lên, 2459/2463 lần thử lại là `ROUTING_BUSY` (A7); mỗi lần thử lại vẫn gửi vào Routing đang quá tải. Gateway có bulkhead, còn các lời gọi giữa service Node chỉ có timeout | Một module client dùng chung cho `matching-service` (`infrastructure/clients.ts`), client Routing của Trip, client của Realtime và Driver; nằm trong P2.5 | 1–1,5 ngày | Không | Khi Routing tắt hoặc hỏng, báo giá và tìm xe trả lỗi trong vài ms thay vì chờ hết timeout. Chứng minh: scale Routing về 0 trong lúc đo, ghi p95 của lỗi báo giá và thời gian hồi phục sau khi bật lại; đo lại loạt 2 để chắc breaker không mở oan ở tải cao |
+| D2 | Rolling update cho service không giữ dữ liệu: `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1`. Giữ `Recreate` cho PostgreSQL, Redis, RabbitMQ vì PVC `ReadWriteOnce` không gắn được vào hai pod | Mọi Deployment đang sinh ra với `strategy: Recreate` và 1 replica ([generate.cjs](../deploy/generate.cjs)), nên mỗi lần deploy service dừng tới khi pod mới sẵn sàng. Readiness probe, startup probe, xử lý `SIGTERM` và `terminationGracePeriodSeconds: 60` đã có | `deploy/generate.cjs` | 0,5 ngày | Chỉ trong lúc deploy: thêm một pod (Node khoảng 0,1 GB, JVM khoảng 0,5 GB) | Deploy không gián đoạn request HTTP. Chứng minh: chạy 2 chuyến/giây trong lúc `kubectl rollout restart` từng service, lỗi HTTP 0%. Kết nối WebSocket trên pod cũ vẫn bị ngắt và app phải nối lại; cần B5 để không nối lại đồng loạt |
+| D3 | Đặt RPO/RTO và diễn tập sao lưu, khôi phục. Mục tiêu cho demo: PostgreSQL RPO 1 giờ (CronJob `pg_dump` mỗi giờ ra volume riêng, giữ 24 bản), RTO 15 phút | [Báo cáo demo Kubernetes](bao-cao-demo-kubernetes.md) ghi "Chưa diễn tập backup/restore"; chưa tài liệu nào nêu RPO/RTO | `deploy/generate.cjs` (CronJob, PVC sao lưu), mục mới trong [deploy-backend.md](deploy-backend.md) | 1 ngày | Đĩa khoảng 24 lần kích thước dump | Có số RTO đo được thay vì giả định. Chứng minh: dựng PostgreSQL trống, khôi phục từ bản dump, đo thời gian tới khi smoke test qua. Kiểm thêm hai điều: khôi phục bản cũ sẽ gửi lại event outbox đã gửi sau thời điểm dump, consumer phải bỏ qua nhờ idempotent theo `eventId`; mất Redis thì tài xế có phải bật lại trạng thái online không |
+| D4 | Viết rõ luồng chuyến đi là một saga kiểu choreography: sơ đồ trạng thái Trip và bảng mỗi bước gồm service, event, lỗi có thể xảy ra, hành động bù trừ | Luồng đặt xe → tìm xe → offer → nhận → hoàn thành hoặc huỷ đã chạy qua outbox và event ([kiến trúc mục tiêu, mục 7](kien-truc-muc-tieu.md#7-danh-mục-sự-kiện)), nhưng chưa tài liệu nào gọi tên saga hay liệt kê bù trừ. Kiến trúc mục tiêu đã loại Temporal vì saga ngắn | Tài liệu, không sửa code | 0,5 ngày | Không | Trả lời được câu hỏi về nhất quán dữ liệu giữa các service; phát hiện bước chưa có bù trừ. Ví dụ bù trừ đã có: hết hạn tìm xe thành `NO_DRIVER_FOUND` ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md)), offer hết `expires_at` thì tìm tài xế khác (A3). Phase 2: huỷ sau khi giữ tiền thì nhả tiền ([ADR-0005](adr/0005-payment-so-cai-kep-tcc.md)) |
 
 ## 6. Đối chiếu với ADR
 
@@ -133,8 +147,8 @@ Xếp theo thứ tự nên làm.
 | Đã xong | Nhóm A, index outbox Matching, E1–E3 | 21 lần đo ngày 2026-11-04 | Đạt: 6 chuyến/giây trong ngưỡng, 5000 tài xế |
 | Ngay, 1 tuần | B7; chuyển ADR-0008 sang Chấp nhận | Loạt 2 (giống app) ở 6, 8, 10, 12 chuyến/giây; `sql.json` | Câu SQL kiểm tra tài xế dưới 20 mỗi chuyến; đạt ngưỡng ở 10 chuyến/giây |
 | Phase 1 | B1, B6 (P1.1, P1.4); B2 nếu còn thời gian | Như trên với 2000 và 5000 tài xế; dashboard | Trần không giảm khi tăng từ 1000 lên 5000 tài xế; giải thích được hai hiện tượng còn mở |
-| Phase 2 | B5, B4, B3 (cùng P2.5) | Tài xế lên ca đồng loạt; chạy lâu 2 giờ | Không có đợt chậm khi làm mới token; RAM ổn định |
-| Trước bảo vệ | E6; tuỳ chọn E4 | Kịch bản 3500 tài xế + 3000 chuyến | Ghi lại thời gian gán hết 3000 chuyến |
+| Phase 2 | B5, B4, B3, D1 (cùng P2.5) | Tài xế lên ca đồng loạt; chạy lâu 2 giờ; tắt Routing trong lúc đo | Không có đợt chậm khi làm mới token; RAM ổn định; báo giá trả lỗi ngay khi Routing tắt |
+| Trước bảo vệ | E6, D2, D3, D4; tuỳ chọn E4 | Kịch bản 3500 tài xế + 3000 chuyến; deploy trong lúc chạy tải; diễn tập khôi phục | Ghi lại thời gian gán hết 3000 chuyến; 0% lỗi HTTP khi deploy; RTO đo được |
 
 Mỗi cải tiến chạy lại đúng kịch bản trước đó, so trong một bảng trước/sau và chỉ đổi một thay đổi mỗi lần ([kế hoạch, giai đoạn 9](ke-hoach-kiem-thu-hieu-nang.md#giai-đoạn-9-tối-ưu-và-đo-lại)).
 
@@ -164,6 +178,7 @@ Với hạn tìm xe 3 phút ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md)),
 | Poll khuếch đại tải khi chờ lâu ([7.3](bao-cao-kiem-thu-tai.md#73-poll-khuếch-đại-tải-khi-khách-chờ-lâu)) | App đã dùng `/ws`; bộ đo E2 | Đã xử lý ở bộ đo |
 | Đợt chậm khi chạy lâu ([7.4](bao-cao-kiem-thu-tai.md#74-đợt-chậm-khi-chạy-lâu)) | B6 để tìm nguyên nhân; B5 | Đề xuất |
 | Thông lượng không đơn điệu ở 8–10 chuyến/giây | B6, E6 | Cần đo thêm |
+| Thử lại dồn vào Routing khi quá tải (2459 lần `ROUTING_BUSY`) | B7 bỏ nguyên nhân; D1 chặn thử lại khi dependency hỏng | Đề xuất |
 | Một bước HTTP cho mỗi offer | C4 | Chưa cần |
 
 ## 10. Không đề xuất
@@ -175,6 +190,10 @@ Với hạn tìm xe 3 phút ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md)),
 | Kafka, thay RabbitMQ | Hàng đợi không còn là điểm nghẽn; kiến trúc mục tiêu đã loại vì tốn RAM |
 | Batch matching, geo-sharding, service mesh | Đã nằm trong mục không làm của kiến trúc mục tiêu; chưa phải nghẽn |
 | Cache báo giá | Báo giá p95 13–66 ms khi chưa quá tải; chỉ chậm khi các service khác đã quá tải |
+| BFF riêng cho app khách và app tài xế | [ADR-0007](adr/0007-admin-web-va-role-admin.md) đã cân nhắc và loại. Hai app dùng chung phần lớn API; BFF thêm một bước mạng trên đường nóng. Nếu cần API riêng, tách nhóm route trong Gateway |
+| Memcached cạnh Redis | Redis đã dùng cho vị trí, rate limit và event inbox; thêm một hệ cache là thêm thành phần vận hành mà không giải nghẽn nào đã đo |
+| Autoscaling (HPA) trên Docker Desktop một node | Mọi pod dùng chung CPU của một máy; HPA thêm pod nhưng không thêm năng lực, nên không chứng minh được gì. Để ở C5 |
+| Blue-green deployment | Cần gấp đôi RAM trong lúc chuyển; máy 16 GB không đủ khi chạy cùng observability. Rolling update (D2) đủ để deploy không gián đoạn |
 
 ## 11. Giả định và việc cần xác minh
 
@@ -184,3 +203,5 @@ Với hạn tìm xe 3 phút ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md)),
 4. Giá cloud ở E4 là khoảng tham khảo; cần kiểm tra bảng giá hiện tại và hạn mức tài khoản sinh viên nếu có.
 5. Năng lực OSRM triển khai thật cần đo lại với số thread và CPU của nó (A8 đo trên local); số tài xế cao điểm cho edge (A9) cần chốt với tải mục tiêu.
 6. Tải mục tiêu (số tài xế, số chuyến giờ cao điểm) chưa được chốt ([kế hoạch, mục 10](ke-hoach-kiem-thu-hieu-nang.md#10-giả-định-và-việc-cần-xác-minh-trước-khi-chạy-ở-môi-trường-thật)). Nếu mục tiêu chỉ là demo trước hội đồng, trạng thái hiện tại (6 chuyến/giây, 5000 tài xế) đã đủ; B7 là bước rẻ nhất để có thêm dư địa.
+7. Ngưỡng của breaker ở D1 (số lỗi liên tiếp, thời gian mở) cần chọn theo số đo loạt 2 sau B7; chọn trước khi đo có thể làm breaker mở oan ở tải cao.
+8. RPO 1 giờ và RTO 15 phút ở D3 là mục tiêu cho demo, cần chốt với yêu cầu nghiệp vụ. Khi có Payment, sổ cái cần RPO gần 0 (WAL archiving, khôi phục theo thời điểm), ngoài phạm vi demo.
