@@ -29,23 +29,6 @@ redis.call('HSET', KEYS[4], id, ARGV[2])
 redis.call('ZADD', KEYS[5], now+tonumber(ARGV[9]), id)
 return {'STORED', tostring(now)}
 `;
-export const FIND_NEARBY = `
-local time = redis.call('TIME')
-local now = tonumber(time[1])*1000 + math.floor(tonumber(time[2])/1000)
-local rows = redis.call('GEOSEARCH', KEYS[1], 'FROMLONLAT', ARGV[2], ARGV[1], 'BYRADIUS', ARGV[3], 'm', 'ASC', 'WITHDIST')
-if #rows > tonumber(ARGV[4]) then return {'SEARCH_CAPACITY_EXCEEDED'} end
-local result = {}
-for _, row in ipairs(rows) do
-  local expires = tonumber(redis.call('ZSCORE', KEYS[2], row[1]))
-  local raw = redis.call('HGET', KEYS[3], row[1])
-  if raw and expires and expires > now then
-    local metadata = cjson.decode(raw)
-    metadata.distanceMeters = tonumber(row[2])
-    table.insert(result, cjson.encode(metadata))
-  end
-end
-return result
-`;
 export const CLEANUP_STALE = `
 local time = redis.call('TIME')
 local now = tonumber(time[1])*1000 + math.floor(tonumber(time[2])/1000)
@@ -64,7 +47,7 @@ return #expired
 `;
 
 // Nearest fresh locations, closest first. COUNT caps the work per search, so a dense area costs the
-// same as a sparse one; unlike FIND_NEARBY there is no capacity error. No business filtering here.
+// same as a sparse one. No business filtering here.
 export const FIND_NEAREST = `
 local time = redis.call('TIME')
 local now = tonumber(time[1])*1000 + math.floor(tonumber(time[2])/1000)
