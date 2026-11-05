@@ -79,7 +79,7 @@ Triển khai theo **expand → migrate → contract**:
 
 ## Triển khai
 
-Ngày 2026-11-05, nhánh `perf/adr-0008-trip-outbox`. Smoke CAR_4 / CAR_7 xanh trên Docker với cả `CANDIDATE_SOURCE=direct` và `routing`. Chưa chạy trên Kubernetes và chưa đo tải.
+Ngày 2026-11-05, nhánh `perf/adr-0008-trip-outbox`. Smoke CAR_4 / CAR_7 xanh trên Docker với cả `CANDIDATE_SOURCE=direct` và `routing`, và trên Kubernetes với `direct`; `restart-check.cjs` xanh trên Kubernetes, smoke chạy lại sau restart vẫn xanh. Chưa đo tải; chưa trace số lời gọi mỗi lần tìm (tiêu chí thứ hai), việc này làm cùng B6.
 
 | PR | Commit | Đã làm |
 | --- | --- | --- |
