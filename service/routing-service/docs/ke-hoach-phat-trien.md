@@ -6,7 +6,9 @@
 | Rà soát | 2026-10-06 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
-Ngày cập nhật: 06/10/2026. F00–F09 và F11 đã triển khai, gồm HTTP Realtime adapter thật. F10 có Docker/CI/local Compose, smoke mock và OSRM Hà Nội real qua stack Matching CAR_4/CAR_7. Benchmark production và profile BIKE còn chờ. [Báo cáo triển khai](bao-cao-trien-khai.md) ghi checks/commit và giới hạn; bảng dưới đây giữ kế hoạch/acceptance gốc để đối chiếu.
+Ngày cập nhật: 06/10/2026. F00–F09 và F11 đã triển khai, gồm HTTP Realtime adapter thật. F10 có Docker/CI/local Compose, smoke mock và OSRM Hà Nội real qua stack Matching CAR_4/CAR_7. Benchmark production và profile BIKE còn chờ.
+
+> **2026-11-05, ADR-0001 contract:** Routing không còn gọi Realtime. `POST /routes/matrix` (R03), Calculate ETA Matrix và Realtime Client đã bị gỡ; Matching tự chọn tối đa 50 điểm và gọi `POST /internal/routes/eta-matrix` (R05). Xem [ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md). Các mục F08, F11 và R03 dưới đây là lịch sử. [Báo cáo triển khai](bao-cao-trien-khai.md) ghi checks/commit và giới hạn; bảng dưới đây giữ kế hoạch/acceptance gốc để đối chiếu.
 
 ## 1. Đã xác nhận và đề xuất cần validate
 
@@ -53,7 +55,7 @@ Các npm scripts đã có: `build`, `typecheck`, `lint`, `test:build`, `test`, `
 - Estimate: Trip nhận summary hợp lệ, tiếp tục Pricing/quote; Routing lỗi thì không có quote thành công. Quote TTL/giá/hủy/SEARCHING vẫn thuộc Trip.
 - Route đầy đủ: geometry decode được, precision đúng, origin/destination đúng chiều, steps khi được yêu cầu có schema đủ. Không giả instruction tiếng Việt nếu chưa có formatter.
 - Matrix: Matching gửi pickup/profile; Realtime snapshot cung cấp driverId/location/observedAt; Table lấy chiều driver→pickup. Empty snapshot trả entries rỗng, lỗi lookup trả lỗi trước map call; vượt cap không cắt danh sách. Khi mất một batch kỹ thuật, không trả danh sách thành công thiếu driver. Nghiệp vụ chọn/mời và eligibility trong Matching chốt sau.
-- Realtime Client: thuộc Routing, chỉ lấy vị trí trong radius 2000 m; validate/giữ timestamp nguồn; empty list khác dependency lỗi; không tự tính ETA/mời/gán. Acceptance riêng theo [Realtime Client](realtime-client.md).
+- Realtime Client: thuộc Routing, chỉ lấy vị trí trong radius 2000 m; validate/giữ timestamp nguồn; empty list khác dependency lỗi; không tự tính ETA/mời/gán. 
 - Recalculate: trả tuyến từ vị trí mới; app/Gateway bỏ response cũ, kiểm soát tần suất. Không có mutation Trip hoặc recompute giá.
 - Pipeline: caller có deadline hữu hạn; Promise settle một lần, signal truyền đến fetch và các bước chờ; không Promise treo/unhandled rejection; mọi nhánh giải phóng slot; request mới không bypass limiter, retry có permit riêng; queue không biến thành outbox/durable job.
 
