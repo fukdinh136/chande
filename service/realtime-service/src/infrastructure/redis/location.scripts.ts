@@ -62,3 +62,22 @@ for _, id in ipairs(oldOrder) do
 end
 return #expired
 `;
+
+// Nearest fresh locations, closest first. COUNT caps the work per search, so a dense area costs the
+// same as a sparse one; unlike FIND_NEARBY there is no capacity error. No business filtering here.
+export const FIND_NEAREST = `
+local time = redis.call('TIME')
+local now = tonumber(time[1])*1000 + math.floor(tonumber(time[2])/1000)
+local rows = redis.call('GEOSEARCH', KEYS[1], 'FROMLONLAT', ARGV[2], ARGV[1], 'BYRADIUS', ARGV[3], 'm', 'ASC', 'COUNT', ARGV[4], 'WITHDIST')
+local result = {}
+for _, row in ipairs(rows) do
+  local expires = tonumber(redis.call('ZSCORE', KEYS[2], row[1]))
+  local raw = redis.call('HGET', KEYS[3], row[1])
+  if raw and expires and expires > now then
+    local metadata = cjson.decode(raw)
+    metadata.distanceMeters = tonumber(row[2])
+    table.insert(result, cjson.encode(metadata))
+  end
+end
+return result
+`;

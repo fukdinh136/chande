@@ -19,7 +19,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const redisUrl = required('REDIS_URL');
   if (!['redis:', 'rediss:'].includes(new URL(redisUrl).protocol)) throw new Error('Invalid REDIS_URL');
   const routingToken = credential('ROUTING_INBOUND_TOKEN'), driverToken = credential('DRIVER_ELIGIBILITY_TOKEN');
-  if (routingToken === driverToken) throw new Error('Use separate service credentials');
+  // Optional while ADR-0001 rolls out: without it /driver-locations rejects every caller.
+  const matchingLocationToken = value('MATCHING_LOCATION_TOKEN');
+  if (matchingLocationToken && (matchingLocationToken.length < 32 || matchingLocationToken.startsWith('REPLACE_'))) throw new Error('MATCHING_LOCATION_TOKEN must be configured');
+  if (new Set([routingToken, driverToken, ...(matchingLocationToken ? [matchingLocationToken] : [])]).size !== (matchingLocationToken ? 3 : 2)) throw new Error('Use separate service credentials');
   const freshnessMs = integer('LOCATION_FRESHNESS_MS', 30000, 30000);
   const orderRetentionMs = integer('LOCATION_ORDER_RETENTION_MS', 86400000, 604800000);
   if (orderRetentionMs <= freshnessMs) throw new Error('Order retention must exceed GPS freshness');
@@ -33,7 +36,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     redisTimeoutMs: integer('REDIS_TIMEOUT_MS', 3000, 60000),
     jwksUrl: url('AUTH_JWKS_URL'), issuer: required('AUTH_JWT_ISSUER'), audience: value('AUTH_JWT_AUDIENCE') || 'realtime-service',
     jwksTimeoutMs: integer('AUTH_JWKS_TIMEOUT_MS', 3000, 10000),
-    routingToken, driverToken, driverUrl: url('DRIVER_BASE_URL'), driverTimeoutMs: integer('DRIVER_TIMEOUT_MS', 3000, 10000),
+    routingToken, driverToken, matchingLocationToken, driverUrl: url('DRIVER_BASE_URL'), driverTimeoutMs: integer('DRIVER_TIMEOUT_MS', 3000, 10000),
     freshnessMs, maxFutureMs: integer('LOCATION_MAX_FUTURE_MS', 5000, 10000),
     maxAccuracyMeters: integer('LOCATION_MAX_ACCURACY_METERS', 100, 1000), orderRetentionMs,
     minIntervalMs: integer('LOCATION_MIN_UPDATE_INTERVAL_MS', 1000, 10000),

@@ -10,6 +10,9 @@ import { ELIGIBILITY_PROVIDER, EligibilityProvider } from '../../application/por
 import { TOKEN_VERIFIER } from '../../application/ports/token-verifier.port';
 import { UpdateLocation } from '../../application/use-cases/update-location';
 import { FindNearby } from '../../application/use-cases/find-nearby';
+import { ListDriverLocations } from '../../application/use-cases/list-driver-locations';
+import { DriverLocationsController } from '../../presentation/http/controllers/driver-locations.controller';
+import { MATCHING_LOCATION_CREDENTIAL, MatchingServiceGuard } from '../../presentation/http/guards/matching-service.guard';
 import { CleanupStale } from '../../application/use-cases/cleanup-stale';
 import { LocationPolicy } from '../../domain/policies/location.policy';
 import { NearbyPolicy } from '../../domain/policies/nearby.policy';
@@ -20,7 +23,7 @@ import { HealthController } from '../../presentation/http/controllers/health.con
 import { ROUTING_CREDENTIAL, RoutingServiceGuard } from '../../presentation/http/guards/routing-service.guard';
 import { OfferConsumer } from '../../infrastructure/offers/consumer';
 @Module({
-  controllers: [NearbyController, HealthController],
+  controllers: [NearbyController, DriverLocationsController, HealthController],
   providers: [
     { provide: OfferConsumer, inject: [RedisConnection, CONFIG], useFactory: (r: RedisConnection, c: Config) => new OfferConsumer(r.client, c) },
     { provide: CONFIG, useFactory: () => loadConfig() },
@@ -31,10 +34,12 @@ import { OfferConsumer } from '../../infrastructure/offers/consumer';
     { provide: LocationPolicy, inject: [CONFIG], useFactory: (c: Config) => new LocationPolicy(c.freshnessMs, c.maxFutureMs, c.maxAccuracyMeters) },
     { provide: UpdateLocation, inject: [LOCATION_STORE, LocationPolicy], useFactory: (s: LocationStore, p: LocationPolicy) => new UpdateLocation(s, p) },
     { provide: FindNearby, inject: [LOCATION_STORE, ELIGIBILITY_PROVIDER, LocationPolicy], useFactory: (s: LocationStore, e: EligibilityProvider, p: LocationPolicy) => new FindNearby(s, e, p, new NearbyPolicy()) },
+    { provide: ListDriverLocations, inject: [LOCATION_STORE, LocationPolicy], useFactory: (s: LocationStore, p: LocationPolicy) => new ListDriverLocations(s, p) },
     { provide: CleanupStale, inject: [LOCATION_STORE], useFactory: (s: LocationStore) => new CleanupStale(s) },
     { provide: CleanupScheduler, inject: [CleanupStale, CONFIG], useFactory: (u: CleanupStale, c: Config) => new CleanupScheduler(u, c.cleanupIntervalMs) },
     { provide: ROUTING_CREDENTIAL, inject: [CONFIG], useFactory: (c: Config) => c.routingToken },
-    DriverSocketGuard, RoutingServiceGuard, LocationGateway,
+    { provide: MATCHING_LOCATION_CREDENTIAL, inject: [CONFIG], useFactory: (c: Config) => c.matchingLocationToken },
+    DriverSocketGuard, RoutingServiceGuard, MatchingServiceGuard, LocationGateway,
   ],
 })
 export class RealtimeModule {}

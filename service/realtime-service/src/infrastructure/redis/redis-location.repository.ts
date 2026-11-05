@@ -3,7 +3,7 @@ import { LocationStore } from '../../application/ports/location-store.port';
 import { LocationInput, LocationReceipt, NearbyLocation } from '../../domain/location/driver-location';
 import { NearbyQuery } from '../../domain/policies/nearby.policy';
 import { RealtimeError } from '../../domain/errors';
-import { UPDATE_LOCATION, FIND_NEARBY, CLEANUP_STALE } from './location.scripts';
+import { UPDATE_LOCATION, FIND_NEARBY, FIND_NEAREST, CLEANUP_STALE } from './location.scripts';
 const KEYS = ['geo', 'expiry', 'meta', 'order', 'order-expiry'].map(name => `realtime:{gps}:${name}`);
 interface Metadata extends LocationInput { driverId: string; receivedAtMs: number; distanceMeters: number }
 export class RedisLocationRepository implements LocationStore {
@@ -35,6 +35,16 @@ export class RedisLocationRepository implements LocationStore {
       const values = await this.redis.eval(FIND_NEARBY, 3, ...KEYS.slice(0, 3),
         query.latitude, query.longitude, query.radiusMeters, this.maxCandidates) as string[];
       if (values[0] === 'SEARCH_CAPACITY_EXCEEDED') throw new RealtimeError(values[0]);
+      return values.map(value => {
+        const item = JSON.parse(value) as Metadata;
+        return { ...item, receivedAt: new Date(item.receivedAtMs).toISOString() };
+      });
+    });
+  }
+  nearest(query: { latitude: number; longitude: number; radiusMeters: number; limit: number }): Promise<NearbyLocation[]> {
+    return this.command(async () => {
+      const values = await this.redis.eval(FIND_NEAREST, 3, ...KEYS.slice(0, 3),
+        query.latitude, query.longitude, query.radiusMeters, query.limit) as string[];
       return values.map(value => {
         const item = JSON.parse(value) as Metadata;
         return { ...item, receivedAt: new Date(item.receivedAtMs).toISOString() };
