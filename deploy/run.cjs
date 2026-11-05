@@ -42,6 +42,8 @@ if(action==='kube-up') {
   const namespace=spawnSync('kubectl',['--context','docker-desktop','get','namespace','chande-local','-o','json'],{encoding:'utf8',windowsHide:true});
   if(namespace.status===0 && JSON.parse(namespace.stdout).metadata.labels?.['app.kubernetes.io/part-of']!=='chande') throw new Error('Refusing to deploy over namespace not owned by this stack');
   kube(['apply','-f',path.join(directory,'infra.json')]);
+  // apply keeps keys removed from stringData; replace makes each service env Secret match the generated file.
+  kube(['replace','-f',path.join(directory,'env-secrets.json')]);
   for(const name of ['postgres','redis','rabbitmq','osrm']) kube(['rollout','status','deployment/'+name,'--timeout=300s']);
   for(const name of ['trip-migrate','matching-migrate']) {
     const existing=spawnSync('kubectl',['--context','docker-desktop','-n','chande-local','get','job',name,'-o','json'],{encoding:'utf8',windowsHide:true});

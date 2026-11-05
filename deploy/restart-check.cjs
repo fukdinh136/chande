@@ -8,7 +8,11 @@ function kube(args){const r=spawnSync('kubectl',['--context','docker-desktop','-
   const phone='84900000004',challenge=await request('/driver-auth/otp/request',{phoneNumber:phone}),driver=await request('/driver-auth/otp/verify',{phoneNumber:phone,challengeId:challenge.challengeId,otp:'123456'});
   const names=['user-api','gateway-api','driver-api','realtime-api','matching-worker'];
   kube(['rollout','restart',...names.map(n=>'deployment/'+n)]);
+  // rollout status can report the previous generation as done if it runs before the controller sees the restart.
+  for(const name of names){const generation=()=>{const r=spawnSync('kubectl',['--context','docker-desktop','-n','chande-local','get','deployment/'+name,'-o','jsonpath={.metadata.generation} {.status.observedGeneration}'],{encoding:'utf8',windowsHide:true});const [want,seen]=r.stdout.trim().split(' ').map(Number);return seen>=want};const end=Date.now()+60000;while(!generation()){if(Date.now()>end)throw new Error('Kubernetes restart check failed');spawnSync('sleep',['1'])}}
   for(const name of names)kube(['rollout','status','deployment/'+name,'--timeout=300s']);
+  // Recreate leaves the Service without endpoints until the new pod is ready and kube-proxy catches up (edge answers 502).
+  const end=Date.now()+60000;for(const token of [rider.accessToken,driver.accessToken])while([502,503,504].includes((await fetch(base+'/api/v1/users/me',{signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+token}})).status)){if(Date.now()>end)throw new Error('Gateway not reachable after restart');await new Promise(r=>setTimeout(r,500))}
   assert.equal((await request('/users/me',undefined,rider.accessToken)).id,registered.id);
   assert.equal((await request('/drivers/me',undefined,driver.accessToken)).driverId,'10000000-0000-4000-8000-000000000004');
   console.info('Restart check pass: persisted User record and pre-restart RIDER/DRIVER JWT remain valid; five deployments Ready.');

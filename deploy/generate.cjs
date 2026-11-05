@@ -83,8 +83,13 @@ rabbitPod.hostname='rabbitmq'; rabbitPod.securityContext={fsGroup:999};
 rabbitPod.containers[0].securityContext={runAsUser:999,runAsGroup:999,runAsNonRoot:true};
 const drivePath = absolute(graph).replace(/^([A-Za-z]):/,(_,drive)=>'/run/desktop/mnt/host/'+drive.toLowerCase());
 infra.push(deployment('osrm',{image:images.osrm,args:compose.services.osrm.command,readinessProbe:probeHTTP(5000,route),volumeMounts:[{name:'graph',mountPath:'/data',readOnly:true}]},[{name:'graph',hostPath:{path:drivePath,type:'Directory'}}],'1Gi'),service('osrm',[5000]));
+// kubectl apply cannot remove keys dropped from a Secret's stringData, so kube-up replaces these
+// Secrets, and each Deployment carries a hash of its env so a changed env restarts its pods.
+const envSecrets = [], envHash = {};
 for (const [name,a] of Object.entries(apps)) {
-  infra.push(secret(name+'-env',a.env));
+  const envSecret = secret(name+'-env',a.env);
+  infra.push(envSecret); envSecrets.push(envSecret);
+  envHash[name] = crypto.createHash('sha256').update(JSON.stringify(Object.entries(envSecret.stringData).sort())).digest('hex').slice(0,16);
   const keyName = a.service==='user' ? 'user.pem' : 'driver.pem';
   const volumes = a.keys ? [{name:'keys',secret:{secretName:'signing-keys',defaultMode:0o444,items:[{key:keyName,path:keyName}]}}] : [];
   const container = {image:a.image,envFrom:[{secretRef:{name:name+'-env'}}],ports:[{containerPort:a.port}],readinessProbe:probeHTTP(a.port,a.ready),livenessProbe:a.service==='user'?{tcpSocket:{port:a.port},periodSeconds:5}:probeHTTP(a.port,a.live),startupProbe:{...probeHTTP(a.port,a.ready),failureThreshold:60},...(a.command?{command:a.command}:{}),...(a.keys?{volumeMounts:[{name:'keys',mountPath:'/run/keys',readOnly:true}]}:{})};
@@ -99,6 +104,8 @@ if (fs.existsSync(imageIdsFile)) {
   const ids = JSON.parse(fs.readFileSync(imageIdsFile, 'utf8'));
   for (const resource of workloads.filter(r=>r.kind==='Deployment')) resource.spec.template.metadata.annotations = {'chande.dev/image-id':ids[resource.spec.template.spec.containers[0].image] ?? 'infra'};
 }
+for (const resource of workloads.filter(r=>r.kind==='Deployment' && envHash[r.metadata.name])) resource.spec.template.metadata.annotations = {...resource.spec.template.metadata.annotations, 'chande.dev/env-hash':envHash[resource.metadata.name]};
+fs.writeFileSync(path.join(out,'env-secrets.json'),JSON.stringify({apiVersion:'v1',kind:'List',items:envSecrets},null,2),{mode:0o600});
 for (const [name,items] of Object.entries({infra,migrations,workloads})) fs.writeFileSync(path.join(out,name+'.json'),JSON.stringify({apiVersion:'v1',kind:'List',items},null,2),{mode:0o600});
 console.info('Generated private Docker/Kubernetes configuration; credentials/keys preserved. Namespace chande-local; Docker :18080; Kubernetes port-forward :18081.');
 module.exports = {out,apps,root};
