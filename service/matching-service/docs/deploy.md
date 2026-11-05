@@ -18,8 +18,7 @@ Readiness kiểm tra schema/database. Worker và consumer reconnect có backoff;
 
 | Biến | Mặc định | Ý nghĩa |
 | --- | --- | --- |
-| `CANDIDATE_SOURCE` | `direct` | `direct`: worker tự lấy vị trí ở Realtime, kiểm điều kiện theo lô ở Driver, tính ETA ở Routing ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)). `routing`: luồng cũ qua `/routes/matrix`, dùng để rollback |
-| `REALTIME_BASE_URL` / `REALTIME_MATCHING_TOKEN` | bắt buộc khi `direct` | Gọi `GET /internal/realtime/driver-locations`; token khớp `MATCHING_LOCATION_TOKEN` của Realtime |
+| `REALTIME_BASE_URL` / `REALTIME_MATCHING_TOKEN` | bắt buộc | Worker tìm ứng viên ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)): gọi `GET /internal/realtime/driver-locations`; token khớp `MATCHING_LOCATION_TOKEN` của Realtime |
 | `NEARBY_LIMIT` | 200 (tối đa 200) | Số vị trí gần nhất lấy từ Realtime mỗi lần tìm |
 | `MATRIX_CANDIDATES` | 25 (tối đa 50) | Số tài xế hợp lệ gần nhất (đường chim bay) được tính ETA |
 | `WORKER_CONCURRENCY` | 16 (tối đa 16) | Số job tìm xe chạy cùng lúc; job xong là claim job mới ngay |

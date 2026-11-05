@@ -10,7 +10,7 @@ C3 theo layer và implementation hiện tại. [API](api.md), [Nghiệp vụ](ng
 
 ## 1. Container và ranh giới
 
-Driver dùng PostgreSQL/Redis riêng, OTP adapter, HTTP Trip Active và HttpOccupancy lookup Trip/Matching khi cấu hình. Realtime dùng JWKS/batch eligibility Driver, giữ GPS Redis riêng. App gọi direct; Gateway proxy REST đã có source, chưa nghiệm thu ingress chung của stack smoke.
+Driver dùng PostgreSQL/Redis riêng, OTP adapter, HTTP Trip Active và HttpOccupancy lookup Trip/Matching khi cấu hình. Realtime chỉ dùng JWKS của Driver; Matching dùng eligibility theo lô ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)), giữ GPS Redis riêng. App gọi direct; Gateway proxy REST đã có source, chưa nghiệm thu ingress chung của stack smoke.
 
 Driver không truy cập trip_db, không tạo Trip/Matching thay thế, không sở hữu reservation lock Matching.
 
@@ -32,7 +32,7 @@ flowchart TB
       Profile["Profile use cases"]
       Vehicle["Vehicle use cases"]
       Availability["Availability use cases"]
-      Eligibility["Eligibility and batch"]
+      Eligibility["Eligibility đơn và candidates"]
       Ports["Repository, UoW, identity, OTP, state, Trip ports"]
     end
     Domain["Domain policies and value objects"]
@@ -50,7 +50,7 @@ flowchart TB
   Trip["Trip Service"]
   App --> Controllers
   Matching --> Guards
-  Realtime --> Guards
+  Realtime -->|JWKS| Controllers
   Guards --> Controllers
   DTO --> Controllers
   Controllers --> Auth
@@ -93,7 +93,7 @@ src/
       internal.controller.ts
       realtime-internal.controller.ts
       operations.controller.ts
-    dto/                   # auth/profile/vehicle/availability/eligibility/batch
+    dto/                   # auth/profile/vehicle/availability/eligibility/candidates
     guards/                # user/service/realtime-service/client-address
     filters/error.filter.ts
     response.ts
@@ -196,6 +196,6 @@ HASH state không TTL toàn key để tránh mất BUSY/selection do GPS expiry.
 
 Trip nhận JWT DRIVER qua verifier/issuer riêng; direct URL không prefix. Driver HttpOccupancy gọi batch active-driver Trip và reservation Matching bằng credential riêng. Trip replay header hiện là Idempotent-Replay; app có compatibility parser cho tên cũ nhưng không coi hai tên cùng là contract hiện tại.
 
-Realtime batch dùng credential riêng, khác Matching token. GPS ACK chỉ xác nhận thao tác Redis, không chứng minh đủ điều kiện nhận cuốc hoặc persistence qua failover.
+GPS ACK chỉ xác nhận thao tác Redis, không chứng minh đủ điều kiện nhận cuốc hoặc persistence qua failover.
 
 Gateway cần proxy path/status/headers, Authorization/Idempotency-Key và hạn chế internal endpoints. Matching reservation và Realtime Rabbit offer delivery đã triển khai; nguồn AVAILABLE/BUSY thuộc Driver occupancy. Socket.IO ingress, app offer UI và production còn cần feature riêng.
