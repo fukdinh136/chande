@@ -1,3 +1,4 @@
+import './bootstrap/telemetry';
 import 'reflect-metadata';
 import 'dotenv/config';
 import { ValidationPipe } from '@nestjs/common';

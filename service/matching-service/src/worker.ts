@@ -1,3 +1,4 @@
+import './bootstrap/telemetry';
 import 'reflect-metadata';
 import 'dotenv/config';
 import { createServer } from 'node:http';

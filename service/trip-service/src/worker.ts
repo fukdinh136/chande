@@ -1,3 +1,4 @@
+import './bootstrap/telemetry';
 import 'dotenv/config';
 import { loadConfig } from './bootstrap/config';
 import { createDataSource } from './infrastructure/persistence/connection';

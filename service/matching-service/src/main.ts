@@ -1,3 +1,4 @@
+import './bootstrap/telemetry';
 import 'reflect-metadata';
 import 'dotenv/config';
 import { loadConfig } from './bootstrap/config';
