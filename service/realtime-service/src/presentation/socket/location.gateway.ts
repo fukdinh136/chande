@@ -11,6 +11,7 @@ import { LocationDto } from './dto/location.dto';
 import { envelope, errorResponse } from '../http/response';
 import { DriverSocketGuard, SocketSession } from './guards/driver-socket.guard';
 import { OfferConsumer } from '../../infrastructure/offers/consumer';
+import { measured, observeSockets } from './metrics';
 @WebSocketGateway({ namespace: '/realtime', transports: ['websocket'], maxHttpBufferSize: 4096 })
 export class LocationGateway implements OnGatewayInit, OnGatewayDisconnect {
   constructor(
@@ -21,6 +22,7 @@ export class LocationGateway implements OnGatewayInit, OnGatewayDisconnect {
   ) {}
   afterInit(server: Namespace) {
     this.offers.attach(server);
+    observeSockets(() => server.sockets.size);
     server.use((socket, next) => {
       void (async () => {
         const auth: unknown = socket.handshake.auth;
@@ -53,13 +55,15 @@ export class LocationGateway implements OnGatewayInit, OnGatewayDisconnect {
   @SubscribeMessage('driver.location.update')
   async location(@ConnectedSocket() socket: Socket, @MessageBody() payload: unknown) {
     const requestId = randomUUID();
-    try {
-      const actor = this.guard.actor(socket);
-      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new RealtimeError('INVALID_REQUEST');
-      const dto = plainToInstance(LocationDto, payload);
-      const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true, forbidUnknownValues: true });
-      if (errors.length) throw new RealtimeError('INVALID_REQUEST');
-      return envelope(await this.update.execute(actor.driverId, dto), requestId);
-    } catch (error) { return errorResponse(error, requestId); }
+    return measured(async () => {
+      try {
+        const actor = this.guard.actor(socket);
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new RealtimeError('INVALID_REQUEST');
+        const dto = plainToInstance(LocationDto, payload);
+        const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true, forbidUnknownValues: true });
+        if (errors.length) throw new RealtimeError('INVALID_REQUEST');
+        return envelope(await this.update.execute(actor.driverId, dto), requestId);
+      } catch (error) { return errorResponse(error, requestId); }
+    }, reply => 'error' in reply ? reply.error.code : 'OK');
   }
 }

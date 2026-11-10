@@ -3,6 +3,7 @@ import { Repository } from '../infrastructure/persistence';
 import { MatchDriver } from './match';
 import { AssignDriver } from './decisions';
 import { describeFailure, retryDelay } from './retry';
+import { recordJob } from './metrics';
 type Job = { trip_id: string; lease_id: string };
 /**
  * Keeps up to `workers` search jobs running (ADR-0008). Whenever a slot frees up it claims more due
@@ -45,10 +46,13 @@ export class MatchingWorker {
   }
   private async run(job: Job) {
     const renewal = setInterval(() => { void this.repo.db.query("UPDATE matching_searches SET lease_until=clock_timestamp()+$3*interval '1 millisecond' WHERE trip_id=$1 AND lease_id=$2", [job.trip_id, job.lease_id, this.c.leaseMs]).catch(() => {}); }, this.c.leaseMs / 3);
+    const started = performance.now(); let kind: 'search' | 'assignment' = 'search';
     try {
-      const s = await this.repo.getSearch(job.trip_id); if (s?.status === 'ASSIGNMENT_PENDING') await this.assign.execute(job.trip_id); else await this.match.execute(job.trip_id);
+      const s = await this.repo.getSearch(job.trip_id); if (s?.status === 'ASSIGNMENT_PENDING') { kind = 'assignment'; await this.assign.execute(job.trip_id); } else await this.match.execute(job.trip_id);
       await this.repo.finishLease(job.trip_id, job.lease_id);
+      recordJob(performance.now() - started, kind, 'done');
     } catch (error) {
+      recordJob(performance.now() - started, kind, 'retry');
       const failure = describeFailure(error); let delay = 1000, attempt = 0;
       await this.repo.transaction(async tx => { const s = await tx.search(job.trip_id); if (!s) return; attempt = ++s.attempts; delay = retryDelay(attempt, failure); await tx.saveSearch(s, delay); });
       await this.repo.finishLease(job.trip_id, job.lease_id, delay);

@@ -1,6 +1,6 @@
 import type { DataSource } from 'typeorm';
 import type { Destination } from '../../application/ports/store';
-export interface Delivery { id: string; destination: Destination; attempts: number; kind: 'search' | 'cancel' | 'event'; payload: Record<string, unknown>; tripId: string }
+export interface Delivery { id: string; destination: Destination; attempts: number; kind: 'search' | 'cancel' | 'event'; payload: Record<string, unknown>; tripId: string; /** Age of the outbox message when it was claimed. */ ageMs?: number }
 export class PgOutbox {
   constructor(private readonly db: DataSource) {}
   async claim(owner: string, limit: number, leaseMs: number): Promise<Delivery[]> {
@@ -12,7 +12,7 @@ export class PgOutbox {
       ), claimed AS (
         UPDATE outbox_deliveries d SET status='processing',attempts=d.attempts+1,lease_owner=$2::uuid,lease_until=now()+$3*interval '1 millisecond'
         FROM picked p WHERE d.id=p.id RETURNING d.*
-      ) SELECT c.id::text,c.destination,c.attempts,o.kind,o.payload,o.trip_id AS "tripId" FROM claimed c JOIN outbox o ON o.id=c.outbox_id
+      ) SELECT c.id::text,c.destination,c.attempts,o.kind,o.payload,o.trip_id AS "tripId",(extract(epoch FROM clock_timestamp()-o.created_at)*1000)::float8 AS "ageMs" FROM claimed c JOIN outbox o ON o.id=c.outbox_id
     `, [limit, owner, leaseMs]));
   }
   async renew(owner: string, leaseMs: number): Promise<void> {

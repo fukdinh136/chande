@@ -9,23 +9,26 @@ import { CalculateRoute } from '../application/use-cases/route';
 import { CalculateEtaForOrigins } from '../application/use-cases/eta-matrix';
 import { RecalculateRoute } from '../application/use-cases/recalculate';
 import { busy } from '../domain/errors';
+import { observePool } from '../infrastructure/pipeline/metrics';
 export class RoutingRuntime implements BeforeApplicationShutdown {
   readonly pool: WorkerPool; readonly route: CalculateRoute; readonly etaMatrix: CalculateEtaForOrigins; readonly recalculate: RecalculateRoute;
   private requests = new Set<AbortController>(); private requestDrained: (() => void)[] = [];
   constructor(readonly config: Config, readonly clock: Clock = systemClock, provider?: MapProvider) {
     const map = provider ?? (config.map.mode === 'mock' ? new MockMapProvider(clock) : new OsrmProvider(config, clock));
     this.pool = new WorkerPool(map, new RateLimiter(config.limits, clock), config.limits, clock);
+    observePool(() => ({ ...this.pool.stats, requests: this.requests.size }));
     this.route = new CalculateRoute(this.pool, clock, config.vehicleTypes);
     this.recalculate = new RecalculateRoute(this.route);
     this.etaMatrix = new CalculateEtaForOrigins(this.pool, clock, config.vehicleTypes, config.limits);
   }
   track(controller: AbortController): () => void {
-    if (!this.pool.stats.accepting || this.requests.size >= this.config.limits.queueSize + this.config.limits.workers) throw busy();
+    if (!this.pool.stats.accepting) throw busy('shutting_down');
+    if (this.requests.size >= this.config.limits.queueSize + this.config.limits.workers) throw busy('too_many_requests');
     this.requests.add(controller);
     return () => { this.requests.delete(controller); if (!this.requests.size) this.requestDrained.splice(0).forEach(resolve => resolve()); };
   }
   async beforeApplicationShutdown(): Promise<void> {
-    const timer = setTimeout(() => { for (const request of this.requests) request.abort(busy()); }, this.config.limits.shutdownGrace);
+    const timer = setTimeout(() => { for (const request of this.requests) request.abort(busy('shutting_down')); }, this.config.limits.shutdownGrace);
     try {
       await this.pool.close();
       if (this.requests.size) await new Promise<void>(resolve => this.requestDrained.push(resolve));

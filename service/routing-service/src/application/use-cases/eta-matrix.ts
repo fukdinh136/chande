@@ -9,7 +9,7 @@ export class CalculateEtaForOrigins {
   constructor(private readonly dispatcher: MapDispatcher, private readonly clock: Clock, private readonly vehicles: readonly string[], private readonly capacity: { matrixCandidates: number; matrixBatch: number; elementsPerMinute: number }) {}
   async execute(value: unknown, context: Context) {
     const input = request(etaMatrixRequestSchema, value); requireVehicle(input.vehicleType, this.vehicles); checkpoint(context, this.clock);
-    if (input.origins.length > this.capacity.matrixCandidates) throw busy();
+    if (input.origins.length > this.capacity.matrixCandidates) throw busy('matrix_too_large');
     const entries: ({ id: string } & Cell)[] = [];
     const size = Math.min(this.capacity.matrixBatch, this.capacity.elementsPerMinute);
     for (let index = 0; index < input.origins.length; index += size) {

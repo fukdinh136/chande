@@ -1,6 +1,7 @@
 import { connect, type ChannelModel, type ConfirmChannel } from 'amqplib';
 import { randomUUID } from 'node:crypto';
 import { Repository } from './persistence';
+import { recordOutboxLag } from '../application/metrics';
 export const EXCHANGE = 'matching.offers', QUEUE = 'driver.offers';
 export async function topology(channel: ConfirmChannel) {
   await channel.assertExchange(EXCHANGE, 'direct', { durable: true });
@@ -37,9 +38,9 @@ export class OfferPublisher {
     if (this.busy) return false; this.busy = true;
     try {
       for (let index = 0; index < this.batchMax; index++) {
-        const lease = randomUUID(); const rows: { id: string; payload: unknown; attempts: number }[] = await this.repo.db.transaction(db => db.query(`WITH due AS (SELECT id FROM matching_outbox WHERE published_at IS NULL AND due_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<clock_timestamp()) ORDER BY due_at LIMIT 1 FOR UPDATE SKIP LOCKED), claimed AS (UPDATE matching_outbox o SET lease_id=$1,lease_until=clock_timestamp()+interval '60 seconds',attempts=o.attempts+1 FROM due WHERE o.id=due.id RETURNING o.id,o.payload,o.attempts) SELECT * FROM claimed`, [lease]));
-        const message = rows[0]; if (!message) return false;
-        try { await this.send(await this.open(), message.id, message.payload); await this.repo.db.query('UPDATE matching_outbox SET published_at=clock_timestamp(),lease_id=NULL,lease_until=NULL WHERE id=$1 AND lease_id=$2', [message.id, lease]); }
+        const lease = randomUUID(); const rows: { id: string; payload: unknown; attempts: number; lag_ms: number }[] = await this.repo.db.transaction(db => db.query(`WITH due AS (SELECT id FROM matching_outbox WHERE published_at IS NULL AND due_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<clock_timestamp()) ORDER BY due_at LIMIT 1 FOR UPDATE SKIP LOCKED), claimed AS (UPDATE matching_outbox o SET lease_id=$1,lease_until=clock_timestamp()+interval '60 seconds',attempts=o.attempts+1 FROM due WHERE o.id=due.id RETURNING o.id,o.payload,o.attempts,(extract(epoch FROM clock_timestamp()-o.due_at)*1000)::float8 AS lag_ms) SELECT * FROM claimed`, [lease]));
+        const message = rows[0]; if (!message) return false; const claimed = performance.now();
+        try { await this.send(await this.open(), message.id, message.payload); await this.repo.db.query('UPDATE matching_outbox SET published_at=clock_timestamp(),lease_id=NULL,lease_until=NULL WHERE id=$1 AND lease_id=$2', [message.id, lease]); recordOutboxLag(message.lag_ms + performance.now() - claimed); }
         catch { const delay = Math.ceil(Math.min(30000, 1000 * 2 ** Math.min(message.attempts - 1, 10)) * (0.8 + Math.random() * 0.2)); await this.repo.db.query("UPDATE matching_outbox SET lease_id=NULL,lease_until=NULL,due_at=clock_timestamp()+$3*interval '1 millisecond' WHERE id=$1 AND lease_id=$2", [message.id, lease, delay]); return false; }
       }
       return true;

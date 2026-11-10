@@ -4,8 +4,9 @@ import type { MapJob, RouteRequest, MatrixRequest, Route, Cell } from '../../dom
 import type { PermitLimiter } from './limiter';
 import { RoutingError, busy, deadline } from '../../domain/errors';
 import { checkpoint, wait } from '../../application/context';
+import { recordQueueWait } from './metrics';
 type Result = Route | Cell[];
-interface Pending { job: MapJob; context: Context; controller: AbortController; resolve: (result: Result) => void; reject: (error: unknown) => void; cleanup: () => void; queueTimer?: ReturnType<typeof setTimeout> }
+interface Pending { job: MapJob; context: Context; controller: AbortController; resolve: (result: Result) => void; reject: (error: unknown) => void; cleanup: () => void; queueTimer?: ReturnType<typeof setTimeout>; queuedAt?: number }
 /** Resolve cancellation even if an injected adapter fails to honour its signal. */
 function cancellable<T>(operation: () => Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -26,7 +27,8 @@ export class WorkerPool implements MapDispatcher {
   dispatch(job: MapJob, context: Context): Promise<Result>;
   dispatch(job: MapJob, context: Context): Promise<Result> {
     try { checkpoint(context, this.clock); } catch (error) { return Promise.reject(error); }
-    if (!this.accepting || (this.active.size >= this.limits.workers && this.queue.length >= this.limits.queueSize)) return Promise.reject(busy());
+    if (!this.accepting) return Promise.reject(busy('shutting_down'));
+    if (this.active.size >= this.limits.workers && this.queue.length >= this.limits.queueSize) return Promise.reject(busy('queue_full'));
     return new Promise((resolve, reject) => {
       const controller = new AbortController(); const local = { ...context, signal: controller.signal };
       const cancel = () => controller.abort(context.signal.reason instanceof RoutingError ? context.signal.reason : deadline());
@@ -34,18 +36,19 @@ export class WorkerPool implements MapDispatcher {
       const pending: Pending = { job, context: local, controller, resolve, reject, cleanup: () => { clearTimeout(timer); clearTimeout(pending.queueTimer); context.signal.removeEventListener('abort', cancel); controller.signal.removeEventListener('abort', remove); } };
       const remove = () => {
         const index = this.queue.indexOf(pending);
-        if (index >= 0) { this.queue.splice(index, 1); pending.cleanup(); reject(controller.signal.reason); }
+        if (index >= 0) { this.queue.splice(index, 1); pending.cleanup(); recordQueueWait(this.clock.now() - pending.queuedAt!, false); reject(controller.signal.reason); }
       };
       context.signal.addEventListener('abort', cancel, { once: true }); controller.signal.addEventListener('abort', remove, { once: true });
       if (this.active.size < this.limits.workers) this.start(pending);
       else {
-        this.queue.push(pending);
-        pending.queueTimer = setTimeout(() => controller.abort(busy()), Math.min(this.limits.queueWait, context.deadline - this.clock.now()));
+        pending.queuedAt = this.clock.now(); this.queue.push(pending);
+        pending.queueTimer = setTimeout(() => controller.abort(busy('queue_wait')), Math.min(this.limits.queueWait, context.deadline - this.clock.now()));
       }
     });
   }
   private start(pending: Pending): void {
     clearTimeout(pending.queueTimer); this.active.add(pending);
+    if (pending.queuedAt !== undefined) recordQueueWait(this.clock.now() - pending.queuedAt, true);
     void cancellable(() => this.execute(pending.job, pending.context), pending.controller.signal).then(pending.resolve, pending.reject).finally(() => {
       pending.cleanup(); this.active.delete(pending);
       while (this.accepting && this.active.size < this.limits.workers && this.queue.length) this.start(this.queue.shift()!);
@@ -70,9 +73,9 @@ export class WorkerPool implements MapDispatcher {
   }
   async close(): Promise<void> {
     this.accepting = false;
-    for (const pending of [...this.queue]) pending.controller.abort(busy());
+    for (const pending of [...this.queue]) pending.controller.abort(busy('shutting_down'));
     if (!this.active.size) return;
-    const timer = setTimeout(() => { for (const pending of this.active) pending.controller.abort(busy()); }, this.limits.shutdownGrace);
+    const timer = setTimeout(() => { for (const pending of this.active) pending.controller.abort(busy('shutting_down')); }, this.limits.shutdownGrace);
     try { await new Promise<void>(resolve => this.drained.push(resolve)); } finally { clearTimeout(timer); }
   }
 }

@@ -7,7 +7,8 @@ import { Catch, Controller, Get, Post, HttpCode, Inject, Module, Req, Res, HttpE
 import { ApiBody, ApiSecurity, ApiTags, ApiOkResponse, DocumentBuilder, SwaggerModule, type SchemaObject } from '@nestjs/swagger';
 import { envelopeSchema, summaryResponse, routeResponse, etaMatrixResponse, navigationResponse } from './documentation';
 import { RoutingRuntime } from '../bootstrap/runtime';
-import { RoutingError } from '../domain/errors';
+import { RoutingError, busy } from '../domain/errors';
+import { countFailure } from '../infrastructure/pipeline/metrics';
 import { estimateSchema, routeRequestSchema, etaMatrixRequestSchema, recalculateSchema } from '../domain/requests';
 import type { Context } from '../application/ports/clients';
 import { checkpoint } from '../application/context';
@@ -21,7 +22,7 @@ function authorize(req: Request, runtime: RoutingRuntime, operation: 'trip' | 'g
   }
   if (!caller) throw new RoutingError('INVALID_SERVICE_CREDENTIAL', 401);
   if (caller !== operation) throw new RoutingError('FORBIDDEN_OPERATION', 403);
-  if (!runtime.pool.stats.accepting) throw new RoutingError('ROUTING_BUSY', 503);
+  if (!runtime.pool.stats.accepting) throw busy('shutting_down');
 }
 @Catch()
 class ErrorFilter implements ExceptionFilter {
@@ -31,6 +32,7 @@ class ErrorFilter implements ExceptionFilter {
     if (error instanceof HttpException) failure = new RoutingError('INVALID_REQUEST', error.getStatus());
     if (error instanceof SyntaxError) failure = new RoutingError('INVALID_REQUEST', 400);
     if (typeof error === 'object' && error !== null && 'type' in error && error.type === 'entity.too.large') failure = new RoutingError('INVALID_REQUEST', 413);
+    countFailure(failure.code, failure.reason);
     if (res.destroyed || res.headersSent) return;
     if (failure.code === 'ROUTING_BUSY') res.setHeader('Retry-After', '1');
     res.status(failure.status).json({ error: { code: failure.code, message: failure.code, details: [] }, meta: { requestId: req.routing?.requestId ?? randomUUID() } });
@@ -81,7 +83,7 @@ class RoutingController {
   }
   @Get('health/live') live() { return { status: 'ok' }; }
   @Get('health/ready') ready() {
-    if (!this.runtime.pool.stats.accepting) throw new RoutingError('ROUTING_BUSY', 503);
+    if (!this.runtime.pool.stats.accepting) throw busy('shutting_down');
     return { status: 'ok' };
   }
 }
