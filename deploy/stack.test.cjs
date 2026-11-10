@@ -27,3 +27,52 @@ test('edge nginx is sized from the drivers online at peak',()=>{
   assert.match(conf,/__WORKER_CONNECTIONS__/); assert.match(conf,/__RLIMIT_NOFILE__/);
   assert.match(conf,/proxy_set_header X-Forwarded-For \$remote_addr;/);
 });
+const fs=require('node:fs'),path=require('node:path');
+const observability=require('./observability.cjs');
+const nodeServices=['trip','matching','driver','realtime','price','routing'];
+test('observability is off by default and switches on only the Node services',()=>{
+  const off=stack(secrets,{observability:false}),on=stack(secrets,{observability:true});
+  assert.ok(!Object.values(off).some(a=>Object.keys(a.env).some(k=>k.startsWith('OTEL_'))));
+  for(const [name,a] of Object.entries(on)) {
+    const telemetry=Object.fromEntries(Object.entries(a.env).filter(([k])=>k.startsWith('OTEL_')));
+    if(a.java) assert.deepEqual(telemetry,{},name);
+    else { assert.equal(telemetry.OTEL_SERVICE_NAME,name); assert.equal(telemetry.OTEL_EXPORTER_OTLP_ENDPOINT,'http://otel-collector:4318'); assert.equal(telemetry.OTEL_TRACES_SAMPLER,'parentbased_traceidratio'); }
+    // Nothing else changes when the flag is on.
+    assert.deepEqual(Object.fromEntries(Object.entries(a.env).filter(([k])=>!k.startsWith('OTEL_'))),off[name].env,name);
+  }
+});
+test('every Node entry point loads the same telemetry bootstrap first',()=>{
+  const file=service=>path.join(__dirname,'..','service',service+'-service','src');
+  const master=fs.readFileSync(path.join(file('matching'),'bootstrap','telemetry.ts'),'utf8');
+  for(const service of nodeServices) {
+    assert.equal(fs.readFileSync(path.join(file(service),'bootstrap','telemetry.ts'),'utf8'),master,service+' telemetry.ts differs from matching-service');
+    for(const entry of ['main.ts','worker.ts']) {
+      const source=path.join(file(service),entry); if(!fs.existsSync(source)) continue;
+      assert.match(fs.readFileSync(source,'utf8').split('\n')[0],/^import ['"]\.\/bootstrap\/telemetry['"];$/,`${service} ${entry}`);
+    }
+  }
+});
+test('observability stack: one config per tool, every resource removable by label',()=>{
+  const helpers={metadata:name=>({name,labels:{}}),secret:(name,data)=>({kind:'Secret',metadata:{name,labels:{}},stringData:data}),probeHTTP:(port,p)=>({httpGet:{port,path:p}}),
+    deployment:(name,container,volumes)=>({kind:'Deployment',metadata:{name,labels:{}},container,volumes}),service:(name,ports)=>({kind:'Service',metadata:{name,labels:{}},ports})};
+  const resources=observability.kubeResources(helpers,'secret-password');
+  assert.deepEqual(resources.filter(r=>r.kind==='Deployment').map(r=>r.metadata.name),['otel-collector','jaeger','prometheus','grafana']);
+  assert.ok(resources.every(r=>r.metadata.labels['app.kubernetes.io/component']==='observability'));
+  // The Grafana password lives in a Secret, never in a ConfigMap or plain env.
+  assert.ok(!JSON.stringify(resources.filter(r=>r.kind!=='Secret')).includes('secret-password'));
+  const compose=observability.composeServices('/tmp/out','secret-password');
+  assert.deepEqual(compose.grafana.ports,['127.0.0.1:13000:3000']); assert.equal(compose['otel-collector'].ports,undefined);
+  for(const f of Object.values(observability.files())) JSON.parse(f.content);
+});
+test('dashboard only charts metrics the services really record',()=>{
+  const sources=nodeServices.flatMap(service=>{const dir=path.join(__dirname,'..','service',service+'-service','src');return fs.readdirSync(dir,{recursive:true}).filter(f=>String(f).endsWith('metrics.ts')).map(f=>fs.readFileSync(path.join(dir,String(f)),'utf8'));}).join('\n');
+  const dashboard=JSON.parse(observability.files()['chande-overview.json'].content);
+  const charted=new Set(dashboard.panels.flatMap(p=>(p.targets??[]).flatMap(t=>t.expr.match(/\b(?:matching|trip|routing|realtime)_[a-z_]+/g)??[])));
+  assert.ok(charted.size>=12);
+  for(const name of charted) { const metric=name.replace(/_(total|bucket|count)$/,'').replace(/_milliseconds$/,''); assert.ok(sources.includes(`'${metric}'`),`${name} is charted but no service records ${metric}`); }
+});
+test('routing limits pass through only when set',()=>{
+  const {routingTuning,osrmThreads}=require('./stack.cjs');
+  assert.deepEqual(routingTuning({}),{}); assert.deepEqual(routingTuning({WORKER_POOL_SIZE:'4',UNRELATED:'1'}),{WORKER_POOL_SIZE:'4'});
+  assert.equal(osrmThreads({}),'2'); assert.equal(osrmThreads({OSRM_THREADS:'4'}),'4'); assert.throws(()=>osrmThreads({OSRM_THREADS:'0'}),/OSRM_THREADS/);
+});

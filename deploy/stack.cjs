@@ -1,4 +1,5 @@
 const path = require('node:path');
+const observability = require('./observability.cjs');
 const root = path.resolve(__dirname, '..');
 const images = {
   postgres: 'postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722',
@@ -6,7 +7,20 @@ const images = {
   rabbit: 'rabbitmq:4-management@sha256:8dd6e3570ddaa2ef82a6c3a8950e79c1f73893adfbdddbc374fc1f1ac8a0f5dd',
   osrm: 'chande-osrm:local', nginx: 'nginx:stable-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94',
 };
-function stack(s) {
+// Routing limits (A8). Empty means the service default. A value set in the environment of `run.cjs generate`
+// overrides it for one experiment; a value proven by a load run belongs in `routingLimits`.
+const routingLimits = {};
+const routingLimitKeys = ['WORKER_POOL_SIZE', 'QUEUE_MAX_SIZE', 'QUEUE_ADMISSION_TIMEOUT_MS', 'ROUTING_JOB_MAX_WAIT_MS', 'RATE_LIMIT_REQUESTS_PER_SECOND', 'RATE_LIMIT_BURST', 'RATE_LIMIT_WAIT_TIMEOUT_MS', 'RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE'];
+const routingTuning = (env = process.env) => Object.fromEntries(routingLimitKeys.map(key => [key, env[key] ?? routingLimits[key]]).filter(([, value]) => value !== undefined && value !== ''));
+/** Threads of the OSRM server; raise together with WORKER_POOL_SIZE. */
+const osrmThreads = (env = process.env) => { const threads = Number(env.OSRM_THREADS ?? 2); if (!Number.isInteger(threads) || threads < 1 || threads > 16) throw new Error('OSRM_THREADS must be an integer 1..16'); return String(threads); };
+function stack(s, options = { observability: observability.enabled() }) {
+  const apps = services(s);
+  // Telemetry is switched on per Node process; the Java services are not instrumented yet (ADR-0003).
+  if (options.observability) for (const [name, a] of Object.entries(apps)) if (!a.java) a.env = { ...a.env, ...observability.telemetryEnv(name) };
+  return apps;
+}
+function services(s) {
   const app = (service, port, env, extra = {}) => ({ service, port, image: `chande-backend-${service}:local`, env, ready: '/health/ready', live: '/health/live', ...extra });
   const db = name => `postgres://${name}_service:${s[name + 'Password']}@postgres:5432/${name}_db`;
   const trip = { NODE_ENV: 'development', INTEGRATION_MODE: 'real', DATABASE_URL: db('trip'), SUPPORTED_VEHICLE_TYPES: 'CAR_4,CAR_7', AUTH_JWKS_URL: 'http://user-api:3011/.well-known/jwks.json', AUTH_JWT_ISSUER: 'chande-rider-local', AUTH_JWT_AUDIENCE: 'trip-service', DRIVER_AUTH_JWKS_URL: 'http://driver-api:3003/.well-known/jwks.json', DRIVER_AUTH_JWT_ISSUER: 'chande-driver-local', CURSOR_SIGNING_KEY: s.cursor, MATCHING_CALLBACK_TOKEN: s.matchingTrip, DRIVER_LOOKUP_TOKEN: s.driverTrip, ROUTING_BASE_URL: 'http://routing-api:3004', PRICING_BASE_URL: 'http://price-api:3005', MATCHING_BASE_URL: 'http://matching-api:3007', GATEWAY_EVENTS_BASE_URL: 'http://gateway-api:8090', NOTIFICATION_BASE_URL: 'http://gateway-api:8090', ROUTING_TOKEN: s.tripRouting, PRICING_TOKEN: s.tripPrice, MATCHING_TOKEN: s.tripMatching, GATEWAY_EVENTS_TOKEN: s.tripGateway, NOTIFICATION_TOKEN: s.tripGateway, SWAGGER_ENABLED: 'false' };
@@ -19,7 +33,7 @@ function stack(s) {
     'driver-api': app('driver', 3003, { NODE_ENV: 'development', PORT: '3003', DATABASE_URL: db('driver'), REDIS_URL: 'redis://redis:6379/1', AUTH_JWT_ISSUER: 'chande-driver-local', AUTH_JWT_AUDIENCES: 'driver-service,trip-service,realtime-service,matching-service', AUTH_SIGNING_KEY_FILE: '/run/keys/driver.pem', AUTH_KEY_ID: 'backend-driver-v1', OTP_MODE: 'mock', OTP_MOCK_CODE: '123456', GATEWAY_PROXY_TOKEN: s.driverProxy, OTP_RESEND_SECONDS: '1', TRIP_MODE: 'real', TRIP_BASE_URL: 'http://trip-api:3001', HTTP_TIMEOUT_MS: '2000', MATCHING_INBOUND_TOKEN: s.matchingDriver, TRIP_LOOKUP_TOKEN: s.driverTrip, MATCHING_LOOKUP_TOKEN: s.driverMatching, MATCHING_BASE_URL: 'http://matching-api:3007' }, { keys: true }),
     'trip-api': app('trip', 3001, trip, { migration: true }),
     'trip-worker': app('trip', 3002, trip, { command: ['node', 'dist/worker.js'], worker: true, dependencies: ['trip-api'] }),
-    'routing-api': app('routing', 3004, { NODE_ENV: 'development', APP_ENV: 'development', HOST: '0.0.0.0', PORT: '3004', INTEGRATION_MODE: 'real', MATRIX_MAX_CANDIDATES: '50', EXTERNAL_MAP_SELF_HOSTED: 'true', SUPPORTED_VEHICLE_TYPES: 'CAR_4,CAR_7', VEHICLE_PROFILES_FILE: 'config/vehicle-profiles.osrm.json', EXTERNAL_MAP_BASE_URL: 'http://osrm:5000', EXTERNAL_MAP_ALLOW_HTTP: 'true', EXTERNAL_MAP_ALLOWED_HOSTS: 'osrm', ROUTING_TRIP_TOKEN: s.tripRouting, ROUTING_MATCHING_TOKEN: s.matchingRouting, ROUTING_GATEWAY_TOKEN: s.gatewayRouting }),
+    'routing-api': app('routing', 3004, { NODE_ENV: 'development', APP_ENV: 'development', HOST: '0.0.0.0', PORT: '3004', INTEGRATION_MODE: 'real', MATRIX_MAX_CANDIDATES: '50', EXTERNAL_MAP_SELF_HOSTED: 'true', SUPPORTED_VEHICLE_TYPES: 'CAR_4,CAR_7', VEHICLE_PROFILES_FILE: 'config/vehicle-profiles.osrm.json', EXTERNAL_MAP_BASE_URL: 'http://osrm:5000', EXTERNAL_MAP_ALLOW_HTTP: 'true', EXTERNAL_MAP_ALLOWED_HOSTS: 'osrm', ROUTING_TRIP_TOKEN: s.tripRouting, ROUTING_MATCHING_TOKEN: s.matchingRouting, ROUTING_GATEWAY_TOKEN: s.gatewayRouting, ...routingTuning() }),
     'price-api': app('price', 3005, { NODE_ENV: 'development', HOST: '0.0.0.0', PRICE_TRIP_TOKEN: s.tripPrice, SUPPORTED_VEHICLE_TYPES: 'CAR_4,CAR_7', FARE_POLICY_FILE: 'config/fare-policy.example.json' }),
     'matching-api': app('matching', 3007, matching, { migration: true }),
     'matching-worker': app('matching', 3017, matching, { command: ['node', 'dist/worker.js'], worker: true, dependencies: ['matching-api', 'trip-api', 'routing-api', 'realtime-api'] }),
@@ -34,4 +48,4 @@ const edgeSizing = (peakDrivers = Number(process.env.EDGE_PEAK_DRIVERS || 5000))
   const memoryMi = Math.ceil((64 + peakDrivers * 72 / 1024) / 64) * 64;
   return { peakDrivers, workerConnections, rlimitNofile: workerConnections * 2, memory: memoryMi + 'Mi' };
 };
-module.exports = { root, images, stack, edgeSizing };
+module.exports = { root, images, stack, edgeSizing, routingTuning, osrmThreads };

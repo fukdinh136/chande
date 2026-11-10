@@ -1,5 +1,6 @@
 const fs = require('node:fs'), path = require('node:path'), {spawnSync, spawn} = require('node:child_process');
 const {root, images} = require('./stack.cjs');
+const observability = require('./observability.cjs');
 const action = process.argv[2], directory = path.join(__dirname,'.local','backend');
 const command = (bin,args,cwd=root,quiet=false) => {
   const r = spawnSync(bin,args,{cwd,encoding:'utf8',windowsHide:true,maxBuffer:32*1024*1024});
@@ -55,13 +56,22 @@ if(action==='kube-up') {
   }
   kube(['apply','-f',path.join(directory,'migrations.json')]);
   kube(['wait','--for=condition=complete','job/trip-migrate','job/matching-migrate','--timeout=240s']);
+  // Observability goes up before the services so their first export finds the Collector; with the flag off it is removed.
+  if(observability.enabled()) { kube(['apply','-f',path.join(directory,'observability.json')]); for(const name of ['otel-collector','jaeger','prometheus','grafana']) kube(['rollout','status','deployment/'+name,'--timeout=300s']); }
+  else kube(['delete','deployment,service,configmap,secret','-l','app.kubernetes.io/component=observability','--ignore-not-found']);
   kube(['apply','-f',path.join(directory,'workloads.json')]);
   for(const name of [...Object.keys(apps),'edge']) kube(['rollout','status','deployment/'+name,'--timeout=300s']);
-  const pidFile=path.join(directory,'port-forward.pid');
-  if(!fs.existsSync(pidFile)) {
-    const output=fs.openSync(path.join(directory,'port-forward.log'),'a');
-    const child=spawn('kubectl',['--context','docker-desktop','-n','chande-local','port-forward','--address','127.0.0.1','service/edge','18081:8088'],{detached:true,windowsHide:true,stdio:['ignore',output,output]});
+  const forward=(pidName,target,mapping)=>{
+    const pidFile=path.join(directory,pidName+'.pid');
+    if(fs.existsSync(pidFile)) return;
+    const output=fs.openSync(path.join(directory,pidName+'.log'),'a');
+    const child=spawn('kubectl',['--context','docker-desktop','-n','chande-local','port-forward','--address','127.0.0.1',target,mapping],{detached:true,windowsHide:true,stdio:['ignore',output,output]});
     fs.writeFileSync(pidFile,String(child.pid)); child.unref(); fs.closeSync(output);
+  };
+  forward('port-forward','service/edge','18081:8088');
+  if(observability.enabled()) {
+    for(const [name,[local,remote]] of Object.entries(observability.ports)) forward('port-forward-'+name,'service/'+name,`${local}:${remote}`);
+    console.info(`Observability: Grafana http://127.0.0.1:${observability.ports.grafana[0]}  Jaeger http://127.0.0.1:${observability.ports.jaeger[0]}  Prometheus http://127.0.0.1:${observability.ports.prometheus[0]}`);
   }
   console.info('Kubernetes backend: http://127.0.0.1:18081 (loopback port-forward)');
 }

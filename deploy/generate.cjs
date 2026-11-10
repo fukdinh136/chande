@@ -1,10 +1,11 @@
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
-const { root, images, stack, edgeSizing } = require('./stack.cjs');
+const { root, images, stack, edgeSizing, osrmThreads } = require('./stack.cjs');
+const observability = require('./observability.cjs');
 const out = path.join(__dirname, '.local', 'backend');
 fs.mkdirSync(out, { recursive: true });
 const secretFile = path.join(out, 'credentials.json');
 {
-  const keys = ['rootPassword','userPassword','driverPassword','tripPassword','matchingPassword','rabbitPassword','userInternal','cursor','matchingTrip','driverTrip','tripRouting','tripPrice','tripMatching','tripGateway','driverMatching','realtimeMatching','matchingRouting','matchingDriver','gatewayRouting','driverProxy','matchingLocation'];
+  const keys = ['rootPassword','userPassword','driverPassword','tripPassword','matchingPassword','rabbitPassword','userInternal','cursor','matchingTrip','driverTrip','tripRouting','tripPrice','tripMatching','tripGateway','driverMatching','realtimeMatching','matchingRouting','matchingDriver','gatewayRouting','driverProxy','matchingLocation','grafanaPassword'];
   // Existing secrets are kept; only keys added after the file was created are generated.
   const current = fs.existsSync(secretFile) ? JSON.parse(fs.readFileSync(secretFile, 'utf8')) : {};
   const missing = keys.filter(k => !current[k]);
@@ -45,7 +46,7 @@ compose.services.postgres = { image: images.postgres, command: postgresArgs, env
 compose.services.redis = { image: images.redis, command: ['redis-server','--appendonly','yes'], volumes:['redis:/data'], healthcheck:health(['CMD','redis-cli','ping']) };
 compose.services.rabbitmq = { image: images.rabbit, user:'rabbitmq', hostname:'rabbitmq', environment: rabbitEnv, volumes:['rabbit:/var/lib/rabbitmq'], healthcheck:health(['CMD','rabbitmq-diagnostics','-q','ping']) };
 const route = '/route/v1/driving/105.8542,21.0285;105.8355,21.0272?overview=false';
-compose.services.osrm = { image: images.osrm, command:['osrm-routed','--algorithm','mld','--threads','2','--max-table-size','100','/data/hanoi.osrm'], volumes:[`${absolute(graph)}:/data:ro`], healthcheck:health(['CMD','curl','--fail','--silent','--max-time','2','http://127.0.0.1:5000'+route]) };
+compose.services.osrm = { image: images.osrm, command:['osrm-routed','--algorithm','mld','--threads',osrmThreads(),'--max-table-size','100','/data/hanoi.osrm'], volumes:[`${absolute(graph)}:/data:ro`], healthcheck:health(['CMD','curl','--fail','--silent','--max-time','2','http://127.0.0.1:5000'+route]) };
 for (const [name, a] of Object.entries(apps)) {
   const probe = a.java ? ['CMD','curl','--fail','--silent',`http://127.0.0.1:${a.port}${a.ready}`] : ['CMD','node','-e',`fetch('http://127.0.0.1:${a.port}${a.ready}',{signal:AbortSignal.timeout(2000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))`];
   const envFile = path.join(out, name + '.env'); fs.writeFileSync(envFile, Object.entries(a.env).map(([k,v])=>k+'='+v).join('\n')+'\n', { mode:0o600 });
@@ -61,6 +62,11 @@ const edge = edgeSizing();
 const nginxConf = fs.readFileSync(path.join(__dirname,'nginx.conf'),'utf8').replace('__WORKER_CONNECTIONS__',String(edge.workerConnections)).replace('__RLIMIT_NOFILE__',String(edge.rlimitNofile));
 fs.writeFileSync(path.join(out,'nginx.conf'),nginxConf);
 compose.services.edge = { image:images.nginx, volumes:[`${absolute(path.join(out,'nginx.conf'))}:/etc/nginx/nginx.conf:ro`], ports:['127.0.0.1:18080:8088'], depends_on:{'gateway-api':{condition:'service_healthy'},'realtime-api':{condition:'service_healthy'}}, healthcheck:health(['CMD','wget','-q','--spider','http://127.0.0.1:8088/health/live']) };
+// Observability (ADR-0003) is added only with OBSERVABILITY=on; with it off the output is what it was before.
+if (observability.enabled()) {
+  for (const [file, f] of Object.entries(observability.files())) fs.writeFileSync(path.join(out, file), f.content);
+  Object.assign(compose.services, observability.composeServices(absolute(out), secrets.grafanaPassword));
+}
 fs.writeFileSync(path.join(out,'compose.json'),JSON.stringify(compose,null,2));
 
 const ns = 'chande-local', labels = name => ({'app.kubernetes.io/name':name,'app.kubernetes.io/part-of':'chande'}), metadata = name => ({name,namespace:ns,labels:labels(name)});
@@ -106,6 +112,8 @@ if (fs.existsSync(imageIdsFile)) {
 }
 for (const resource of workloads.filter(r=>r.kind==='Deployment' && envHash[r.metadata.name])) resource.spec.template.metadata.annotations = {...resource.spec.template.metadata.annotations, 'chande.dev/env-hash':envHash[resource.metadata.name]};
 fs.writeFileSync(path.join(out,'env-secrets.json'),JSON.stringify({apiVersion:'v1',kind:'List',items:envSecrets},null,2),{mode:0o600});
-for (const [name,items] of Object.entries({infra,migrations,workloads})) fs.writeFileSync(path.join(out,name+'.json'),JSON.stringify({apiVersion:'v1',kind:'List',items},null,2),{mode:0o600});
+const telemetry = observability.enabled() ? observability.kubeResources({deployment,service,metadata,secret,probeHTTP},secrets.grafanaPassword) : [];
+for (const [name,items] of Object.entries({infra,migrations,workloads,observability:telemetry})) fs.writeFileSync(path.join(out,name+'.json'),JSON.stringify({apiVersion:'v1',kind:'List',items},null,2),{mode:0o600});
 console.info('Generated private Docker/Kubernetes configuration; credentials/keys preserved. Namespace chande-local; Docker :18080; Kubernetes port-forward :18081.');
+if (observability.enabled()) console.info(`Observability on: Grafana :${observability.ports.grafana[0]}, Jaeger :${observability.ports.jaeger[0]}, Prometheus :${observability.ports.prometheus[0]} (loopback).`);
 module.exports = {out,apps,root};
