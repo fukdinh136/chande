@@ -52,7 +52,7 @@ const grafanaEnv = password => ({ GF_SECURITY_ADMIN_PASSWORD: password, GF_AUTH_
 const containers = password => ({
   'otel-collector': { image: images.collector, args: ['--config=/etc/otelcol/config.yaml'], ports: [4318, 8889], health: [13133, '/'], memory: '256Mi' },
   // Traces are kept in memory: enough for a load run, gone on restart.
-  jaeger: { image: images.jaeger, env: { MEMORY_MAX_TRACES: '10000', GOMEMLIMIT: '400MiB' }, ports: [16686, 4317], health: [14269, '/'], memory: '512Mi' },
+  jaeger: { image: images.jaeger, env: { MEMORY_MAX_TRACES: '4000', GOMEMLIMIT: '400MiB' }, ports: [16686, 4317], health: [14269, '/'], memory: '512Mi' },
   prometheus: { image: images.prometheus, args: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.path=/prometheus', '--storage.tsdb.retention.time=2d'], ports: [9090], health: [9090, '/-/ready'], memory: '512Mi' },
   grafana: { image: images.grafana, env: grafanaEnv(password), ports: [3000], health: [3000, '/api/health'], memory: '256Mi' },
 });

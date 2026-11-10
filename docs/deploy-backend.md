@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-10 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Stack đã chạy trên Docker Desktop, Kubernetes context docker-desktop v1.34.1, namespace chande-local. Public ingress: Docker http://127.0.0.1:18080; Kubernetes http://127.0.0.1:18081 qua port-forward loopback. Đây là deployment local, chưa phải hosting Internet/production.
@@ -62,11 +62,38 @@ Source chung: [stack.cjs](../deploy/stack.cjs), [generator](../deploy/generate.c
 
 Edge nginx được tính theo số tài xế online lúc cao điểm, đặt bằng biến `EDGE_PEAK_DRIVERS` khi chạy `generate`/`kube-up` (mặc định 5000; `edgeSizing()` trong [stack.cjs](../deploy/stack.cjs)). Mỗi WebSocket tài xế giữ hai kết nối (client → edge, edge → Realtime), cộng 25% cho REST: `worker_connections` = 2,5 × số tài xế (tối thiểu 1024), `worker_rlimit_nofile` gấp đôi, `worker_processes 2` theo giới hạn 2 CPU. RAM = 64 MiB + 72 KB mỗi tài xế (đo được khoảng 48 KB ở 1000 tài xế, nhân 1,5), làm tròn lên bội 64 MiB: 1000 tài xế 192 MiB, 5000 tài xế 448 MiB. Edge ghi đè `X-Forwarded-For` và `X-Real-IP` bằng IP nó thấy để Gateway giới hạn đăng nhập theo IP thật. Nếu đặt thêm load balancer trước edge, cần `real_ip_header` của load balancer đó thay cho `$remote_addr`.
 
+Giới hạn của Routing đổi được cho một lần thử mà không sửa code: đặt `WORKER_POOL_SIZE`, `QUEUE_MAX_SIZE`, `QUEUE_ADMISSION_TIMEOUT_MS`, `ROUTING_JOB_MAX_WAIT_MS`, các biến `RATE_LIMIT_*` hoặc `OSRM_THREADS` (mặc định 2) khi chạy `generate`/`kube-up`. Giá trị đã được một lần đo chứng minh thì ghi vào `routingLimits` trong [stack.cjs](../deploy/stack.cjs); hiện để trống vì lần đo 2026-11-10 không thấy Routing từ chối ([báo cáo, mục 12](bao-cao-kiem-thu-tai.md#12-đo-lại-với-observability-2026-11-10)).
+
 Docker project chande-backend dùng ba named volumes mới. Kubernetes dùng ba PVC mới trong chande-local; image cache Docker Desktop, imagePullPolicy IfNotPresent. OSRM graph mount read-only bằng hostPath Docker Desktop được generator suy từ workspace. Cloud cluster cần registry, graph PVC/dataset, secrets/TLS/ingress phù hợp; generator local không deploy vào cloud context.
 
 Kube-up apply infra, đợi ready, chạy hai migration job rồi apply API/worker. Completed migration jobs do stack sở hữu được thay để chạy lại idempotently; active/unknown job bị từ chối thay. API không tự migrate Trip/Matching; User chạy Flyway startup theo implementation. Deployment strategy Recreate và một replica v1; startup có thể hơn một phút trên máy đang chạy nhiều stack.
 
 Worker lease/reservation khác nhau; rollout không tự giải phóng reservation pending. Signing keys giữ qua restart. Nginx chỉ expose /api/v1, /ws, /socket.io và health live; internal HTTP/DB/Redis/Rabbit/worker probes không publish ra host.
+
+## Observability (tuỳ chọn)
+
+Theo [ADR-0003](adr/0003-observability-opentelemetry.md). Mặc định tắt; bật bằng biến `OBSERVABILITY=on` ở cùng lệnh deploy:
+
+```bash
+OBSERVABILITY=on node deploy/run.cjs kube-up
+```
+
+```powershell
+$env:OBSERVABILITY='on'
+node deploy/run.cjs kube-up
+```
+
+| Công cụ | Địa chỉ (chỉ loopback) | Dùng để |
+| --- | --- | --- |
+| Grafana | http://127.0.0.1:13000 | Dashboard `Chande overview`; xem không cần đăng nhập |
+| Jaeger | http://127.0.0.1:16686 | Trace theo service: `trip-api`, `trip-worker`, `matching-api`, `matching-worker`, `driver-api`, `realtime-api`, `routing-api`, `price-api` |
+| Prometheus | http://127.0.0.1:19090 | Truy vấn metric thô, giữ 2 ngày |
+
+- Bật: sáu service Node nhận biến `OTEL_*` và gửi OTLP tới Collector. Thêm bốn pod, giới hạn RAM tổng 1,5 GiB. Trace giữ trong RAM của Jaeger (4000 trace), mất khi pod khởi động lại.
+- Tắt: chạy lại lệnh không có biến; service không nạp OpenTelemetry và bốn pod bị gỡ. Trên Docker Compose dùng `docker-up` tương tự; lần kiểm chứng 2026-11-10 chỉ chạy trên Kubernetes, phía Compose mới có test sinh cấu hình.
+- Khi bật, CPU các service Node tăng 20–50% tuỳ tải ([báo cáo, mục 12.2](bao-cao-kiem-thu-tai.md#122-chi-phí-của-observability)); tắt khi đo trần thông lượng.
+- `OTEL_SAMPLE_RATIO` (0–1, mặc định 0,1) là tỉ lệ trace được giữ. Đặt 1 khi cần chắc chắn thấy trace của một chuyến smoke; giữ 0,1 khi đo tải.
+- Gateway, User và Payment (Java) chưa gửi telemetry.
 
 ## Routes public
 

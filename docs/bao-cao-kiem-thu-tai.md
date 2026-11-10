@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-05 |
+| Rà soát | 2026-11-10 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Báo cáo kiểm thử hiệu năng cho mục P2.6 trong [kiến trúc mục tiêu](kien-truc-muc-tieu.md), đo ngày 2026-11-04 sau khi hoàn thành nhóm cải tiến A và cải tiến môi trường đo E1–E3 trong [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md). Mọi kết quả được so với mốc ban đầu đo ngày 2026-10-28/29 trên cùng máy và cùng kịch bản. Kế hoạch, test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md); công cụ nằm trong [deploy/load](../deploy/load/README.md).
@@ -33,6 +33,8 @@ Các mức này đo bằng cùng cách đo với mốc ban đầu (GPS mỗi 3 g
 Hai điểm này đã có hướng xử lý trong lộ trình (ADR-0001 và nhiều replica driver-api); xem [đề xuất cải tiến](de-xuat-cai-tien-hieu-nang.md).
 
 **Đo lại ngày 2026-11-05 sau B7 và ADR-0001** ([mục 11](#11-đo-lại-sau-b7-và-adr-0001-2026-11-05)): ở cách đo giống app với 1000 tài xế, mức cao nhất còn đạt mọi ngưỡng tăng từ 6 lên **12 chuyến/giây** (p95 0,9 giây, 1441/1441 chuyến được gán); tổng câu SQL ở 12 chuyến/giây giảm từ 2,1 triệu xuống 277 nghìn; 5000 tài xế ở 4 chuyến/giây có p95 1,0 giây với số câu SQL giảm 93%. Trần mới: 16 chuyến/giây (giới hạn Routing cho OSRM) và 5000 tài xế ở 8 chuyến/giây.
+
+**Đo lại ngày 2026-11-10 với observability và giới hạn Routing đúng** ([mục 12](#12-đo-lại-với-observability-2026-11-10)): mức cao nhất đã đo, **32 chuyến/giây, vẫn đạt mọi ngưỡng** (3841/3841 chuyến, p95 1,1 giây) khi tắt observability; chưa tìm thấy trần. Bật observability vẫn đạt ở 24 chuyến/giây, đổi lại CPU các service Node tăng 20–50%. 5000 tài xế ở 8 chuyến/giây đạt. Trần 16 chuyến/giây của lần đo 2026-11-05 là do pod Routing còn giữ giới hạn cũ, không phải do năng lực hệ thống.
 
 ## 2. Mục tiêu và phạm vi
 
@@ -339,7 +341,7 @@ node deploy/load/run.cjs --drivers 1000 --radius 6000 --rate 3 --duration 30m --
 k6 run -e STAGES=5,10,15 -e STAGE=1m deploy/load/login.js
 ```
 
-Mỗi lần đo ghi `summary.json`, `k6.json`, `segments.json`, `sql.json`, `pods.json` và `drivers.json` vào `deploy/.local/load/results/<thời điểm>/` (không commit). Danh sách 21 lần đo trong báo cáo này nằm ở `deploy/.local/load/campaign/index.tsv` trên máy đo.
+Mỗi lần đo ghi `summary.json`, `k6.json`, `segments.json`, `sql.json`, `pods.json` và `drivers.json` vào `deploy/.local/load/results/<thời điểm>/` (không commit). Danh sách 18 lần đo trong báo cáo này nằm ở `deploy/.local/load/campaign/index.tsv` trên máy đo.
 
 ## 11. Đo lại sau B7 và ADR-0001 (2026-11-05)
 
@@ -395,3 +397,78 @@ Thời gian tới `ASSIGNED` tốt lên rõ ở 8 và 10 chuyến/giây, nhưng 
 3. Bước tiếp theo theo số đo: B6 (metrics bên trong process) để xác nhận trần ở Realtime; xem lại giới hạn Routing cho OSRM tự host (A8) nếu muốn vượt 12–16 chuyến/giây; điều tra ack GPS qua port-forward ở cách đo cũ.
 
 Lệnh đo: [mục 10](#10-phụ-lục-chạy-lại), thêm `--drivers 5000 --ramp 25 --rate 8 --duration 2m` cho dòng mới. Danh sách 13 lần đo nằm trong `index.tsv` của lần chạy trên máy đo; kết quả ở `deploy/.local/load/results/2026-11-05T*`.
+
+## 12. Đo lại với observability (2026-11-10)
+
+Mã nguồn: nhánh `perf/adr-0008-trip-outbox`, commit `06bfc2b` cộng thay đổi giới hạn trace của Jaeger ở [mục 12.2](#122-chi-phí-của-observability). So với [mục 11](#11-đo-lại-sau-b7-và-adr-0001-2026-11-05) có thêm: bước contract của ADR-0001, sửa deploy `720fa49`, và observability cho sáu service Node ([ADR-0003](adr/0003-observability-opentelemetry.md)). Cùng máy, cùng cách đo giống app (trong cụm, `/ws`, GPS 10 giây), 1000 tài xế, 2 phút mỗi mức, mỗi mức một lần trừ khi ghi khác. Giới hạn Routing để mặc định.
+
+### 12.1 Thông lượng khi tắt observability
+
+| Đặt chuyến/giây | Được gán | p95 tới `ASSIGNED` | Báo giá p95 | Ack GPS p95 | Tổng câu SQL | CPU PostgreSQL TB / max | CPU matching-worker TB / max | CPU trip-api TB / max | Đạt |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 6 | 721/721 | 0,9 giây | 21 ms | 3 ms | 142345 | 165 / 183 m | 83 / 102 m | 73 / 81 m | Đạt |
+| 16 | 1920/1920 | 1,0 giây | 34 ms | 4 ms | 366283 | 369 / 464 m | 165 / 214 m | 152 / 228 m | Đạt |
+| 20 | 2401/2401 | 1,0 giây | 23 ms | 4 ms | 455179 | 369 / 432 m | 168 / 219 m | 162 / 207 m | Đạt |
+| 24 | 2881/2881 | 1,0 giây | 19 ms | 3 ms | 544719 | 442 / 533 m | 195 / 208 m | 185 / 192 m | Đạt |
+| 28 | 3361/3361 | 1,0 giây | 23 ms | 4 ms | 632175 | 525 / 638 m | 222 / 259 m | 217 / 234 m | Đạt |
+| 32 | **3841/3841** | **1,1 giây** | 47 ms | 5 ms | 718626 | 625 / 753 m | 258 / 307 m | 248 / 278 m | **Đạt** |
+
+Lỗi HTTP 0% ở mọi mức. Log của matching-worker không có lần thử lại nào vì `ROUTING_BUSY` ở 24, 28 và 32 chuyến/giây. Ở 32 chuyến/giây chưa có dấu hiệu bão hoà: p95 gần như không đổi so với 6 chuyến/giây, PostgreSQL 0,63 core, không service nào quá 0,31 core trung bình. Chưa đo cao hơn nên **chưa biết trần**; 32 chuyến/giây là mức cao nhất đã chứng minh, không phải giới hạn.
+
+### 12.2 Chi phí của observability
+
+Bật bằng `OBSERVABILITY=on`, tỉ lệ lấy mẫu trace 0,1. "CPU Node" là tổng CPU trung bình của tám pod Node (trip-api, trip-worker, matching-api, matching-worker, driver-api, realtime-api, routing-api, price-api).
+
+| Đặt chuyến/giây | Tắt: p95, CPU Node | Bật, Jaeger 10000 trace: p95, CPU Node, Jaeger | Bật, Jaeger 4000 trace: p95, CPU Node, Jaeger |
+| --- | --- | --- | --- |
+| 6 | 0,9 giây; 435 m | 0,9 giây; 533 m; 7 m, 159 MiB | 0,9 giây; 525 m; 6 m, 195 MiB |
+| 16 (hai lần khi bật) | 1,0 giây; 804 m | 2,0 và 1,5 giây; 1635 và 1205 m; 33 và 172 m, tới 421 MiB | Không đo |
+| 20 | 1,0 giây; 820 m | 8,5 giây, báo giá p95 801 ms (**không đạt**); 2329 m; 457 m, 511 MiB | **1,1 giây**, báo giá 50 ms; 1076 m; 12 m, 384 MiB |
+| 24 | 1,0 giây; 933 m | 285 chuyến không được gán (**không đạt**); 2412 m; 277 m, 509 MiB | **1,3 giây**, 2881/2881, báo giá 78 ms; 1392 m; 16 m, 417 MiB |
+
+- Jaeger lưu trace trong RAM với giới hạn 512 MiB. Khi chạm giới hạn, nó dùng tới 0,5–1,5 core để thu gom bộ nhớ và làm chậm cả cụm: với 50000 trace (cấu hình đầu tiên) Jaeger mất ready ở 16 chuyến/giây; với 10000 trace hệ thống trượt ngưỡng ở 20 chuyến/giây. Với 4000 trace và `GOMEMLIMIT=400MiB` (cấu hình hiện tại), 24 chuyến/giây đạt và Jaeger dùng 0,02 core.
+- Phần chi phí còn lại nằm trong chính các process Node: CPU tăng khoảng 20% ở 6 chuyến/giây, 31% ở 20 và 49% ở 24 chuyến/giây (1392 so với 933 m). p95 tới `ASSIGNED` tăng từ 1,0 lên 1,1–1,3 giây.
+- Prometheus dùng dưới 0,01 core và khoảng 140 MiB; Grafana khoảng 240 MiB. Collector không có shell nên bộ đo không lấy được số CPU của nó.
+- Kết luận về cách dùng: bật observability để tìm nguyên nhân, tắt khi đo trần thông lượng. Chưa đo trên 24 chuyến/giây khi bật.
+
+### 12.3 5000 tài xế
+
+| Tài xế, đặt chuyến/giây | Được gán (2026-11-05 → nay) | p95 tới `ASSIGNED` | Ack GPS p95 | Bản tin GPS gửi / được ack | CPU Realtime TB / max | Đạt |
+| --- | --- | --- | --- | --- | --- | --- |
+| 5000, 8 (bật observability, `--ramp 25`) | 947/960 → **961/961** | 12,4 → **0,9 giây** | 1449 → **5 ms** | 80627 / 80627 | 418 / 817 → 206 / 266 m | Không → **Đạt** |
+
+Số đo trong process của lần này: Realtime giữ 5000 socket, xử lý một bản tin GPS p95 1,9 ms, event loop bận tối đa 29%, độ trễ event loop p99 43 ms; process bận nhất là driver-api (event loop 49%). Lần không đạt ngày 2026-11-05 không lặp lại và hôm đó chưa có số đo trong process, nên **nguyên nhân của lần đó chưa xác định**; bước contract của ADR-0001 đã bỏ đường `/nearby-drivers` khỏi Realtime giữa hai lần đo, nhưng chưa có phép đo nào tách riêng tác động này.
+
+### 12.4 Vì sao 16 chuyến/giây từng không đạt
+
+Ngày 2026-11-05, 16 chuyến/giây có 5243 lần thử lại vì `ROUTING_BUSY` ([mục 11.4](#114-điểm-nghẽn-mới)). Hôm nay không có lần nào tới 32 chuyến/giây, dù code giới hạn của Routing không đổi. Giải thích khớp với số liệu:
+
+1. Trước A8, [stack.cjs](../deploy/stack.cjs) đặt cứng `RATE_LIMIT_REQUESTS_PER_SECOND=50` và `RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE=20000`. A8 (`36b8643`) bỏ hai dòng này để dùng mặc định mới cho OSRM tự host.
+2. `kubectl apply` không xoá được khoá đã bỏ khỏi `stringData` của Secret, nên pod Routing vẫn chạy với hai giá trị cũ.
+3. Mỗi lần tìm xe tính ETA cho 25 tài xế: 12 chuyến/giây là 18000 phần tử/phút (dưới 20000, đạt), 16 chuyến/giây là 24000 (vượt, bị từ chối). Đúng với ranh giới đã đo.
+4. Commit `720fa49` cho `kube-up` thay hẳn Secret; từ đó giới hạn của A8 mới có hiệu lực.
+
+Đây là suy luận từ lịch sử code và phép tính, chưa tái hiện bằng cách đặt lại giới hạn cũ. Hệ quả: không cần nới giới hạn Routing; `routingLimits` trong stack.cjs để trống. Nếu cần thử, các biến giới hạn và `OSRM_THREADS` đặt được khi deploy ([deploy backend](deploy-backend.md#build-và-startup)).
+
+### 12.5 Dashboard cho thấy gì khi quá tải
+
+Lấy từ Prometheus trong lần 24 chuyến/giây bị quá tải (Jaeger 10000 trace), là ví dụ về câu hỏi mà trước đây không trả lời được:
+
+| Câu hỏi | Số đo |
+| --- | --- |
+| Routing có từ chối không? | Không: `routing_failures` lý do `ROUTING_BUSY` bằng 0; chờ worker pool p95 114 ms, hàng chờ tối đa 6 |
+| Bước tìm xe nào chậm? | Lấy vị trí từ Realtime p95 1017 ms; ETA 238 ms; kiểm điều kiện 154 ms; loại trừ 94 ms |
+| Process nào hết event loop? | matching-worker bận 87%, Realtime 82% (độ trễ p99 534 ms), trip-api 77% |
+| Hàng đợi nào dồn? | Outbox Trip trễ p95 4,4–4,6 giây ở cả ba đích; outbox offer của Matching trễ trên 10 giây |
+
+Khi không quá tải (16 chuyến/giây): các bước tìm xe p95 9–45 ms, độ trễ event loop p99 dưới 30 ms, hàng chờ Routing bằng 0.
+
+### 12.6 Kết luận và giới hạn
+
+1. Mức đã chứng minh đạt ngưỡng tăng từ 12 lên 32 chuyến/giây (tắt observability) và 24 chuyến/giây (bật). Mốc ban đầu là 2 chuyến/giây trên cùng máy, nhưng đo bằng cách đo cũ (qua port-forward, GPS 3 giây) nên hai con số không so trực tiếp được; phép so cùng cách đo là 6 chuyến/giây ngày 2026-11-04.
+2. Observability trả lời được câu hỏi "chậm ở đâu", có chi phí CPU 20–50% ở các service Node, và Jaeger phải được giới hạn bộ nhớ đúng.
+3. A8 không cần chỉnh thêm; vấn đề là giới hạn cũ còn sót khi deploy.
+4. Giới hạn của lần đo: mỗi mức một lần, 2 phút, trên một MacBook nên sai số giữa các lần đáng kể (hai lần 16 chuyến/giây khi bật cho p95 2,0 và 1,5 giây); chưa đo trên 32 chuyến/giây; chưa đo lại chạy lâu 30 phút và cách đo qua port-forward; Gateway, User, Payment chưa có số đo trong process.
+
+Lệnh đo: [mục 10](#10-phụ-lục-chạy-lại) với `--rate` tương ứng; bật observability theo [deploy backend](deploy-backend.md#observability-tuỳ-chọn). Danh sách 21 lần đo nằm trong `index.tsv` của lần chạy trên máy đo; kết quả ở `deploy/.local/load/results/2026-11-10T*`.
+

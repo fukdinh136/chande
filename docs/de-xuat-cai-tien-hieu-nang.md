@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-05 |
+| Rà soát | 2026-11-10 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Tài liệu duy nhất gom các đề xuất cải tiến hiệu năng: kết quả nhóm cải tiến đã làm, điểm nghẽn còn lại, đề xuất tiếp theo kèm chi phí, đối chiếu ADR và lộ trình. Mọi căn cứ lấy từ [báo cáo kiểm thử tải](bao-cao-kiem-thu-tai.md) ngày 2026-11-04; test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md).
@@ -82,6 +82,22 @@ B7 và B1 đã có code, test và smoke. Cột "Sau" mô tả theo code; kết q
 
 Ước tính mỗi lần tìm xe (theo code): câu SQL kiểm tra tài xế từ khoảng 1000 xuống khoảng 10; ETA tối đa 25 người thay vì 50; chi phí có trần ở 200 vị trí dù khu vực đông bao nhiêu. Sau khi đo, bước contract đã xoá đường cũ (`/routes/matrix`, `/nearby-drivers`, `eligibility/batch`, cờ `CANDIDATE_SOURCE`); smoke và `restart-check.cjs` xanh trên Kubernetes ([ADR-0001, mục Triển khai](adr/0001-matching-so-huu-tim-ung-vien.md#triển-khai)). Lưu ý: các số đo ở mục 11 của báo cáo tải chạy trước bước contract, khi `eligibility/batch` theo lô (B7) vẫn còn nhưng không nằm trên đường tìm xe.
 
+### 3.2 B6 và A8, đo ngày 2026-11-10
+
+Số đo đầy đủ ở [báo cáo kiểm thử tải, mục 12](bao-cao-kiem-thu-tai.md#12-đo-lại-với-observability-2026-11-10).
+
+| ID | Đã làm | Kết quả đo được | Đánh giá |
+| --- | --- | --- | --- |
+| B6 | OpenTelemetry cho sáu service Node, metric riêng cho Matching, outbox Trip, Routing và GPS của Realtime; Collector, Jaeger, Prometheus, Grafana bật bằng `OBSERVABILITY=on` ([ADR-0003](adr/0003-observability-opentelemetry.md)) | Dashboard có dữ liệu thật; chỉ ra được bước nào chậm khi quá tải (bước lấy vị trí ở Realtime, độ trễ outbox) và xác nhận Routing không từ chối. Chi phí: CPU sáu service Node tăng khoảng 20% ở 6 chuyến/giây, 30–50% ở 20–24 chuyến/giây; vẫn đạt ngưỡng ở 24 chuyến/giây khi bật (mức cao nhất đã đo khi bật) | Đạt về chức năng; tắt khi đo trần thông lượng |
+| A8 | Cho phép đổi giới hạn Routing và số luồng OSRM khi deploy; metric lý do từ chối | Không cần nới: 0 lần `ROUTING_BUSY` tới 32 chuyến/giây. Trần 16 chuyến/giây của lần đo 2026-11-05 là do pod Routing còn giữ giới hạn cũ (20000 phần tử ETA/phút) trong Secret; lỗi deploy này đã sửa ở `720fa49` | Đạt; `routingLimits` để trống |
+
+Hệ quả cho các đề xuất còn lại:
+
+- Mức đạt ngưỡng (giống app, 1000 tài xế, tắt observability) từ 12 lên ít nhất 32 chuyến/giây; chưa tìm thấy trần trên máy đo. PostgreSQL 0,63 core, không service nào quá 0,31 core trung bình ở 32 chuyến/giây.
+- 5000 tài xế ở 8 chuyến/giây nay đạt (961/961, p95 0,9 giây, ack GPS p95 5 ms). Lần không đạt ngày 2026-11-05 không lặp lại; nguyên nhân lần đó chưa xác định.
+- B4 (2 replica driver-api) và B3 chưa cần cho hiệu năng ở các mức đã đo; giữ vì tính sẵn sàng.
+- Hai hiện tượng B6 cần giải thích (8–10 chuyến/giây kém hơn 12–16; đợt chậm khi chạy 30 phút): hiện tượng đầu đã hết từ B7 và ADR-0001; hiện tượng sau chưa đo lại, cần một lần chạy 30 phút có bật observability.
+
 ## 4. Ràng buộc chi phí
 
 | Loại chi phí | Ràng buộc (theo [kiến trúc mục tiêu](kien-truc-muc-tieu.md#1-bối-cảnh-và-ràng-buộc)) |
@@ -103,7 +119,7 @@ Xếp theo thứ tự nên làm.
 | --- | --- | --- | --- | --- | --- | --- |
 | B7 (mới) | **Đã triển khai 2026-11-05, chờ đo ([mục 3.1](#31-đã-triển-khai-chưa-đo-2026-11-05)).** Kiểm tra điều kiện tài xế theo lô thật sự. Driver đọc hồ sơ và xe của cả lô bằng một câu SQL (`WHERE id = ANY($1)`), đọc và ghi trạng thái Redis bằng một lệnh cho cả lô, bỏ advisory lock từng tài xế ở đường chỉ đọc. Trip trả lời `active-drivers/batch` bằng một câu SQL thay vì vòng lặp | Endpoint batch hiện lặp từng tài xế (4 song song): mỗi tài xế 4 câu SQL (đọc hồ sơ, đọc xe, lấy và trả advisory lock) và 2 lệnh Redis ở Driver, 1 câu SQL ở Trip. Ở 12 chuyến/giây: 363000 lần đọc hồ sơ, 363000 lần đọc xe, 727000 lệnh lock/unlock, 362000 câu hỏi chuyến đang mở trong 2,5 phút | `driver-service` batch eligibility use case và repository; `trip-service` controller `active-drivers/batch` | 1,5–2 ngày | Không | Câu SQL kiểm tra tài xế cho mỗi chuyến từ khoảng 1400 xuống khoảng 10–20; CPU driver-api và PostgreSQL ở 8 chuyến/giây giảm mạnh. Rủi ro trung bình: cần giữ đúng ngữ nghĩa khoá khi ghi trạng thái Redis |
 | B1 | **Đã triển khai expand + migrate 2026-11-05, chờ đo ([mục 3.1](#31-đã-triển-khai-chưa-đo-2026-11-05)).** Matching tự lấy tối đa 200 vị trí, kiểm điều kiện theo lô, chỉ tính ETA cho 25 người gần nhất | Chi phí mỗi lần tìm tăng tuyến tính theo mật độ: từ 1000 lên 5000 tài xế, CPU driver-api tăng 3,5 lần, PostgreSQL 2,7 lần ở cùng tải | P1.1, [ADR-0001](adr/0001-matching-so-huu-tim-ung-vien.md) | Đã tính trong Phase 1 | Không | Chặn trên chi phí mỗi lần tìm; matrix 25 thay vì 50 element; cùng B7, mức đạt ngưỡng ước tính 10–12 chuyến/giây |
-| B6 | Observability: metrics HTTP, event loop lag, thời gian chờ trong pool Routing, độ dài outbox, HikariCP; dashboard | Hai hiện tượng chưa giải thích được: thông lượng ở 8–10 chuyến/giây thấp hơn ở 12–16; đợt chậm 3 phút khi chạy 30 phút | P1.4, [ADR-0003](adr/0003-observability-opentelemetry.md) | Đã tính trong Phase 1 | khoảng 0,8 GB | Xác định được nguyên nhân hai hiện tượng trên; điều kiện để đo các bước sau |
+| B6 | **Đã triển khai 2026-11-10 cho sáu service Node ([mục 3.2](#32-b6-và-a8-đo-ngày-2026-11-10)); Gateway, User, Payment chưa làm.** Observability: metrics HTTP, event loop lag, thời gian chờ trong pool Routing, độ dài outbox, HikariCP; dashboard | Hai hiện tượng chưa giải thích được: thông lượng ở 8–10 chuyến/giây thấp hơn ở 12–16; đợt chậm 3 phút khi chạy 30 phút | P1.4, [ADR-0003](adr/0003-observability-opentelemetry.md) | Đã tính trong Phase 1 | khoảng 0,8 GB | Xác định được nguyên nhân hai hiện tượng trên; điều kiện để đo các bước sau |
 | B5 | App tài xế làm mới token trước hạn và kết nối lại có jitter | Đợt chậm khi chạy lâu trùng với lúc 1000 tài xế cùng làm mới token; 2000 lần kết nối lại đúng lúc JWT hết hạn | Mới (app) | 1 ngày | Không | Tránh đợt làm mới và kết nối lại đồng loạt |
 | B4 | 2 replica driver-api | driver-api là process nóng nhất (đỉnh 1,1–1,2 core ở 8–12 chuyến/giây). Phần chuyển IP thật cho Driver đã xong ở A4 | P2.5 | 0,5–1 ngày | khoảng 0,1 GB | Gấp đôi trần của driver-api; làm sau B7 vì B7 có thể đủ |
 | B2 | Gộp đích `gateway` và `notification` của outbox Trip thành một đích trên RabbitMQ | Outbox Trip không còn là trần (offer → publish và accept → `ASSIGNED` đều dưới 0,3 giây); câu ghi `outbox_deliveries` vẫn nằm trong 5 câu tốn nhất của Trip | P1.3, [ADR-0002](adr/0002-truc-su-kien-rabbitmq.md) | Đã tính trong Phase 1 | Không | Giảm khoảng 40% tin outbox Trip; lợi ích hiệu năng nhỏ, lợi ích chính là không mất event khi Gateway tắt |
@@ -159,7 +175,7 @@ Nhóm D không nâng thông lượng. Nhóm này giúp hệ thống trả lỗi 
 | --- | --- | --- | --- |
 | Đã xong | Nhóm A, index outbox Matching, E1–E3 | 21 lần đo ngày 2026-11-04 | Đạt: 6 chuyến/giây trong ngưỡng, 5000 tài xế |
 | Ngay, 1 tuần | B7 (code xong 2026-11-05); ADR-0008 đã chấp nhận 2026-11-05 | Loạt 2 (giống app) ở 6, 8, 10, 12 chuyến/giây; `sql.json` | Câu SQL kiểm tra tài xế dưới 20 mỗi chuyến; đạt ngưỡng ở 10 chuyến/giây |
-| Phase 1 | B1 (xong cả contract và đo 2026-11-05: đạt 12 chuyến/giây), B6 (P1.1, P1.4); B2 nếu còn thời gian | Như trên với 2000 và 5000 tài xế; dashboard | Trần không giảm khi tăng từ 1000 lên 5000 tài xế; giải thích được hai hiện tượng còn mở |
+| Phase 1 | B1 (xong cả contract và đo 2026-11-05: đạt 12 chuyến/giây), B6 (sáu service Node xong và đo 2026-11-10; phần Java còn lại) (P1.1, P1.4); B2 nếu còn thời gian | Như trên với 2000 và 5000 tài xế; dashboard | Trần không giảm khi tăng từ 1000 lên 5000 tài xế; giải thích được hai hiện tượng còn mở |
 | Phase 2 | B5, B4, B3, D1 (cùng P2.5) | Tài xế lên ca đồng loạt; chạy lâu 2 giờ; tắt Routing trong lúc đo | Không có đợt chậm khi làm mới token; RAM ổn định; báo giá trả lỗi ngay khi Routing tắt |
 | Trước bảo vệ | E6, D2, D3, D4; tuỳ chọn E4 | Kịch bản 3500 tài xế + 3000 chuyến; deploy trong lúc chạy tải; diễn tập khôi phục | Ghi lại thời gian gán hết 3000 chuyến; 0% lỗi HTTP khi deploy; RTO đo được |
 
