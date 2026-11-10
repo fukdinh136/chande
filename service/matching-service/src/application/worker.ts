@@ -3,7 +3,7 @@ import { Repository } from '../infrastructure/persistence';
 import { MatchDriver } from './match';
 import { AssignDriver } from './decisions';
 import { describeFailure, retryDelay } from './retry';
-import { recordJob } from './metrics';
+import { recordJob, traced } from './metrics';
 type Job = { trip_id: string; lease_id: string };
 /**
  * Keeps up to `workers` search jobs running (ADR-0008). Whenever a slot frees up it claims more due
@@ -44,7 +44,8 @@ export class MatchingWorker {
     if (this.stopped) return; if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => { this.timer = undefined; this.wake(); }, this.c.scanMs);
   }
-  private async run(job: Job) {
+  private run(job: Job) { return traced('matching.job', job.trip_id, () => this.work(job)); }
+  private async work(job: Job) {
     const renewal = setInterval(() => { void this.repo.db.query("UPDATE matching_searches SET lease_until=clock_timestamp()+$3*interval '1 millisecond' WHERE trip_id=$1 AND lease_id=$2", [job.trip_id, job.lease_id, this.c.leaseMs]).catch(() => {}); }, this.c.leaseMs / 3);
     const started = performance.now(); let kind: 'search' | 'assignment' = 'search';
     try {

@@ -4,7 +4,7 @@ import type { Config } from '../../bootstrap/config';
 import { JsonHttpClient, TransportError } from '../clients/http';
 import { MatchingClient } from '../clients/matching';
 import { PgOutbox, type Delivery } from './repository';
-import { recordDelivery } from './metrics';
+import { recordDelivery, traced } from './metrics';
 export interface DeliverySender { send(delivery: Delivery): Promise<void> }
 export class HttpDeliverySender implements DeliverySender {
   private readonly matching: MatchingClient;
@@ -37,17 +37,19 @@ export class OutboxDispatcher {
         while (queue.length) {
           const delivery = queue.shift()!;
           if (!await this.repository.owns(delivery.id, owner)) continue;
-          try {
-            if (delivery.kind === 'search' && !await this.repository.searching(delivery.tripId)) { await this.repository.finish(delivery.id, owner, 'skipped'); recordDelivery(delivery.destination, 'skipped', delivery.ageMs, performance.now() - claimed); }
-            else { await this.sender.send(delivery); await this.repository.finish(delivery.id, owner, 'delivered'); recordDelivery(delivery.destination, 'delivered', delivery.ageMs, performance.now() - claimed); }
-          } catch (error) {
-            const retryable = !(error instanceof TransportError) || error.retryable;
-            const reason = error instanceof TransportError ? error.reason : 'DISPATCH_ERROR';
-            const delay = Math.min(this.config.retryMax, this.config.retryBase * 2 ** Math.min(delivery.attempts - 1, 20)) * (0.8 + Math.random() * 0.2);
-            recordDelivery(delivery.destination, retryable ? 'retry' : 'blocked', delivery.ageMs, performance.now() - claimed);
-            await this.repository.finish(delivery.id, owner, retryable ? 'pending' : 'blocked', reason, Math.ceil(delay));
-            console.warn(JSON.stringify({ event: 'outbox_delivery_failed', deliveryId: delivery.id, tripId: delivery.tripId, destination: delivery.destination, reason, retryable, attempts: delivery.attempts }));
-          }
+          await traced(delivery.destination, delivery.tripId, async () => {
+            try {
+              if (delivery.kind === 'search' && !await this.repository.searching(delivery.tripId)) { await this.repository.finish(delivery.id, owner, 'skipped'); recordDelivery(delivery.destination, 'skipped', delivery.ageMs, performance.now() - claimed); }
+              else { await this.sender.send(delivery); await this.repository.finish(delivery.id, owner, 'delivered'); recordDelivery(delivery.destination, 'delivered', delivery.ageMs, performance.now() - claimed); }
+            } catch (error) {
+              const retryable = !(error instanceof TransportError) || error.retryable;
+              const reason = error instanceof TransportError ? error.reason : 'DISPATCH_ERROR';
+              const delay = Math.min(this.config.retryMax, this.config.retryBase * 2 ** Math.min(delivery.attempts - 1, 20)) * (0.8 + Math.random() * 0.2);
+              recordDelivery(delivery.destination, retryable ? 'retry' : 'blocked', delivery.ageMs, performance.now() - claimed);
+              await this.repository.finish(delivery.id, owner, retryable ? 'pending' : 'blocked', reason, Math.ceil(delay));
+              console.warn(JSON.stringify({ event: 'outbox_delivery_failed', deliveryId: delivery.id, tripId: delivery.tripId, destination: delivery.destination, reason, retryable, attempts: delivery.attempts }));
+            }
+          });
           this.lastProgress = Date.now();
         }
       }));

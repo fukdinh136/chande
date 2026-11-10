@@ -3,7 +3,7 @@
 // services get no OTEL_* variable, their telemetry bootstrap stays idle, and none of this is deployed.
 const fs = require('node:fs'), path = require('node:path');
 const images = {
-  collector: 'otel/opentelemetry-collector-contrib:0.116.0', jaeger: 'jaegertracing/all-in-one:1.65.0',
+  collector: 'otel/opentelemetry-collector-contrib:0.119.0', jaeger: 'jaegertracing/all-in-one:1.65.0',
   prometheus: 'prom/prometheus:v3.1.0', grafana: 'grafana/grafana:11.4.0',
 };
 // Loopback ports on the developer machine (Compose publishes them, Kubernetes port-forwards them).
@@ -52,7 +52,7 @@ const grafanaEnv = password => ({ GF_SECURITY_ADMIN_PASSWORD: password, GF_AUTH_
 const containers = password => ({
   'otel-collector': { image: images.collector, args: ['--config=/etc/otelcol/config.yaml'], ports: [4318, 8889], health: [13133, '/'], memory: '256Mi' },
   // Traces are kept in memory: enough for a load run, gone on restart.
-  jaeger: { image: images.jaeger, env: { MEMORY_MAX_TRACES: '50000' }, ports: [16686, 4317], health: [14269, '/'], memory: '512Mi' },
+  jaeger: { image: images.jaeger, env: { MEMORY_MAX_TRACES: '10000', GOMEMLIMIT: '400MiB' }, ports: [16686, 4317], health: [14269, '/'], memory: '512Mi' },
   prometheus: { image: images.prometheus, args: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.path=/prometheus', '--storage.tsdb.retention.time=2d'], ports: [9090], health: [9090, '/-/ready'], memory: '512Mi' },
   grafana: { image: images.grafana, env: grafanaEnv(password), ports: [3000], health: [3000, '/api/health'], memory: '256Mi' },
 });

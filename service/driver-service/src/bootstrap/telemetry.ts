@@ -34,7 +34,9 @@ function start(): void {
       ...optional('@opentelemetry/instrumentation-http', 'HttpInstrumentation', { ignoreIncomingRequestHook: (request: Incoming) => request.url?.startsWith('/health') === true }),
       ...optional('@opentelemetry/instrumentation-undici', 'UndiciInstrumentation'),
       ...optional('@opentelemetry/instrumentation-runtime-node', 'RuntimeNodeInstrumentation'),
-      ...optional('@opentelemetry/instrumentation-pg', 'PgInstrumentation'),
+      // A query with no span around it (the polling loops of the workers) is not traced: on its own it says
+      // nothing and thousands of them per minute fill the trace store.
+      ...optional('@opentelemetry/instrumentation-pg', 'PgInstrumentation', { requireParentSpan: true }),
       ...optional('@opentelemetry/instrumentation-ioredis', 'IORedisInstrumentation'),
       ...optional('@opentelemetry/instrumentation-amqplib', 'AmqplibInstrumentation'),
     ],
