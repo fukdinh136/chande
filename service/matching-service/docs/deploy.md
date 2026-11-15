@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | matching-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-15 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Matching API mặc định 3007. Local tích hợp dùng Driver 3008, Realtime 3009 để tránh Trip mock 3003 và Routing 3004. Một worker, tối đa 16 job async đồng thời; polling 5 giây, expiry scan 250 ms; retry nominal 1–30 giây với jitter hệ số 0.8–1.0 (delay thực có thể từ 800 ms); dependency bận (`ROUTING_BUSY`, 429 hoặc có `Retry-After`) được thử lại theo `Retry-After`, tối đa 2 giây, không tăng dần.
@@ -65,7 +65,7 @@ Không chạy `down -v` để giữ dữ liệu. Khi stop, worker ngừng nhận
 
 Outbox lỗi tự retry. Để requeue sớm một event chưa confirm: `npm.cmd run outbox:requeue -- <eventId>` với DATABASE_URL riêng Matching. Giữ event ID, payload, version và expiresAt. DLQ `driver.offers.dlq` là nơi giữ malformed hoặc retry hết 10 lần; kiểm tra/sửa nguyên nhân rồi dùng Rabbit management để chuyển lại `driver.offers`. Realtime truy vấn state nên message quá hạn/thu hồi không hiện lại.
 
-OpenAPI: http://127.0.0.1:3007/openapi.json, Swagger: /docs (bật SWAGGER_ENABLED). Readiness API chỉ schema/DB; worker có probe nội bộ 3017. Quan sát backlog outbox, lease, tuổi job, offer pending, Rabbit DLQ và dependency error. Mỗi lần retry, worker ghi `matching_job_retry` gồm `tripId`, `attempt`, `delayMs`, `dependency` (routing, driver, trip, matching), `code` (ví dụ `ROUTING_BUSY`, `TIMEOUT`, `UNREACHABLE`, `HTTP_503`) và `status`; không log JWT, GPS hoặc credentials.
+OpenAPI: http://127.0.0.1:3007/openapi.json, Swagger: /docs (bật SWAGGER_ENABLED). Readiness API chỉ schema/DB; worker có probe nội bộ 3017. Quan sát backlog outbox, lease, tuổi job, offer pending, Rabbit DLQ và dependency error. Mỗi lần retry, worker ghi `matching_job_retry` gồm `tripId`, `attempt`, `delayMs`, `dependency` (routing, driver, trip, matching), `code` (ví dụ `ROUTING_BUSY`, `TIMEOUT`, `UNREACHABLE`, `HTTP_503`, `CIRCUIT_OPEN`) và `status`, thêm `budget: "spent"` khi lần thử lại sớm vượt ngân sách và phải lùi theo hàm mũ. Breaker của từng dependency ghi `circuit_breaker` với `dependency` và `state` (`open`, `half-open`, `closed`) mỗi khi đổi trạng thái; không log JWT, GPS hoặc credentials.
 
 ## Gateway
 

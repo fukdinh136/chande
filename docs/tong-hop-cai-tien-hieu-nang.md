@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-10 |
+| Rà soát | 2026-11-15 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Tài liệu cho các thành viên cần quyết định có merge nhánh `perf/adr-0008-trip-outbox` vào `main` hay không. Nó tóm tắt nhánh này đổi gì so với `main`, vì sao, đo được gì, phải đánh đổi gì và merge thì cần lưu ý gì. Chi tiết từng phần nằm ở [báo cáo kiểm thử tải](bao-cao-kiem-thu-tai.md), [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md) và các [ADR](adr/README.md).
@@ -112,6 +112,14 @@ Mặc định **tắt**. Khi tắt, service không nạp gói OpenTelemetry nào
 - Mỗi Deployment mang mã băm của cấu hình, đổi cấu hình là pod tự khởi động lại.
 - Giới hạn của Routing và số luồng OSRM đổi được bằng biến môi trường khi deploy, để thử nghiệm không cần sửa code.
 
+### 3.8 Trả lỗi nhanh khi một service hỏng (D1)
+
+Thêm sau lần đo cuối, **chưa đo**. Không nhằm tăng thông lượng.
+
+- **Circuit breaker:** client HTTP giữa các service Node (Matching, Trip, Driver, Realtime) đếm lỗi của từng service đích. 5 lỗi liên tiếp (timeout, không kết nối được, 5xx không có `Retry-After`) thì ngừng gọi service đó trong 5 giây và trả lỗi ngay; hết 5 giây cho một request thử, thành công thì gọi lại bình thường.
+- **Ngân sách thử lại:** lần thử lại sớm của Matching khi service bận (A7) bị giới hạn ở 20% số job trong 10 giây gần nhất; vượt mức thì lùi theo hàm mũ như lỗi khác.
+- Trả lời 4xx, 429 và 503 có `Retry-After` không làm ngừng gọi, vì service đích vẫn đang trả lời. Mã lỗi trả cho app không đổi.
+
 ## 4. Kết quả đo
 
 Cùng một máy, 1000 tài xế, mỗi mức chạy 2 phút. "Đạt" nghĩa là đồng thời: tạo chuyến → có tài xế p95 ≤ 10 giây, báo giá p95 ≤ 300 ms, ack GPS p95 ≤ 200 ms, lỗi HTTP < 0,5%.
@@ -171,6 +179,7 @@ API public qua Gateway, app Android và web không đổi.
 - Lần 5000 tài xế ở 8 chuyến/giây không đạt ngày 2026-11-05 nay đạt, nhưng chưa xác định được vì sao hôm đó không đạt.
 - Đợt chậm 3 phút khi chạy 30 phút chưa được đo lại.
 - Observability mới kiểm chứng trên Kubernetes; phía Docker Compose mới có test sinh cấu hình.
+- D1 (circuit breaker) chưa đo: cần tắt Routing giữa lúc đo để xem báo giá lỗi nhanh và hồi phục, và đo lại ở tải cao để chắc breaker không ngừng gọi nhầm.
 - Chưa có nhiều replica cho service nào; đây là việc của tính sẵn sàng, chưa cần cho hiệu năng ở các mức đã đo.
 
 ## 7. Xung đột với main

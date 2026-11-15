@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-15 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Đối chiếu source/lockfile/config và các stack local ngày 2026-10-06. Đây là bảng tham chiếu hiện tại; báo cáo feature cũ ghi số liệu tại thời điểm kiểm thử của feature đó.
@@ -44,7 +44,8 @@ PostgreSQL test: Trip 55434, Matching 55435; Matching local DB 55436; Trip local
 | Offer TTL | 20000 ms (20 giây) | Tính ở DB/server; retry/reconnect không reset |
 | Search polling / expiry scan | 5000 ms / 250 ms | Defaults Matching; worker nghỉ 250 ms khi không còn search tới hạn ([ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md)); không deadline kết thúc tìm xe |
 | Matching concurrent jobs / lease | 16 / 60000 ms | Worker lease khác reservation; pending callback không hết theo TTL offer |
-| Retry Matching | Nominal 1000–30000 ms, jitter hệ số 0.8–1.0; dependency bận (`ROUTING_BUSY`, 429, có `Retry-After`) chờ theo `Retry-After`, tối đa 2000 ms | Delay thực có thể từ 800 ms; log `matching_job_retry` ghi dependency, mã lỗi, status; không diễn giải thành deadline tìm xe |
+| Retry Matching | Nominal 1000–30000 ms, jitter hệ số 0.8–1.0; dependency bận (`ROUTING_BUSY`, 429, có `Retry-After`) chờ theo `Retry-After`, tối đa 2000 ms, trong ngân sách 20% số job của 10 giây gần nhất (ít nhất 20 lần); vượt ngân sách thì lùi theo hàm mũ | Delay thực có thể từ 800 ms; log `matching_job_retry` ghi dependency, mã lỗi, status; không diễn giải thành deadline tìm xe |
+| Circuit breaker (D1) | Client HTTP của Matching (Routing, Driver, Trip, Realtime), Trip (Routing, Price, Matching, Gateway, Notification), Driver (Trip, Matching), Realtime (Matching): 5 lỗi liên tiếp (timeout, không kết nối được, 5xx không có `Retry-After`) thì mở 5000 ms, sau đó cho một request thử | Khi mở, gọi thất bại ngay: Matching `CIRCUIT_OPEN` (503, Retry-After là thời gian còn lại), Trip `CIRCUIT_OPEN` retryable, Driver `DEPENDENCY_UNAVAILABLE`, Realtime `MATCHING_UNAVAILABLE`. 4xx, 429 và 503 có `Retry-After` không làm mở breaker; log `circuit_breaker` ghi dependency và trạng thái |
 | REST body cap Node/User | 65536 byte (64 KiB) | Routing/Matching/Trip/Price và User admission |
 | Gateway body cap | 256 KiB | Cấu hình 256KB của Spring DataSize; service vẫn kiểm cap nhỏ hơn |
 
