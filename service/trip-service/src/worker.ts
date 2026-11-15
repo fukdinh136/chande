@@ -7,6 +7,7 @@ import { PgOutbox } from './infrastructure/outbox/repository';
 import { HttpDeliverySender, OutboxDispatcher } from './infrastructure/outbox/dispatcher';
 import { startWorker } from './bootstrap/worker-runtime';
 import { startPurge } from './bootstrap/purge';
+import { LeaderElection } from './infrastructure/leader';
 const PURGE_BATCH = 1000;
 async function main() {
   const config = loadConfig(process.env, 'worker'); const db = await createDataSource(config.databaseUrl, config.poolSize).initialize();
@@ -15,8 +16,10 @@ async function main() {
     const outbox = new PgOutbox(db);
     const worker = await startWorker(new OutboxDispatcher(outbox, new HttpDeliverySender(config), config), store, config);
     // Keep delivered messages for OUTBOX_RETENTION_MS (default 24 h) for diagnosis, then delete them in batches.
-    const stopPurge = startPurge(() => outbox.purge(config.retentionMs, PURGE_BATCH), PURGE_BATCH, config.purgeInterval);
-    let stopping = false; const stop = () => { if (stopping) return; stopping = true; void Promise.all([worker.stop(), stopPurge()]).then(() => db.destroy()).catch(() => { process.exitCode = 1; }); };
+    // Only the leader among worker replicas purges (Leader Election); the others skip the round.
+    const purgeLeader = new LeaderElection(db, 'trip-outbox-purge');
+    const stopPurge = startPurge(async () => await purgeLeader.lead() ? outbox.purge(config.retentionMs, PURGE_BATCH) : 0, PURGE_BATCH, config.purgeInterval);
+    let stopping = false; const stop = () => { if (stopping) return; stopping = true; void Promise.all([worker.stop(), stopPurge()]).then(() => purgeLeader.resign()).then(() => db.destroy()).catch(() => { process.exitCode = 1; }); };
     process.once('SIGTERM', stop); process.once('SIGINT', stop);
     console.info(JSON.stringify({ event: 'worker_started', port: config.workerPort }));
   } catch (error) { await db.destroy(); throw error; }
