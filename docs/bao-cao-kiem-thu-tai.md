@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-10 |
+| Rà soát | 2026-11-15 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Báo cáo kiểm thử hiệu năng cho mục P2.6 trong [kiến trúc mục tiêu](kien-truc-muc-tieu.md), đo ngày 2026-11-04 sau khi hoàn thành nhóm cải tiến A và cải tiến môi trường đo E1–E3 trong [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md). Mọi kết quả được so với mốc ban đầu đo ngày 2026-10-28/29 trên cùng máy và cùng kịch bản. Kế hoạch, test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md); công cụ nằm trong [deploy/load](../deploy/load/README.md).
@@ -472,3 +472,28 @@ Khi không quá tải (16 chuyến/giây): các bước tìm xe p95 9–45 ms, �
 
 Lệnh đo: [mục 10](#10-phụ-lục-chạy-lại) với `--rate` tương ứng; bật observability theo [deploy backend](deploy-backend.md#observability-tuỳ-chọn). Danh sách 21 lần đo nằm trong `index.tsv` của lần chạy trên máy đo; kết quả ở `deploy/.local/load/results/2026-11-10T*`.
 
+
+## 13. HTTP và gRPC giữa các service (2026-11-15)
+
+Mã nguồn: nhánh `perf/adr-0008-trip-outbox`, commit `f20eb1e`. So với [mục 12](#12-đo-lại-với-observability-2026-11-10) có thêm: circuit breaker và ngân sách thử lại (D1), Leader Election cho việc dọn outbox, Priority Queue cho worker Matching, và gRPC cho 11 luồng gọi giữa các service Node ([ADR-0009](adr/0009-giao-tiep-noi-bo-grpc.md)). Cùng code, cùng image; chỉ đổi `INTERNAL_TRANSPORT` khi `kube-up`. Cùng cách đo giống app (trong cụm, `/ws`, GPS 10 giây), 1000 tài xế, 2 phút mỗi mức, tắt observability. Thứ tự chạy: gRPC 8, 16, 32 → HTTP 8, 16, 32 → gRPC 32 lần hai.
+
+| Giao thức | Đặt chuyến/giây | Được gán | p95 tới `ASSIGNED` | Báo giá p95 | Ack GPS p95 | Tổng câu SQL | CPU 8 pod Node TB | CPU PostgreSQL TB / max | CPU matching-worker TB / max | CPU trip-api TB / max | Đạt |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| HTTP | 8 | 960/960 | 0,89 giây | 21 ms | 3 ms | 188098 | 509 m | 189 / 230 m | 97 / 116 m | 92 / 109 m | Đạt |
+| gRPC | 8 | 961/961 | 0,81 giây | 13 ms | 3 ms | 188113 | 401 m | 152 / 170 m | 70 / 96 m | 74 / 100 m | Đạt |
+| HTTP | 16 | 1920/1920 | 0,86 giây | 17 ms | 3 ms | 363852 | 673 m | 304 / 339 m | 129 / 136 m | 139 / 152 m | Đạt |
+| gRPC | 16 | 1920/1920 | 0,82 giây | 13 ms | 2 ms | 365307 | 624 m | 267 / 300 m | 118 / 128 m | 119 / 125 m | Đạt |
+| HTTP | 32 | 3841/3841 | 1,31 giây | 45 ms | 6 ms | 719936 | 1355 m | 639 / 1015 m | 272 / 397 m | 284 / 422 m | Đạt |
+| gRPC (lần 1) | 32 | 3835/3835, bỏ 5 lượt | 7,58 giây | 290 ms | 26 ms | 725535 | 1588 m | 721 / 1155 m | 297 / 480 m | 324 / 537 m | Đạt sát ngưỡng |
+| gRPC (lần 2) | 32 | 3841/3841 | 1,06 giây | 25 ms | 3 ms | 720570 | 1131 m | 523 / 628 m | 211 / 256 m | 228 / 246 m | Đạt |
+
+Lỗi HTTP 0% ở mọi lần. Nhận xét:
+
+1. **Số câu SQL như nhau** ở hai giao thức: gRPC chỉ đổi cách chở dữ liệu giữa service, không đổi việc mỗi service làm.
+2. **CPU giảm khi dùng gRPC**: tổng CPU tám pod Node thấp hơn 21% ở 8 chuyến/giây, 7% ở 16 và 17% ở 32 (lần hai). Mỗi client gRPC giữ một kết nối HTTP/2 lâu dài tới mỗi service đích và mã hoá protobuf, thay vì mở request HTTP/1.1 và parse JSON. Độ trễ p95 tương đương hoặc thấp hơn một chút; ở các mức này độ trễ chủ yếu nằm ở bước tìm xe và ghi DB, không ở đường truyền.
+3. **Lần gRPC 32 đầu tiên chậm ở đoạn offer → publish** (p95 4,5 giây; đoạn này đi qua RabbitMQ, không qua gRPC), báo giá p95 290 ms, ack GPS p95 26 ms, PostgreSQL lên 1,16 core. Lần chạy lại ngay sau trên cùng code không lặp lại (p95 1,06 giây). Kiểu dao động này đã gặp ở [mục 12.6](#126-kết-luận-và-giới-hạn); với mỗi mức chỉ 1–2 lần đo, không đủ để nói gRPC nhanh hơn HTTP về độ trễ, chỉ đủ để nói **gRPC không chậm hơn và tốn ít CPU hơn**.
+4. Mức 32 chuyến/giây vẫn đạt ngưỡng với cả hai giao thức sau D1, Leader Election và Priority Queue; các thay đổi này không làm giảm thông lượng đã có ở mục 12.
+
+Kiểm chứng chức năng cùng ngày: smoke trên Kubernetes (một chuyến hoàn thành, một chuyến huỷ qua Gateway) qua ở cả `http` và `grpc`; ở chế độ `grpc`, đọc `/proc/net/tcp` trong pod cho thấy matching-worker giữ kết nối tới cổng 50051, 50053, 50054, 50055, trip-worker tới 50052, trip-api tới 50055, 50056 và realtime-api tới 50052.
+
+Lệnh đo: [mục 10](#10-phụ-lục-chạy-lại) với `--rate` tương ứng; chuyển giao thức theo [deploy backend](deploy-backend.md#giao-tiếp-nội-bộ-bằng-grpc-tuỳ-chọn). Kết quả ở `deploy/.local/load/results/2026-11-15T14*` và `2026-11-15T15-01-01-652Z`.

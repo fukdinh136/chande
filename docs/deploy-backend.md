@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-10 |
+| Rà soát | 2026-11-15 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Stack đã chạy trên Docker Desktop, Kubernetes context docker-desktop v1.34.1, namespace chande-local. Public ingress: Docker http://127.0.0.1:18080; Kubernetes http://127.0.0.1:18081 qua port-forward loopback. Đây là deployment local, chưa phải hosting Internet/production.
@@ -94,6 +94,33 @@ node deploy/run.cjs kube-up
 - Khi bật, CPU các service Node tăng 20–50% tuỳ tải ([báo cáo, mục 12.2](bao-cao-kiem-thu-tai.md#122-chi-phí-của-observability)); tắt khi đo trần thông lượng.
 - `OTEL_SAMPLE_RATIO` (0–1, mặc định 0,1) là tỉ lệ trace được giữ. Đặt 1 khi cần chắc chắn thấy trace của một chuyến smoke; giữ 0,1 khi đo tải.
 - Gateway, User và Payment (Java) chưa gửi telemetry.
+
+## Giao tiếp nội bộ bằng gRPC (tuỳ chọn)
+
+Theo [ADR-0009](adr/0009-giao-tiep-noi-bo-grpc.md). Sáu service Node luôn phục vụ API nội bộ qua cả HTTP và gRPC; biến `INTERNAL_TRANSPORT` chọn cách các service Node **gọi** nhau. Mặc định `http`; chuyển sang gRPC ở cùng lệnh deploy:
+
+```bash
+INTERNAL_TRANSPORT=grpc node deploy/run.cjs kube-up
+```
+
+```powershell
+$env:INTERNAL_TRANSPORT='grpc'
+node deploy/run.cjs kube-up
+```
+
+| Service | Cổng gRPC (`GRPC_PORT`) | Phục vụ |
+| --- | --- | --- |
+| trip-api | 50051 | Gán chuyến, trạng thái cho Matching, chuyến đang mở của tài xế |
+| matching-api | 50052 | Lệnh tìm/huỷ, `trip.completed`, reservation, offer |
+| driver-api | 50053 | Kiểm điều kiện ứng viên theo lô và từng người |
+| realtime-api | 50054 | Vị trí tài xế gần điểm đón |
+| routing-api | 50055 | Báo giá tuyến, ETA matrix |
+| price-api | 50056 | Giá cước |
+
+- Hợp đồng nằm ở `proto/` gốc repo; mỗi service giữ một bản sao trong `service/<tên>/proto/`. Sửa ở `proto/` rồi chạy `node scripts/sync-proto.cjs`; `node --test deploy/stack.test.cjs` báo lỗi nếu bản sao lệch.
+- Client gRPC tìm service đích theo host của URL HTTP sẵn có và cổng mặc định ở bảng trên; ghi đè bằng `<SERVICE>_GRPC_ADDRESS` (ví dụ `ROUTING_GRPC_ADDRESS=routing-api:50055`).
+- Gateway, User (Java) và event gửi Gateway/notification vẫn dùng HTTP.
+- Quay lại HTTP: chạy lại lệnh không có biến. Với `http`, không biến nào được thêm vào Secret nên mã băm env giữ như trước.
 
 ## Routes public
 

@@ -120,6 +120,17 @@ Thêm sau lần đo cuối, **chưa đo**. Không nhằm tăng thông lượng.
 - **Ngân sách thử lại:** lần thử lại sớm của Matching khi service bận (A7) bị giới hạn ở 20% số job trong 10 giây gần nhất; vượt mức thì lùi theo hàm mũ như lỗi khác.
 - Trả lời 4xx, 429 và 503 có `Retry-After` không làm ngừng gọi, vì service đích vẫn đang trả lời. Mã lỗi trả cho app không đổi.
 
+### 3.9 Pattern bổ sung và gRPC (2026-11-15)
+
+| Thay đổi | Để làm gì |
+| --- | --- |
+| Leader Election | Khi chạy nhiều replica worker, chỉ một replica dọn outbox (advisory lock PostgreSQL); leader chết thì replica khác nhận |
+| Priority Queue | Khi job đến hạn nhiều hơn chỗ trống, Matching xử lý job gán chuyến trước, rồi chuyến đặt sớm nhất |
+| Saga ([tài liệu](saga-chuyen-di.md)) | Ghi rõ từng bước của chuyến đi, lỗi có thể xảy ra và bù trừ; chỗ thiếu lớn nhất là hạn chót tìm xe (ADR-0004) |
+| gRPC nội bộ ([ADR-0009](adr/0009-giao-tiep-noi-bo-grpc.md)) | 11 luồng gọi giữa service Node có thêm đường gRPC theo `proto/`, bật bằng `INTERNAL_TRANSPORT=grpc`; mặc định vẫn HTTP |
+
+Đo cùng code ngày 2026-11-15 ([báo cáo, mục 13](bao-cao-kiem-thu-tai.md#13-http-và-grpc-giữa-các-service-2026-11-15)): cả hai giao thức đạt ngưỡng ở 8, 16, 32 chuyến/giây; gRPC dùng ít CPU hơn 7–21% ở các service Node, p95 tương đương.
+
 ## 4. Kết quả đo
 
 Cùng một máy, 1000 tài xế, mỗi mức chạy 2 phút. "Đạt" nghĩa là đồng thời: tạo chuyến → có tài xế p95 ≤ 10 giây, báo giá p95 ≤ 300 ms, ack GPS p95 ≤ 200 ms, lỗi HTTP < 0,5%.
