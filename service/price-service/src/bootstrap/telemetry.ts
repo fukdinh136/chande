@@ -33,6 +33,7 @@ function start(): void {
       // Health probes run every few seconds and would bury the real requests.
       ...optional('@opentelemetry/instrumentation-http', 'HttpInstrumentation', { ignoreIncomingRequestHook: (request: Incoming) => request.url?.startsWith('/health') === true }),
       ...optional('@opentelemetry/instrumentation-undici', 'UndiciInstrumentation'),
+      ...optional('@opentelemetry/instrumentation-grpc', 'GrpcInstrumentation'),
       ...optional('@opentelemetry/instrumentation-runtime-node', 'RuntimeNodeInstrumentation'),
       // A query with no span around it (the polling loops of the workers) is not traced: on its own it says
       // nothing and thousands of them per minute fill the trace store.

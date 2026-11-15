@@ -1,0 +1,44 @@
+// Driver internal API. Mirrors /internal/drivers/eligibility/candidates and /internal/drivers/{id}/eligibility
+// (caller: Matching).
+syntax = "proto3";
+package chande.driver.v1;
+import "common.proto";
+
+service DriverInternal {
+  // Eligibility of a whole candidate list in one call (ADR-0001, at most 100 drivers).
+  rpc CheckCandidates(CandidatesRequest) returns (Candidates);
+  // Eligibility of one driver, read again right before a trip is assigned.
+  rpc CheckEligibility(EligibilityRequest) returns (Eligibility);
+}
+
+message CandidatesRequest {
+  repeated string driver_ids = 1;
+  string vehicle_type = 2;
+}
+
+message Candidate {
+  string driver_id = 1;
+  bool eligible = 2;
+  repeated string reasons = 3;
+  optional string vehicle_id = 4;
+  optional chande.common.v1.DriverSnapshot driver_snapshot = 5;
+  optional chande.common.v1.VehicleSnapshot vehicle_snapshot = 6;
+}
+
+message Candidates {
+  repeated Candidate items = 1;
+}
+
+message EligibilityRequest {
+  string driver_id = 1;
+  string vehicle_type = 2;
+}
+
+message Eligibility {
+  string driver_id = 1;
+  bool profile_eligible = 2;
+  string desired_status = 3;
+  optional string vehicle_id = 4;
+  optional chande.common.v1.DriverSnapshot driver_snapshot = 5;
+  optional chande.common.v1.VehicleSnapshot vehicle_snapshot = 6;
+}

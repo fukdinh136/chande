@@ -14,8 +14,9 @@ import type { Context } from '../application/ports/clients';
 import { checkpoint } from '../application/context';
 interface RoutingRequest extends Request { routing: { requestId: string; started: number } }
 function bodySchema(schema: z.ZodType): SchemaObject { const json = z.toJSONSchema(schema, { io: 'input' }); delete json.$schema; return json as unknown as SchemaObject; }
-function authorize(req: Request, runtime: RoutingRuntime, operation: 'trip' | 'gateway' | 'matching'): void {
-  const token = req.get('x-service-token'); let caller: string | undefined;
+/** Checks the caller's service token against `operation`; shared by the HTTP controller and the gRPC server. */
+export function authorize(token: string | undefined, runtime: RoutingRuntime, operation: 'trip' | 'gateway' | 'matching'): void {
+  let caller: string | undefined;
   if (token) for (const [name, expected] of Object.entries(runtime.config.tokens)) {
     const a = Buffer.from(token); const b = Buffer.from(expected);
     if (a.length === b.length && timingSafeEqual(a, b)) caller = name;
@@ -43,7 +44,7 @@ class ErrorFilter implements ExceptionFilter {
 class RoutingController {
   constructor(@Inject(RoutingRuntime) private readonly runtime: RoutingRuntime) {}
   private async execute(req: RoutingRequest, res: Response, caller: 'trip' | 'gateway' | 'matching', action: (context: Context) => Promise<unknown>) {
-    authorize(req, this.runtime, caller);
+    authorize(req.get('x-service-token'), this.runtime, caller);
     const controller = new AbortController(); const abort = () => controller.abort();
     const untrack = this.runtime.track(controller);
     const disconnect = () => { if (!res.writableEnded) abort(); };

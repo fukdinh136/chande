@@ -10,6 +10,7 @@ ENV NODE_ENV=production
 WORKDIR /srv/driver
 COPY --from=build --chown=node:node /srv/driver/node_modules ./node_modules
 COPY --from=build --chown=node:node /srv/driver/dist ./dist
+COPY --chown=node:node proto ./proto
 USER node
-EXPOSE 3003
+EXPOSE 3003 50053
 CMD ["node", "dist/main.js"]

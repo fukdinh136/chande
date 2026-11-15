@@ -1,0 +1,24 @@
+// Price internal API. Mirrors POST /internal/fares/estimate (caller: Trip).
+syntax = "proto3";
+package chande.price.v1;
+import "common.proto";
+
+service PriceInternal {
+  rpc EstimateFare(FareRequest) returns (Fare);
+}
+
+message FareRequest {
+  chande.common.v1.RouteSummary route = 1;
+  string vehicle_type = 2;
+}
+
+message FareItem {
+  string code = 1;
+  string amount = 2;
+}
+
+message Fare {
+  string currency = 1;
+  string amount = 2;
+  repeated FareItem breakdown = 3;
+}

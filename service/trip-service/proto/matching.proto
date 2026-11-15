@@ -1,0 +1,99 @@
+// Matching internal API. Mirrors POST /internal/matching/requests, /internal/matching/requests/{tripId}/cancel
+// and /internal/events/trips (caller: Trip outbox), POST /internal/matching/reservations/batch (caller: Driver)
+// and GET /internal/matching/offers/{offerId}, /internal/matching/drivers/{driverId}/offer (caller: Realtime).
+syntax = "proto3";
+package chande.matching.v1;
+import "common.proto";
+
+service MatchingInternal {
+  rpc StartSearch(SearchCommand) returns (CommandAck);
+  rpc CancelSearch(CancelCommand) returns (CommandAck);
+  rpc TripCompleted(TripCompletedEvent) returns (EventAck);
+  rpc DriverReservations(chande.common.v1.DriverIds) returns (chande.common.v1.DriverTrips);
+  // NOT_FOUND (HTTP 404) when the offer does not exist.
+  rpc GetOffer(OfferRef) returns (Offer);
+  rpc DriverOffer(DriverRef) returns (DriverOfferReply);
+}
+
+message Fare {
+  string currency = 1;
+  string amount = 2;
+}
+
+// type is always "matching.search.requested".
+message SearchCommand {
+  string command_id = 1;
+  string type = 2;
+  string trip_id = 3;
+  int32 trip_version = 4;
+  string occurred_at = 5;
+  string rider_id = 6;
+  chande.common.v1.Location pickup = 7;
+  chande.common.v1.Location destination = 8;
+  string vehicle_type = 9;
+  chande.common.v1.RouteSummary route = 10;
+  Fare fare = 11;
+}
+
+// type is always "matching.search.cancelled".
+message CancelCommand {
+  string command_id = 1;
+  string type = 2;
+  string trip_id = 3;
+  int32 trip_version = 4;
+  string occurred_at = 5;
+  string reason = 6;
+}
+
+message CommandAck {
+  string command_id = 1;
+  bool accepted = 2;
+}
+
+message TripCompletedData {
+  string rider_id = 1;
+  optional string driver_id = 2;
+  string status = 3;
+}
+
+// type is always "trip.completed", schema_version 1.
+message TripCompletedEvent {
+  int32 schema_version = 1;
+  string event_id = 2;
+  string type = 3;
+  string trip_id = 4;
+  int32 trip_version = 5;
+  string occurred_at = 6;
+  TripCompletedData data = 7;
+}
+
+message EventAck {
+  string event_id = 1;
+  bool accepted = 2;
+}
+
+message OfferRef {
+  string offer_id = 1;
+}
+
+message DriverRef {
+  string driver_id = 1;
+}
+
+message Offer {
+  string offer_id = 1;
+  string trip_id = 2;
+  string driver_id = 3;
+  int32 version = 4;
+  string status = 5;
+  string expires_at = 6;
+  chande.common.v1.Location pickup = 7;
+  chande.common.v1.Location destination = 8;
+  string vehicle_type = 9;
+  Fare fare = 10;
+}
+
+// No offer matches `data: null` in the HTTP API.
+message DriverOfferReply {
+  optional Offer offer = 1;
+}

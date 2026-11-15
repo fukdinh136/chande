@@ -1,0 +1,46 @@
+// Messages shared by the internal gRPC APIs between the Node services.
+// Source of truth: proto/ at the repository root. `node scripts/sync-proto.cjs` copies these files into
+// each service's proto/ folder (Docker builds each service from its own folder); never edit the copies.
+//
+// Field values keep the meaning and format of the HTTP API they mirror: ids are UUID strings, timestamps
+// ISO-8601 UTC strings, money a decimal string in VND, statuses and vehicle types the same upper-case strings.
+// `optional` marks a field that is null in the HTTP API.
+syntax = "proto3";
+package chande.common.v1;
+
+message Location {
+  double lat = 1;
+  double lng = 2;
+  optional string address = 3;
+}
+
+message DriverIds {
+  repeated string driver_ids = 1;
+}
+
+// One row per requested driver: the trip that holds the driver, if any.
+message DriverTrip {
+  string driver_id = 1;
+  optional string trip_id = 2;
+}
+
+message DriverTrips {
+  repeated DriverTrip items = 1;
+}
+
+message DriverSnapshot {
+  string full_name = 1;
+  optional string avatar_url = 2;
+}
+
+message VehicleSnapshot {
+  string vehicle_type = 1;
+  string license_plate = 2;
+  optional string brand = 3;
+  optional string color = 4;
+}
+
+message RouteSummary {
+  int32 distance_meters = 1;
+  int32 duration_seconds = 2;
+}

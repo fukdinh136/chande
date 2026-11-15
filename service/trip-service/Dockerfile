@@ -11,8 +11,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
+COPY --chown=node:node proto ./proto
 COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
 RUN mkdir /app/.mock-data && chown node:node /app/.mock-data
 USER node
-EXPOSE 3001 3002
+EXPOSE 3001 3002 50051
 CMD ["node", "dist/main.js"]

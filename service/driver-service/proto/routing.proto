@@ -1,0 +1,41 @@
+// Routing internal API. Mirrors POST /internal/routes/estimate (caller: Trip) and
+// POST /internal/routes/eta-matrix (caller: Matching).
+syntax = "proto3";
+package chande.routing.v1;
+import "common.proto";
+
+service RoutingInternal {
+  rpc Estimate(EstimateRequest) returns (chande.common.v1.RouteSummary);
+  // ETA from the origins Matching chose to one pickup point (ADR-0001, at most 50 origins).
+  rpc EtaMatrix(EtaMatrixRequest) returns (EtaMatrix);
+}
+
+message EstimateRequest {
+  chande.common.v1.Location pickup = 1;
+  chande.common.v1.Location destination = 2;
+  string vehicle_type = 3;
+}
+
+message Origin {
+  string id = 1;
+  double lat = 2;
+  double lng = 3;
+}
+
+message EtaMatrixRequest {
+  chande.common.v1.Location destination = 1;
+  string vehicle_type = 2;
+  repeated Origin origins = 3;
+}
+
+message EtaEntry {
+  string id = 1;
+  string status = 2; // OK or NO_ROUTE
+  optional int32 distance_meters = 3;
+  optional int32 duration_seconds = 4;
+}
+
+message EtaMatrix {
+  repeated EtaEntry entries = 1;
+  string calculated_at = 2;
+}
