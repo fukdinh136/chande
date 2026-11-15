@@ -5,6 +5,8 @@ import { createServer } from 'node:http';
 import { loadConfig } from './bootstrap/config';
 import { source, Repository } from './infrastructure/persistence';
 import { HttpClients } from './infrastructure/clients';
+import { GrpcClients } from './infrastructure/grpc-clients';
+import { internalTransport } from './infrastructure/grpc';
 import { OfferPublisher } from './infrastructure/publisher';
 import { MatchDriver } from './application/match';
 import { DirectCandidates } from './application/candidates';
@@ -14,7 +16,8 @@ import { OfferExpiry } from './application/expiry';
 import { DrainLoop } from './application/drain-loop';
 import { LeaderElection } from './infrastructure/leader';
 async function main() {
-  const c = loadConfig(), db = source(c.databaseUrl); await db.initialize(); const repo = new Repository(db), clients = new HttpClients(c);
+  const c = loadConfig(), db = source(c.databaseUrl); await db.initialize(); const repo = new Repository(db), clients = internalTransport() === 'grpc' ? new GrpcClients(c) : new HttpClients(c);
+  console.info(JSON.stringify({ event: 'internal_transport', transport: internalTransport() }));
   // The offer publisher drains matching_outbox in its own loop (ADR-0008): it keeps going while a round hits
   // PUBLISHER_BATCH_MAX, rests PUBLISHER_SCAN_MS when idle, and is woken as soon as this process commits an offer.
   const publisher = new OfferPublisher(repo, c.rabbitUrl, c.publisherBatchMax);

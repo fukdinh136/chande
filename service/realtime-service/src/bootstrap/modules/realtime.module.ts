@@ -16,10 +16,13 @@ import { LocationGateway } from '../../presentation/socket/location.gateway';
 import { DriverSocketGuard } from '../../presentation/socket/guards/driver-socket.guard';
 import { HealthController } from '../../presentation/http/controllers/health.controller';
 import { OfferConsumer } from '../../infrastructure/offers/consumer';
+import { GrpcClient, grpcAddress, internalTransport, loadService } from '../../infrastructure/grpc';
+import { CircuitBreaker } from '../../infrastructure/circuit-breaker';
 @Module({
   controllers: [DriverLocationsController, HealthController],
   providers: [
-    { provide: OfferConsumer, inject: [RedisConnection, CONFIG], useFactory: (r: RedisConnection, c: Config) => new OfferConsumer(r.client, c) },
+    // INTERNAL_TRANSPORT=grpc reads offers from Matching over gRPC instead of HTTP.
+    { provide: OfferConsumer, inject: [RedisConnection, CONFIG], useFactory: (r: RedisConnection, c: Config) => new OfferConsumer(r.client, c, undefined, internalTransport() === 'grpc' && c.matchingUrl ? new GrpcClient(loadService('matching.proto', 'chande.matching.v1.MatchingInternal'), grpcAddress('matching', c.matchingUrl), 3000, new CircuitBreaker('matching')) : undefined) },
     { provide: CONFIG, useFactory: () => loadConfig() },
     { provide: RedisConnection, inject: [CONFIG], useFactory: (c: Config) => new RedisConnection(c.redisUrl, c.redisTimeoutMs) },
     { provide: LOCATION_STORE, inject: [RedisConnection, CONFIG], useFactory: (r: RedisConnection, c: Config) => new RedisLocationRepository(r.client, c.freshnessMs, c.maxFutureMs, c.orderRetentionMs, c.minIntervalMs, c.cleanupBatch) },
