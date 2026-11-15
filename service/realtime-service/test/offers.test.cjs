@@ -25,3 +25,17 @@ test('Redis/dependency error retries with same deadline; exhausted retry goes to
   assert.equal(ack,1);assert.equal(queued.queue,'driver.offers.retry.1000');assert.equal(queued.event.expiresAt,event.expiresAt);assert.equal(queued.properties.messageId,event.eventId);
   await consumer.consume({content:Buffer.from(JSON.stringify(event)),properties:{headers:{'x-offer-retries':10}}},channel);assert.equal(dead,1);
 });
+test('offer lookup stops calling a failing Matching until the breaker lets a trial through', async () => {
+  const { createServer } = require('node:http'), { CircuitBreaker } = require('../dist/infrastructure/circuit-breaker');
+  let hits = 0, status = 500; const clock = { t: 0 };
+  const server = createServer((req, res) => { hits++; res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(status === 404 ? '{}' : ''); });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  try {
+    const consumer = new OfferConsumer({}, { rabbitUrl: '', matchingUrl: `http://127.0.0.1:${server.address().port}`, matchingToken: 't' }, new CircuitBreaker('matching', { failureThreshold: 2, openMs: 5000, now: () => clock.t, onChange: () => {} }));
+    for (let i = 0; i < 3; i++) await assert.rejects(consumer.lookup('/offer'), /MATCHING_UNAVAILABLE/);
+    assert.equal(hits, 2, 'the open breaker does not call Matching');
+    clock.t += 5000; status = 404;
+    assert.equal(await consumer.lookup('/offer'), null);
+    assert.equal(consumer.breaker.state, 'closed'); assert.equal(hits, 3);
+  } finally { server.closeAllConnections(); await new Promise(r => server.close(r)); }
+});

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { CandidateClients, Clients } from '../application/ports';
 import type { Config } from '../bootstrap/config';
 import { uuid, type Assignment } from '../domain/models';
+import { CircuitBreaker, failedStatus, type BreakerOptions } from './circuit-breaker';
 /** A failed call to another service: HTTP status (0 when there was no response), its error code, and its Retry-After. */
 export class UpstreamError extends Error {
   constructor(readonly status: number, readonly code = 'HTTP_' + status, readonly dependency = 'unknown', readonly retryAfterMs: number | null = null) { super('UPSTREAM_ERROR'); }
@@ -27,12 +28,18 @@ const eta = z.object({ entries: z.array(z.object({ id: z.string(), status: z.enu
 /** True when `got` holds exactly the ids in `want`, once each. */
 const sameIds = (want: string[], got: string[]) => got.length === want.length && new Set(got).size === got.length && got.every(id => want.includes(id));
 export class HttpClients implements Clients, CandidateClients {
-  constructor(private readonly c: Config) {}
+  private readonly breakers = new Map<string, CircuitBreaker>();
+  constructor(private readonly c: Config, private readonly breakerOptions: BreakerOptions = {}) {}
+  /** The breaker of one dependency (D1); an open breaker fails the call as CIRCUIT_OPEN with Retry-After until its next trial. */
+  breaker(dependency: string) { let b = this.breakers.get(dependency); if (!b) { b = new CircuitBreaker(dependency, this.breakerOptions); this.breakers.set(dependency, b); } return b; }
   async request<T>(base: string, path: string, token: string, schema: z.ZodType<T>, body?: unknown, expected = 200): Promise<T> {
     const dependency = base === this.c.routingUrl ? 'routing' : base === this.c.driverUrl ? 'driver' : base === this.c.tripUrl ? 'trip' : base === this.c.realtimeUrl ? 'realtime' : 'unknown';
+    const breaker = this.breaker(dependency), wait = breaker.acquire();
+    if (wait > 0) throw new UpstreamError(503, 'CIRCUIT_OPEN', dependency, wait);
     let r: Response;
     try { r = await fetch(base + path, { method: body === undefined ? 'GET' : 'POST', redirect: 'error', signal: AbortSignal.timeout(this.c.httpTimeout), headers: { 'X-Service-Token': token, 'X-Request-Id': randomUUID(), 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); }
-    catch (error) { throw new UpstreamError(0, error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'UNREACHABLE', dependency); }
+    catch (error) { breaker.failure(); throw new UpstreamError(0, error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'UNREACHABLE', dependency); }
+    if (failedStatus(r.status, r.headers.get('retry-after'))) breaker.failure(); else breaker.success();
     if (r.status !== expected || !r.body) throw await failure(r, dependency);
     const chunks: Uint8Array[] = []; let bytes = 0; for await (const chunk of r.body) { bytes += chunk.length; if (bytes > 1048576) throw new UpstreamError(503, 'RESPONSE_TOO_LARGE', dependency); chunks.push(chunk); }
     const result = z.object({ data: schema }).safeParse(JSON.parse(Buffer.concat(chunks).toString('utf8'))); if (!result.success) throw new UpstreamError(503, 'INVALID_RESPONSE', dependency); return result.data.data;

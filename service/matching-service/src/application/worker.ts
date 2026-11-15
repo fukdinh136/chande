@@ -2,7 +2,7 @@ import type { Config } from '../bootstrap/config';
 import { Repository } from '../infrastructure/persistence';
 import { MatchDriver } from './match';
 import { AssignDriver } from './decisions';
-import { describeFailure, retryDelay } from './retry';
+import { busy, describeFailure, retryDelay, RetryBudget } from './retry';
 import { recordJob, traced } from './metrics';
 type Job = { trip_id: string; lease_id: string };
 /**
@@ -14,7 +14,7 @@ export class MatchingWorker {
   lastProgress = 0;
   private readonly active = new Set<Promise<void>>();
   private stopped = true; private again = false; private filling?: Promise<void>; private timer?: NodeJS.Timeout;
-  constructor(private readonly repo: Repository, private readonly match: MatchDriver, private readonly assign: AssignDriver, private readonly c: Pick<Config, 'workers' | 'leaseMs' | 'scanMs'>, private readonly onError: (error: unknown) => void = () => {}) {}
+  constructor(private readonly repo: Repository, private readonly match: MatchDriver, private readonly assign: AssignDriver, private readonly c: Pick<Config, 'workers' | 'leaseMs' | 'scanMs'>, private readonly onError: (error: unknown) => void = () => {}, private readonly budget = new RetryBudget()) {}
   get running() { return this.active.size; }
   start() { if (!this.stopped) return; this.stopped = false; this.wake(); }
   wake() {
@@ -48,6 +48,7 @@ export class MatchingWorker {
   private async work(job: Job) {
     const renewal = setInterval(() => { void this.repo.db.query("UPDATE matching_searches SET lease_until=clock_timestamp()+$3*interval '1 millisecond' WHERE trip_id=$1 AND lease_id=$2", [job.trip_id, job.lease_id, this.c.leaseMs]).catch(() => {}); }, this.c.leaseMs / 3);
     const started = performance.now(); let kind: 'search' | 'assignment' = 'search';
+    this.budget.job();
     try {
       const s = await this.repo.getSearch(job.trip_id); if (s?.status === 'ASSIGNMENT_PENDING') { kind = 'assignment'; await this.assign.execute(job.trip_id); } else await this.match.execute(job.trip_id);
       await this.repo.finishLease(job.trip_id, job.lease_id);
@@ -55,9 +56,10 @@ export class MatchingWorker {
     } catch (error) {
       recordJob(performance.now() - started, kind, 'retry');
       const failure = describeFailure(error); let delay = 1000, attempt = 0;
-      await this.repo.transaction(async tx => { const s = await tx.search(job.trip_id); if (!s) return; attempt = ++s.attempts; delay = retryDelay(attempt, failure); await tx.saveSearch(s, delay); });
+      const fast = busy(failure) && this.budget.trySpend();
+      await this.repo.transaction(async tx => { const s = await tx.search(job.trip_id); if (!s) return; attempt = ++s.attempts; delay = retryDelay(attempt, failure, Math.random, fast); await tx.saveSearch(s, delay); });
       await this.repo.finishLease(job.trip_id, job.lease_id, delay);
-      console.warn(JSON.stringify({ event: 'matching_job_retry', tripId: job.trip_id, attempt, delayMs: delay, dependency: failure.dependency, code: failure.code, status: failure.status }));
+      console.warn(JSON.stringify({ event: 'matching_job_retry', tripId: job.trip_id, attempt, delayMs: delay, dependency: failure.dependency, code: failure.code, status: failure.status, ...(busy(failure) && !fast ? { budget: 'spent' } : {}) }));
     } finally { clearInterval(renewal); }
   }
 }
