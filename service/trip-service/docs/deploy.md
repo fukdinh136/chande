@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | trip-service |
-| Rà soát | 2026-11-15 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày cập nhật: 06/10/2026. Backend, image, Compose local/test/deploy, npm scripts và migration đã có. Docker local gọi API Routing và Price; xem [báo cáo tích hợp](tich-hop-routing-price.md). Compose deploy đã kiểm tra cấu hình, chưa phát hành trên hosting thật.
@@ -254,7 +254,7 @@ Không dùng xóa volume hoặc dựng DB trống như rollback. Worker cũ ph�
 - Đề xuất backup hàng ngày và trước migration; lưu ngoài host, mã hóa, kiểm tra restore vào DB riêng. Thời gian giữ/RPO/RTO cần chủ hệ thống duyệt, chưa có cam kết SLA.
 - Backup gồm Trip, quotes, history, request receipts, inbox, outbox/deliveries và migration metadata cùng điểm nhất quán.
 - Restore có thể làm lặp delivery hoặc khôi phục trạng thái cũ so với Matching/Gateway. Trước mở traffic phải đối soát assignment/cancellation và giữ chống lặp; không giả định chỉ restore DB là đồng bộ lại mọi service.
-- Không tự cleanup receipt/inbox hoặc record outbox chưa giải quyết khi chưa có retention policy được duyệt.
+- Không tự cleanup receipt/inbox hoặc record outbox chưa giải quyết khi chưa có retention policy được duyệt. Chỉ tin outbox đã gửi xong bị xoá sau `OUTBOX_RETENTION_MS`; khôi phục bản sao lưu cũ có thể gửi lại tin đã xoá ở DB hiện tại, bên nhận bỏ qua nhờ chống lặp theo ID.
 
 ## 9. Monitoring và xử lý sự cố
 
@@ -270,7 +270,7 @@ Không dùng xóa volume hoặc dựng DB trống như rollback. Worker cũ ph�
 
 Log gồm request/trip/event/command ID và destination, không có JWT/service token/connection string hoặc snapshot hồ sơ đầy đủ. Alert tuổi outbox, worker heartbeat và SEARCHING lâu để điều tra, không gắn alert với chuyển trạng thái tự động.
 
-Hiện có JSON log cho HTTP (request ID, route pattern, trip ID hợp lệ, status, duration) và lỗi delivery (delivery/trip/destination/reason/attempts), cùng probes. Exporter metrics, dashboard và alert chưa được cài; cần nối giám sát của môi trường thật. Requeue sau khi sửa lỗi:
+Hiện có JSON log cho HTTP (request ID, route pattern, trip ID hợp lệ, status, duration), lỗi delivery (`outbox_delivery_failed`: delivery/trip/destination/reason/attempts; reason `CIRCUIT_OPEN` khi breaker của đích đang mở), `outbox_purged`, `leader_elected`/`leader_lost` và `circuit_breaker` (đích, trạng thái), cùng probes. Metric và trace OpenTelemetry bật bằng `OBSERVABILITY=on` khi deploy ([deploy backend](../../../docs/deploy-backend.md#observability-tuỳ-chọn)): độ trễ outbox `trip_outbox_delivery_lag`, số lần gửi `trip_outbox_deliveries` theo đích và kết quả, và metric HTTP/PostgreSQL chung. Alert chưa được cài. Requeue sau khi sửa lỗi:
 
 ```powershell
 npm.cmd run outbox:requeue -- 123
