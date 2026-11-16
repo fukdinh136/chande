@@ -16,8 +16,12 @@ const routingTuning = (env = process.env) => Object.fromEntries(routingLimitKeys
 const osrmThreads = (env = process.env) => { const threads = Number(env.OSRM_THREADS ?? 2); if (!Number.isInteger(threads) || threads < 1 || threads > 16) throw new Error('OSRM_THREADS must be an integer 1..16'); return String(threads); };
 function stack(s, options = { observability: observability.enabled() }) {
   const apps = services(s);
-  // Telemetry is switched on per Node process; the Java services are not instrumented yet (ADR-0003).
-  if (options.observability) for (const [name, a] of Object.entries(apps)) if (!a.java) a.env = { ...a.env, ...observability.telemetryEnv(name) };
+  // Telemetry is switched on per process (ADR-0003): the Node services through their bootstrap, the Gateway through
+  // the OpenTelemetry Java agent in its image. User (Java) is not instrumented yet.
+  if (options.observability) for (const [name, a] of Object.entries(apps)) {
+    if (!a.java) a.env = { ...a.env, ...observability.telemetryEnv(name) };
+    else if (a.service === 'gateway') a.env = { ...a.env, ...observability.javaTelemetryEnv(name) };
+  }
   return apps;
 }
 function services(s) {

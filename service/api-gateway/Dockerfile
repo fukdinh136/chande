@@ -14,6 +14,9 @@ ENTRYPOINT ["java", "-jar", "/app/app.jar"]
 
 FROM base AS runtime-prebuilt
 COPY --chown=10001:10001 target/api-gateway-0.0.1-SNAPSHOT.jar /app/app.jar
+# OpenTelemetry agent: inert unless JAVA_TOOL_OPTIONS adds -javaagent (deploy with OBSERVABILITY=on).
+COPY --chown=10001:10001 target/opentelemetry-javaagent.jar /app/opentelemetry-javaagent.jar
 
 FROM base AS runtime
 COPY --from=build --chown=10001:10001 /src/target/api-gateway-0.0.1-SNAPSHOT.jar /app/app.jar
+COPY --from=build --chown=10001:10001 /src/target/opentelemetry-javaagent.jar /app/opentelemetry-javaagent.jar

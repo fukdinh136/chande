@@ -30,15 +30,17 @@ test('edge nginx is sized from the drivers online at peak',()=>{
 const fs=require('node:fs'),path=require('node:path');
 const observability=require('./observability.cjs');
 const nodeServices=['trip','matching','driver','realtime','price','routing'];
-test('observability is off by default and switches on only the Node services',()=>{
+test('observability is off by default and switches on the Node services and the Gateway',()=>{
   const off=stack(secrets,{observability:false}),on=stack(secrets,{observability:true});
   assert.ok(!Object.values(off).some(a=>Object.keys(a.env).some(k=>k.startsWith('OTEL_'))));
   for(const [name,a] of Object.entries(on)) {
     const telemetry=Object.fromEntries(Object.entries(a.env).filter(([k])=>k.startsWith('OTEL_')));
-    if(a.java) assert.deepEqual(telemetry,{},name);
+    if(name==='user-api') assert.deepEqual(telemetry,{},name);
     else { assert.equal(telemetry.OTEL_SERVICE_NAME,name); assert.equal(telemetry.OTEL_EXPORTER_OTLP_ENDPOINT,'http://otel-collector:4318'); assert.equal(telemetry.OTEL_TRACES_SAMPLER,'parentbased_traceidratio'); }
     // Nothing else changes when the flag is on.
-    assert.deepEqual(Object.fromEntries(Object.entries(a.env).filter(([k])=>!k.startsWith('OTEL_'))),off[name].env,name);
+    // The Gateway also gets the Java agent flag next to the image's own JVM flags.
+    if(name==='gateway-api') { assert.equal(telemetry.OTEL_LOGS_EXPORTER,'none'); assert.match(a.env.JAVA_TOOL_OPTIONS,/^-XX:MaxRAMPercentage=70 -XX:ActiveProcessorCount=2 -javaagent:\/app\/opentelemetry-javaagent\.jar$/); }
+    assert.deepEqual(Object.fromEntries(Object.entries(a.env).filter(([k])=>!k.startsWith('OTEL_')&&k!=='JAVA_TOOL_OPTIONS')),off[name].env,name);
   }
 });
 test('every Node entry point loads the same telemetry bootstrap first',()=>{

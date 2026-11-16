@@ -21,6 +21,14 @@ const telemetryEnv = name => ({
   OTEL_TRACES_SAMPLER: 'parentbased_traceidratio', OTEL_TRACES_SAMPLER_ARG: sampleRatio(),
   OTEL_METRIC_EXPORT_INTERVAL: '10000', OTEL_SEMCONV_STABILITY_OPT_IN: 'http',
 });
+/**
+ * Variables that switch the OpenTelemetry Java agent on for the Gateway. JAVA_TOOL_OPTIONS replaces the image's
+ * value, so it repeats the image's JVM flags and adds the agent. Logs are not exported (the Collector has no logs pipeline).
+ */
+const javaTelemetryEnv = name => ({
+  ...telemetryEnv(name), OTEL_EXPORTER_OTLP_PROTOCOL: 'http/protobuf', OTEL_LOGS_EXPORTER: 'none',
+  JAVA_TOOL_OPTIONS: '-XX:MaxRAMPercentage=70 -XX:ActiveProcessorCount=2 -javaagent:/app/opentelemetry-javaagent.jar',
+});
 // Collector, Prometheus and Grafana read YAML; JSON is valid YAML, so the files are written as JSON.
 const collector = {
   receivers: { otlp: { protocols: { http: { endpoint: '0.0.0.0:4318' } } } },
@@ -81,4 +89,4 @@ function kubeResources({ deployment, service, metadata, secret, probeHTTP }, pas
   for (const resource of resources) resource.metadata.labels['app.kubernetes.io/component'] = 'observability';
   return resources;
 }
-module.exports = { enabled, telemetryEnv, files, composeServices, kubeResources, ports, images };
+module.exports = { enabled, telemetryEnv, javaTelemetryEnv, files, composeServices, kubeResources, ports, images };
