@@ -28,7 +28,7 @@ Không sửa nội dung một ADR đã chấp nhận. Khi đổi quyết định
 | [0006](0006-gia-dong-theo-o-h3.md) | Giá động theo ô H3 và khuyến mãi, khoá trong báo giá | 2 | Đề xuất |
 | [0007](0007-admin-web-va-role-admin.md) | Admin web React riêng, role `ADMIN` kiểm ở Gateway | 2 | Đề xuất |
 | [0008](0008-xu-ly-hang-doi-lien-tuc.md) | Outbox Trip, publisher và worker Matching xử lý hàng đợi liên tục thay vì mỗi nhịp một lô | 1 | Đã chấp nhận (2026-11-05) |
-| [0009](0009-giao-tiep-noi-bo-grpc.md) | Service Node gọi nhau qua gRPC (`proto/`), chạy song song HTTP, chọn bằng `INTERNAL_TRANSPORT` | 1 | Đề xuất — đã triển khai và đo (2026-11-15) |
+| [0009](0009-giao-tiep-noi-bo-grpc.md) | Service Node gọi nhau qua gRPC (`proto/`), chạy song song HTTP, chọn bằng `INTERNAL_TRANSPORT` | 1 | Không chấp nhận (2026-11-16); đã gỡ code |
 
 ## Mẫu
 

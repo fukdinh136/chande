@@ -3,18 +3,18 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Trip, Matching, Driver, Realtime, Routing, Price |
-| Rà soát | 2026-11-15 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../quy-uoc-tai-lieu.md) |
 
 ## Trạng thái
 
-**Đề xuất — đã triển khai và đo** ngày 2026-11-15 trên nhánh `perf/adr-0008-trip-outbox`, mặc định vẫn là HTTP. Chờ nhóm quyết định có đổi mặc định sang gRPC hay không.
+**Không chấp nhận** — nhóm quyết định ngày 2026-11-16 không chuyển giao tiếp nội bộ sang gRPC; giao tiếp giữa các service giữ HTTP/JSON. Phương án đã được triển khai thử và đo ngày 2026-11-15 trên nhánh `perf/adr-0008-trip-outbox` (commit `885d722`, `b743518`, `f20eb1e`), sau đó gỡ bằng các commit revert `d58b206`, `47b5cbd`, `c853822`. Tài liệu này giữ lại đề xuất và số đo làm căn cứ; muốn làm lại thì revert các commit revert đó.
 
 ## Bối cảnh
 
 Sáu service Node gọi nhau qua 11 luồng HTTP/JSON nội bộ: Matching → Realtime, Driver, Routing, Trip; Trip → Routing, Price, Matching; Driver → Trip, Matching; Realtime → Matching. Sau [ADR-0001](0001-matching-so-huu-tim-ung-vien.md) mỗi lần tìm xe là ba lời gọi đồng bộ, và ở 32 chuyến/giây có hàng chục nghìn lời gọi nội bộ mỗi phút. Mỗi lời gọi mở request HTTP/1.1, gửi và parse JSON, và chỉ có schema zod ở phía nhận làm hợp đồng; không có file hợp đồng chung cho cả hai phía.
 
-## Quyết định
+## Phương án đề xuất (không áp dụng)
 
 - Hợp đồng nội bộ viết bằng protobuf trong `proto/` ở gốc repo, mỗi service phía server một file (`trip.proto`, `matching.proto`, `driver.proto`, `realtime.proto`, `routing.proto`, `price.proto`) cộng `common.proto`. `scripts/sync-proto.cjs` chép vào từng service vì Docker build mỗi service từ thư mục riêng; `deploy/stack.test.cjs` báo lỗi khi bản sao lệch.
 - **Chạy song song, có công tắc.** Mỗi service luôn phục vụ cả HTTP và gRPC (cổng 50051–50056). `INTERNAL_TRANSPORT=grpc` chuyển các client Node sang gRPC; mặc định `http`. Quay lại chỉ cần deploy lại không có biến.
@@ -34,11 +34,15 @@ Sáu service Node gọi nhau qua 11 luồng HTTP/JSON nội bộ: Matching → R
 
 ## Hệ quả
 
-- Tích cực: hợp đồng nội bộ thành file chung cho cả hai phía; CPU các service Node giảm 7–21% ở cùng tải ([báo cáo kiểm thử tải, mục 13](../bao-cao-kiem-thu-tai.md#13-http-và-grpc-giữa-các-service-2026-11-15)); độ trễ không tệ hơn.
-- Tiêu cực: mỗi API nội bộ có hai mặt (HTTP và gRPC) phải giữ khớp; mỗi pod API mở thêm một cổng; image thêm hai gói npm.
-- Trung tính: số câu SQL và việc mỗi service làm không đổi.
+Số đo khi thử (cùng code, chỉ đổi giao thức; [báo cáo kiểm thử tải, mục 13](../bao-cao-kiem-thu-tai.md#13-http-và-grpc-giữa-các-service-2026-11-15)):
 
-## Tiêu chí hoàn thành
+- Được: CPU các service Node giảm 7–21% ở cùng tải; độ trễ p95 tương đương; có file hợp đồng chung cho cả hai phía.
+- Mất: mỗi API nội bộ có hai mặt (HTTP và gRPC) phải giữ khớp; mỗi pod API mở thêm một cổng; thêm hai gói npm và một bước đồng bộ `proto/` cho sáu service.
+- Không đổi: số câu SQL, thông lượng đạt ngưỡng (32 chuyến/giây với cả hai).
+
+Với quyết định không chấp nhận: API nội bộ chỉ có HTTP/JSON như trước, không còn `proto/`, cổng 50051–50056 và biến `INTERNAL_TRANSPORT`. Circuit breaker (D1) vẫn áp dụng cho client HTTP.
+
+## Kết quả khi thử (2026-11-15)
 
 | Tiêu chí | Kết quả 2026-11-15 |
 | --- | --- |

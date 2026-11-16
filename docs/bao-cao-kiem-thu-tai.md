@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-15 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Báo cáo kiểm thử hiệu năng cho mục P2.6 trong [kiến trúc mục tiêu](kien-truc-muc-tieu.md), đo ngày 2026-11-04 sau khi hoàn thành nhóm cải tiến A và cải tiến môi trường đo E1–E3 trong [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md). Mọi kết quả được so với mốc ban đầu đo ngày 2026-10-28/29 trên cùng máy và cùng kịch bản. Kế hoạch, test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md); công cụ nằm trong [deploy/load](../deploy/load/README.md).
@@ -475,6 +475,8 @@ Lệnh đo: [mục 10](#10-phụ-lục-chạy-lại) với `--rate` tương ứn
 
 ## 13. HTTP và gRPC giữa các service (2026-11-15)
 
+> Ngày 2026-11-16 nhóm quyết định không chuyển sang gRPC ([ADR-0009](adr/0009-giao-tiep-noi-bo-grpc.md), không chấp nhận) và code gRPC đã được gỡ. Mục này giữ số đo làm căn cứ cho quyết định; các dòng HTTP vẫn là số đo của code hiện tại.
+
 Mã nguồn: nhánh `perf/adr-0008-trip-outbox`, commit `f20eb1e`. So với [mục 12](#12-đo-lại-với-observability-2026-11-10) có thêm: circuit breaker và ngân sách thử lại (D1), Leader Election cho việc dọn outbox, Priority Queue cho worker Matching, và gRPC cho 11 luồng gọi giữa các service Node ([ADR-0009](adr/0009-giao-tiep-noi-bo-grpc.md)). Cùng code, cùng image; chỉ đổi `INTERNAL_TRANSPORT` khi `kube-up`. Cùng cách đo giống app (trong cụm, `/ws`, GPS 10 giây), 1000 tài xế, 2 phút mỗi mức, tắt observability. Thứ tự chạy: gRPC 8, 16, 32 → HTTP 8, 16, 32 → gRPC 32 lần hai.
 
 | Giao thức | Đặt chuyến/giây | Được gán | p95 tới `ASSIGNED` | Báo giá p95 | Ack GPS p95 | Tổng câu SQL | CPU 8 pod Node TB | CPU PostgreSQL TB / max | CPU matching-worker TB / max | CPU trip-api TB / max | Đạt |
@@ -496,4 +498,4 @@ Lỗi HTTP 0% ở mọi lần. Nhận xét:
 
 Kiểm chứng chức năng cùng ngày: smoke trên Kubernetes (một chuyến hoàn thành, một chuyến huỷ qua Gateway) qua ở cả `http` và `grpc`; ở chế độ `grpc`, đọc `/proc/net/tcp` trong pod cho thấy matching-worker giữ kết nối tới cổng 50051, 50053, 50054, 50055, trip-worker tới 50052, trip-api tới 50055, 50056 và realtime-api tới 50052.
 
-Lệnh đo: [mục 10](#10-phụ-lục-chạy-lại) với `--rate` tương ứng; chuyển giao thức theo [deploy backend](deploy-backend.md#giao-tiếp-nội-bộ-bằng-grpc-tuỳ-chọn). Kết quả ở `deploy/.local/load/results/2026-11-15T14*` và `2026-11-15T15-01-01-652Z`.
+Lệnh đo: [mục 10](#10-phụ-lục-chạy-lại) với `--rate` tương ứng; khi đo, giao thức được chọn bằng biến `INTERNAL_TRANSPORT` (đã gỡ). Kết quả ở `deploy/.local/load/results/2026-11-15T14*` và `2026-11-15T15-01-01-652Z`.

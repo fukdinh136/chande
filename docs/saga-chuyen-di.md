@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Trip, Matching, Driver, Realtime |
-| Rà soát | 2026-11-15 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Một chuyến đi chạm tới bốn service, mỗi service có database riêng, nên không có transaction chung. Tài liệu này mô tả luồng chuyến đi như một **saga kiểu choreography**: không có bộ điều phối trung tâm, mỗi service tự làm bước của mình khi nhận lệnh hoặc event, và mỗi bước có thể hỏng đều có hành động bù trừ (compensating transaction). Đây là đề xuất D4 trong [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md#54-nhóm-d-chịu-lỗi-và-vận-hành). Mô tả theo code trên nhánh `perf/adr-0008-trip-outbox`.
@@ -44,7 +44,7 @@ Phía Matching, mỗi chuyến có một search: `SEARCHING` → `ASSIGNMENT_PEN
 | 2 | Nhận lệnh tìm xe | Matching: tạo search `SEARCHING` (idempotent theo `commandId`) | — | Lệnh huỷ tới trước lệnh tìm (outbox gửi từng delivery độc lập) | Lệnh huỷ lưu search ở trạng thái kết thúc; lệnh tìm tới sau thấy search đã có thì không làm gì |
 | 3 | Tìm ứng viên và mời | Matching: lấy vị trí (Realtime), kiểm điều kiện (Driver), ETA (Routing); giữ tài xế bằng reservation; tạo offer `PENDING` sống 20 giây | `matching_outbox` → RabbitMQ → Realtime → app tài xế | Realtime/Driver/Routing lỗi hoặc bận | Job thử lại (A7, ngân sách D1); chưa giữ tài xế nào khi bước tìm lỗi |
 | 4 | Tài xế không trả lời / từ chối | Matching: offer `EXPIRED` / `DECLINED` | Event offer cập nhật | — | **Bù trừ:** nhả reservation, search về `SEARCHING`, mời tài xế kế tiếp (không mời lại người đã thử) |
-| 5 | Tài xế nhận | Matching: offer và search `ASSIGNMENT_PENDING`, giữ reservation | Gọi Trip `assignment` (HTTP hoặc gRPC) | Trip tắt, timeout, mạng lỗi | Giữ reservation, job thử lại với cùng `eventId` (Priority Queue xử lý job này trước). Sau lỗi, Matching đọc lại trạng thái Trip để đối soát |
+| 5 | Tài xế nhận | Matching: offer và search `ASSIGNMENT_PENDING`, giữ reservation | Gọi Trip `assignment` (HTTP) | Trip tắt, timeout, mạng lỗi | Giữ reservation, job thử lại với cùng `eventId` (Priority Queue xử lý job này trước). Sau lỗi, Matching đọc lại trạng thái Trip để đối soát |
 | 6 | Trip nhận gán | Trip: `SEARCHING` → `ASSIGNED`, ghi event `trip.assigned` | Outbox → Gateway, notification | Chuyến đã huỷ, đã gán người khác, tài xế đang có chuyến khác (409) | **Bù trừ:** Matching đánh dấu offer `REJECTED`, nhả reservation, search về `SEARCHING`, tìm tiếp. Nếu đọc lại thấy chuyến đã `ASSIGNED` cho chính tài xế này (lần gọi trước thật ra đã thành công) thì xác nhận offer `ASSIGNED` |
 | 7 | Khách hoặc tài xế huỷ | Trip: → `CANCELLED`, ghi lệnh `matching.search.cancelled` và event `trip.cancelled` | Outbox → Matching, Gateway, notification | Huỷ trong lúc offer đang chờ hoặc đã gán | **Bù trừ:** Matching thu hồi offer (`REVOKED`), nhả reservation, báo app tài xế qua Realtime. Tài xế nhận được chuyến khác |
 | 8 | Hoàn thành | Trip: `IN_PROGRESS` → `COMPLETED`, ghi event `trip.completed` | Outbox → Matching, Gateway, notification | Matching tạm hỏng | Outbox gửi lại; Matching đóng search và nhả reservation khi nhận được |
