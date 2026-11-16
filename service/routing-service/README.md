@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | routing-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày cập nhật: 06/10/2026. Đã có runtime TypeScript/NestJS, bốn API, OSRM adapter và pipeline queue/pool/limiter. Từ 2026-11-05 ETA matrix nhận origins do Matching chọn, Routing không gọi Realtime ([ADR-0001](../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)); CAR_4/CAR_7 đã chạy với OSRM Hà Nội trong stack Matching. Xem [báo cáo triển khai](docs/bao-cao-trien-khai.md) cho checks/commit và giới hạn tích hợp.

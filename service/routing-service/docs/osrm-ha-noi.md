@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | routing-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày 06/10/2026. Người dùng chọn tự host OSRM bằng Docker cho Hà Nội. Routing vẫn dùng Node.js/TypeScript; OSRM là backend C++ riêng, gọi qua HTTP. Bật CAR trước, BIKE chưa có profile xe máy được xác nhận.
@@ -20,7 +20,7 @@ Ngày 06/10/2026. Người dùng chọn tự host OSRM bằng Docker cho Hà N�
 | Routing container endpoint | `http://osrm:5000`, network Docker `chande-osrm` |
 | Auth | `none`, không cần API key cho OSRM gốc; private HTTP được bật tường minh |
 | Vehicle types | CAR; profile BIKE null, không fallback sang car/bicycle |
-| Realtime | Mock riêng; không đổi thành real chỉ vì OSRM real |
+| Realtime | Không liên quan: từ 2026-11-05 Routing không gọi Realtime ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)) |
 | Tài nguyên | Osmium clip tối đa 4 GiB; OSRM preprocess 2 GiB/2 CPU; backend 1 GiB/2 threads |
 
 Nguồn chính thức: [OSRM Docker và MLD](https://github.com/Project-OSRM/osrm-backend/blob/v26.10.0/README.md), [image registry](https://github.com/Project-OSRM/osrm-backend/pkgs/container/osrm-backend), [Geofabrik Việt Nam](https://download.geofabrik.de/asia/vietnam.html), [Osmium extract](https://docs.osmcode.org/osmium/latest/osmium-extract.html). Pipeline: `osmium extract --strategy complete_ways` → `osrm-extract` → `osrm-partition` → `osrm-customize` → `osrm-routed --algorithm mld`.
