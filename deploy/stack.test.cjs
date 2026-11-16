@@ -76,15 +76,3 @@ test('routing limits pass through only when set',()=>{
   assert.deepEqual(routingTuning({}),{}); assert.deepEqual(routingTuning({WORKER_POOL_SIZE:'4',UNRELATED:'1'}),{WORKER_POOL_SIZE:'4'});
   assert.equal(osrmThreads({}),'2'); assert.equal(osrmThreads({OSRM_THREADS:'4'}),'4'); assert.throws(()=>osrmThreads({OSRM_THREADS:'0'}),/OSRM_THREADS/);
 });
-test('every Node API serves gRPC on its own port; INTERNAL_TRANSPORT=grpc switches only the Node callers',()=>{
-  const http=stack(secrets,{observability:false,internalTransport:'http'}), grpc=stack(secrets,{observability:false,internalTransport:'grpc'});
-  const ports=Object.fromEntries(Object.entries(http).filter(([,a])=>a.grpcPort).map(([n,a])=>[n,a.grpcPort]));
-  assert.deepEqual(ports,{'driver-api':50053,'trip-api':50051,'routing-api':50055,'price-api':50056,'matching-api':50052,'realtime-api':50054});
-  assert.ok(Object.values(http).every(a=>a.env.INTERNAL_TRANSPORT===undefined),'HTTP adds no env key, so env hashes stay as before');
-  for (const [name,a] of Object.entries(grpc)) assert.equal(a.env.INTERNAL_TRANSPORT,a.java?undefined:'grpc',name);
-  assert.throws(()=>require('./stack.cjs').internalTransport({INTERNAL_TRANSPORT:'rest'}),/INTERNAL_TRANSPORT/);
-});
-test('each service carries the same proto files as proto/',()=>{
-  const result=require('node:child_process').spawnSync(process.execPath,[path.join(__dirname,'..','scripts','sync-proto.cjs'),'--check'],{encoding:'utf8'});
-  assert.equal(result.status,0,result.stderr);
-});

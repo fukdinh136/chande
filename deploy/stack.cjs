@@ -14,15 +14,10 @@ const routingLimitKeys = ['WORKER_POOL_SIZE', 'QUEUE_MAX_SIZE', 'QUEUE_ADMISSION
 const routingTuning = (env = process.env) => Object.fromEntries(routingLimitKeys.map(key => [key, env[key] ?? routingLimits[key]]).filter(([, value]) => value !== undefined && value !== ''));
 /** Threads of the OSRM server; raise together with WORKER_POOL_SIZE. */
 const osrmThreads = (env = process.env) => { const threads = Number(env.OSRM_THREADS ?? 2); if (!Number.isInteger(threads) || threads < 1 || threads > 16) throw new Error('OSRM_THREADS must be an integer 1..16'); return String(threads); };
-/** How the Node services call each other: INTERNAL_TRANSPORT=grpc at generate time, else HTTP (the default). */
-const internalTransport = (env = process.env) => { const value = env.INTERNAL_TRANSPORT || 'http'; if (value !== 'http' && value !== 'grpc') throw new Error('INTERNAL_TRANSPORT must be http or grpc'); return value; };
-function stack(s, options = { observability: observability.enabled(), internalTransport: internalTransport() }) {
+function stack(s, options = { observability: observability.enabled() }) {
   const apps = services(s);
   // Telemetry is switched on per Node process; the Java services are not instrumented yet (ADR-0003).
   if (options.observability) for (const [name, a] of Object.entries(apps)) if (!a.java) a.env = { ...a.env, ...observability.telemetryEnv(name) };
-  // Every Node API serves its internal API over gRPC too (grpcPort); with grpc the Node callers switch to it.
-  // HTTP adds no key, so the env (and its hash) stays what it was before gRPC.
-  if (options.internalTransport === 'grpc') for (const a of Object.values(apps)) if (!a.java) a.env = { ...a.env, INTERNAL_TRANSPORT: 'grpc' };
   return apps;
 }
 function services(s) {
@@ -35,14 +30,14 @@ function services(s) {
   return {
     'user-api': app('user', 3011, { PORT: '3011', DB_URL: 'jdbc:postgresql://postgres:5432/user_db', DB_USERNAME: 'user_service', DB_PASSWORD: s.userPassword, JWT_ISSUER: 'chande-rider-local', JWT_PRIVATE_KEY_FILE: '/run/keys/user.pem', JWT_KEY_ID: 'backend-rider-v1', JWT_AUDIENCE: 'trip-service', INTERNAL_API_KEY: s.userInternal }, { ready: '/health', live: '/health', keys: true, java: true }),
     'gateway-api': app('gateway', 8080, { PORT: '8080', INTERNAL_PORT: '8090', USER_SERVICE_URLS: 'http://user-api:3011', DRIVER_SERVICE_URLS: 'http://driver-api:3003', TRIP_SERVICE_URLS: 'http://trip-api:3001', ROUTING_SERVICE_URLS: 'http://routing-api:3004', MATCHING_SERVICE_URLS: 'http://matching-api:3007', ROUTING_GATEWAY_TOKEN: s.gatewayRouting, RIDER_JWT_ISSUER: 'chande-rider-local', RIDER_JWKS_URI: 'http://user-api:3011/.well-known/jwks.json', DRIVER_JWT_ISSUER: 'chande-driver-local', DRIVER_JWKS_URI: 'http://driver-api:3003/.well-known/jwks.json', TRIP_SERVICE_TOKEN: s.tripGateway, REDIS_HOST: 'redis', REDIS_PORT: '6379', SPRING_DATA_REDIS_DATABASE: '3', AUTH_MAX_ATTEMPTS: '1000', DRIVER_PROXY_TOKEN: s.driverProxy, CORS_ALLOWED_ORIGINS: 'http://localhost:5500,http://127.0.0.1:5500,http://localhost:8081,http://127.0.0.1:8081' }, { ready: '/actuator/health/readiness', live: '/actuator/health/liveness', java: true }),
-    'driver-api': app('driver', 3003, { NODE_ENV: 'development', PORT: '3003', DATABASE_URL: db('driver'), REDIS_URL: 'redis://redis:6379/1', AUTH_JWT_ISSUER: 'chande-driver-local', AUTH_JWT_AUDIENCES: 'driver-service,trip-service,realtime-service,matching-service', AUTH_SIGNING_KEY_FILE: '/run/keys/driver.pem', AUTH_KEY_ID: 'backend-driver-v1', OTP_MODE: 'mock', OTP_MOCK_CODE: '123456', GATEWAY_PROXY_TOKEN: s.driverProxy, OTP_RESEND_SECONDS: '1', TRIP_MODE: 'real', TRIP_BASE_URL: 'http://trip-api:3001', HTTP_TIMEOUT_MS: '2000', MATCHING_INBOUND_TOKEN: s.matchingDriver, TRIP_LOOKUP_TOKEN: s.driverTrip, MATCHING_LOOKUP_TOKEN: s.driverMatching, MATCHING_BASE_URL: 'http://matching-api:3007' }, { keys: true, grpcPort: 50053 }),
-    'trip-api': app('trip', 3001, trip, { migration: true, grpcPort: 50051 }),
+    'driver-api': app('driver', 3003, { NODE_ENV: 'development', PORT: '3003', DATABASE_URL: db('driver'), REDIS_URL: 'redis://redis:6379/1', AUTH_JWT_ISSUER: 'chande-driver-local', AUTH_JWT_AUDIENCES: 'driver-service,trip-service,realtime-service,matching-service', AUTH_SIGNING_KEY_FILE: '/run/keys/driver.pem', AUTH_KEY_ID: 'backend-driver-v1', OTP_MODE: 'mock', OTP_MOCK_CODE: '123456', GATEWAY_PROXY_TOKEN: s.driverProxy, OTP_RESEND_SECONDS: '1', TRIP_MODE: 'real', TRIP_BASE_URL: 'http://trip-api:3001', HTTP_TIMEOUT_MS: '2000', MATCHING_INBOUND_TOKEN: s.matchingDriver, TRIP_LOOKUP_TOKEN: s.driverTrip, MATCHING_LOOKUP_TOKEN: s.driverMatching, MATCHING_BASE_URL: 'http://matching-api:3007' }, { keys: true }),
+    'trip-api': app('trip', 3001, trip, { migration: true }),
     'trip-worker': app('trip', 3002, trip, { command: ['node', 'dist/worker.js'], worker: true, dependencies: ['trip-api'] }),
-    'routing-api': app('routing', 3004, { NODE_ENV: 'development', APP_ENV: 'development', HOST: '0.0.0.0', PORT: '3004', INTEGRATION_MODE: 'real', MATRIX_MAX_CANDIDATES: '50', EXTERNAL_MAP_SELF_HOSTED: 'true', SUPPORTED_VEHICLE_TYPES: 'CAR_4,CAR_7', VEHICLE_PROFILES_FILE: 'config/vehicle-profiles.osrm.json', EXTERNAL_MAP_BASE_URL: 'http://osrm:5000', EXTERNAL_MAP_ALLOW_HTTP: 'true', EXTERNAL_MAP_ALLOWED_HOSTS: 'osrm', ROUTING_TRIP_TOKEN: s.tripRouting, ROUTING_MATCHING_TOKEN: s.matchingRouting, ROUTING_GATEWAY_TOKEN: s.gatewayRouting, ...routingTuning() }, { grpcPort: 50055 }),
-    'price-api': app('price', 3005, { NODE_ENV: 'development', HOST: '0.0.0.0', PRICE_TRIP_TOKEN: s.tripPrice, SUPPORTED_VEHICLE_TYPES: 'CAR_4,CAR_7', FARE_POLICY_FILE: 'config/fare-policy.example.json' }, { grpcPort: 50056 }),
-    'matching-api': app('matching', 3007, matching, { migration: true, grpcPort: 50052 }),
+    'routing-api': app('routing', 3004, { NODE_ENV: 'development', APP_ENV: 'development', HOST: '0.0.0.0', PORT: '3004', INTEGRATION_MODE: 'real', MATRIX_MAX_CANDIDATES: '50', EXTERNAL_MAP_SELF_HOSTED: 'true', SUPPORTED_VEHICLE_TYPES: 'CAR_4,CAR_7', VEHICLE_PROFILES_FILE: 'config/vehicle-profiles.osrm.json', EXTERNAL_MAP_BASE_URL: 'http://osrm:5000', EXTERNAL_MAP_ALLOW_HTTP: 'true', EXTERNAL_MAP_ALLOWED_HOSTS: 'osrm', ROUTING_TRIP_TOKEN: s.tripRouting, ROUTING_MATCHING_TOKEN: s.matchingRouting, ROUTING_GATEWAY_TOKEN: s.gatewayRouting, ...routingTuning() }),
+    'price-api': app('price', 3005, { NODE_ENV: 'development', HOST: '0.0.0.0', PRICE_TRIP_TOKEN: s.tripPrice, SUPPORTED_VEHICLE_TYPES: 'CAR_4,CAR_7', FARE_POLICY_FILE: 'config/fare-policy.example.json' }),
+    'matching-api': app('matching', 3007, matching, { migration: true }),
     'matching-worker': app('matching', 3017, matching, { command: ['node', 'dist/worker.js'], worker: true, dependencies: ['matching-api', 'trip-api', 'routing-api', 'realtime-api'] }),
-    'realtime-api': app('realtime', 3006, { NODE_ENV: 'development', PORT: '3006', REDIS_URL: 'redis://redis:6379/2', AUTH_JWKS_URL: 'http://driver-api:3003/.well-known/jwks.json', AUTH_JWT_ISSUER: 'chande-driver-local', AUTH_JWT_AUDIENCE: 'realtime-service', RABBITMQ_URL: matching.RABBITMQ_URL, MATCHING_BASE_URL: 'http://matching-api:3007', MATCHING_REALTIME_TOKEN: s.realtimeMatching, MATCHING_LOCATION_TOKEN: s.matchingLocation }, { grpcPort: 50054 }),
+    'realtime-api': app('realtime', 3006, { NODE_ENV: 'development', PORT: '3006', REDIS_URL: 'redis://redis:6379/2', AUTH_JWKS_URL: 'http://driver-api:3003/.well-known/jwks.json', AUTH_JWT_ISSUER: 'chande-driver-local', AUTH_JWT_AUDIENCE: 'realtime-service', RABBITMQ_URL: matching.RABBITMQ_URL, MATCHING_BASE_URL: 'http://matching-api:3007', MATCHING_REALTIME_TOKEN: s.realtimeMatching, MATCHING_LOCATION_TOKEN: s.matchingLocation }),
   };
 }
 // Edge nginx sized from the drivers expected online at peak (A9). Each driver WebSocket holds two connections
@@ -53,4 +48,4 @@ const edgeSizing = (peakDrivers = Number(process.env.EDGE_PEAK_DRIVERS || 5000))
   const memoryMi = Math.ceil((64 + peakDrivers * 72 / 1024) / 64) * 64;
   return { peakDrivers, workerConnections, rlimitNofile: workerConnections * 2, memory: memoryMi + 'Mi' };
 };
-module.exports = { root, images, stack, edgeSizing, routingTuning, osrmThreads, internalTransport };
+module.exports = { root, images, stack, edgeSizing, routingTuning, osrmThreads };
