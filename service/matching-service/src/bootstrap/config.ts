@@ -17,7 +17,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     realtimeUrl: http('REALTIME_BASE_URL'), realtimeToken: token('REALTIME_MATCHING_TOKEN'),
     nearbyLimit: integer('NEARBY_LIMIT', 200, 200), matrixCandidates: integer('MATRIX_CANDIDATES', 25, 50),
     jwksUrl: http('AUTH_JWKS_URL'), issuer: required('AUTH_JWT_ISSUER'), audience: value('AUTH_JWT_AUDIENCE', 'matching-service'), httpTimeout: integer('HTTP_TIMEOUT_MS', 4500, 10000),
-    workers: integer('WORKER_CONCURRENCY', 16, 16), pollMs: integer('SEARCH_POLL_MS', 5000, 60000), scanMs: integer('WORKER_SCAN_MS', 250, 5000), leaseMs: 60000,
+    workers: integer('WORKER_CONCURRENCY', 16, 64), dbPoolSize: integer('DB_POOL_SIZE', 10, 50), pollMs: integer('SEARCH_POLL_MS', 5000, 60000), scanMs: integer('WORKER_SCAN_MS', 250, 5000), leaseMs: 60000,
     publisherBatchMax: integer('PUBLISHER_BATCH_MAX', 200, 1000), publisherScanMs: integer('PUBLISHER_SCAN_MS', 250, 5000),
     outboxRetentionMs: integer('OUTBOX_RETENTION_MS', 86400000, 2592000000), outboxPurgeIntervalMs: integer('OUTBOX_PURGE_INTERVAL_MS', 600000, 86400000), swagger: value('SWAGGER_ENABLED', 'false') === 'true' };
 }

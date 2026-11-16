@@ -29,7 +29,8 @@ export class MatchingOutboxPublished1793750400001 implements MigrationInterface 
   async up(q: QueryRunner) { await q.query('CREATE INDEX IF NOT EXISTS matching_outbox_published ON matching_outbox(published_at) WHERE published_at IS NOT NULL'); }
   async down(q: QueryRunner) { await q.query('DROP INDEX IF EXISTS matching_outbox_published'); }
 }
-export function source(url: string) { return new DataSource({ type: 'postgres', url, migrations: [MatchingInitial1791244800000, MatchingOutboxPending1793750400000, MatchingOutboxPublished1793750400001], synchronize: false, logging: false, extra: { max: 10, connectionTimeoutMillis: 5000, query_timeout: 10000 } }); }
+/** `poolSize`: PostgreSQL connections of this process (DB_POOL_SIZE); the worker needs about one per two running jobs. */
+export function source(url: string, poolSize = 10) { return new DataSource({ type: 'postgres', url, migrations: [MatchingInitial1791244800000, MatchingOutboxPending1793750400000, MatchingOutboxPublished1793750400001], synchronize: false, logging: false, extra: { max: poolSize, connectionTimeoutMillis: 5000, query_timeout: 10000 } }); }
 export class Tx {
   constructor(readonly db: EntityManager) {}
   async lock(scope: string) { await this.db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [scope]); }

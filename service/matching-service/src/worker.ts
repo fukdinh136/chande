@@ -14,7 +14,7 @@ import { OfferExpiry } from './application/expiry';
 import { DrainLoop } from './application/drain-loop';
 import { LeaderElection } from './infrastructure/leader';
 async function main() {
-  const c = loadConfig(), db = source(c.databaseUrl); await db.initialize(); const repo = new Repository(db), clients = new HttpClients(c);
+  const c = loadConfig(), db = source(c.databaseUrl, c.dbPoolSize); await db.initialize(); const repo = new Repository(db), clients = new HttpClients(c);
   // The offer publisher drains matching_outbox in its own loop (ADR-0008): it keeps going while a round hits
   // PUBLISHER_BATCH_MAX, rests PUBLISHER_SCAN_MS when idle, and is woken as soon as this process commits an offer.
   const publisher = new OfferPublisher(repo, c.rabbitUrl, c.publisherBatchMax);
