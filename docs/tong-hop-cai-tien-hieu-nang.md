@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-16 |
+| Rà soát | 2026-11-17 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Tài liệu cho các thành viên cần quyết định có merge nhánh `perf/adr-0008-trip-outbox` vào `main` hay không. Nó tóm tắt nhánh này đổi gì so với `main`, vì sao, đo được gì, phải đánh đổi gì và merge thì cần lưu ý gì. Chi tiết từng phần nằm ở [báo cáo kiểm thử tải](bao-cao-kiem-thu-tai.md), [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md) và các [ADR](adr/README.md).
@@ -131,6 +131,13 @@ Thêm sau lần đo cuối, **chưa đo**. Không nhằm tăng thông lượng.
 
 Đo ngày 2026-11-15 ([báo cáo, mục 13](bao-cao-kiem-thu-tai.md#13-http-và-grpc-giữa-các-service-2026-11-15)): với D1, Leader Election và Priority Queue, HTTP vẫn đạt ngưỡng ở 8, 16, 32 chuyến/giây, số câu SQL không đổi. Bản thử gRPC tốn ít CPU hơn 7–21% ở các service Node với p95 tương đương; nhóm quyết định không chuyển.
 
+### 3.10 Tìm trần và quan sát Gateway (2026-11-17)
+
+- Gateway (Java) có OpenTelemetry qua Java agent, bật cùng `OBSERVABILITY=on`.
+- Đo tiếp trên 32 chuyến/giây: **48 chuyến/giây vẫn đạt** (p95 1,7 giây), 64 thì không; trần quanh 45–50. Điểm nghẽn kế tiếp là sức xử lý đồng thời của Matching worker, chưa kiểm chứng bằng thử nghiệm.
+- Chạy liên tục 30 phút ở 16 chuyến/giây: 28800/28800 chuyến, p95 0,93 giây, không còn đợt chậm 3 phút.
+- Chi tiết: [báo cáo, mục 14](bao-cao-kiem-thu-tai.md#14-tìm-trần-và-quan-sát-gateway-2026-11-17).
+
 ## 4. Kết quả đo
 
 Cùng một máy, 1000 tài xế, mỗi mức chạy 2 phút. "Đạt" nghĩa là đồng thời: tạo chuyến → có tài xế p95 ≤ 10 giây, báo giá p95 ≤ 300 ms, ack GPS p95 ≤ 200 ms, lỗi HTTP < 0,5%.
@@ -183,12 +190,12 @@ API public qua Gateway, app Android và web không đổi.
 
 **Chưa làm hoặc chưa chắc**
 
-- Gateway, User, Payment (Java) chưa có observability.
+- User (Java) chưa có observability; Gateway đã có từ 2026-11-17.
 - Một chuyến hiện là ba đoạn trace, chưa phải một trace liền từ đầu tới cuối.
-- Chưa tìm thấy trần thông lượng; chưa đo trên 32 chuyến/giây.
+- Trần quanh 45–50 chuyến/giây (48 đạt, 64 không); chưa đo các mức ở giữa và chưa thử nâng sức xử lý của Matching worker.
 - Mỗi mức tải mới đo một lần, 2 phút, trên một laptop. Hai lần đo cùng mức có thể lệch đáng kể (ví dụ p95 2,0 và 1,5 giây).
 - Lần 5000 tài xế ở 8 chuyến/giây không đạt ngày 2026-11-05 nay đạt, nhưng chưa xác định được vì sao hôm đó không đạt.
-- Đợt chậm 3 phút khi chạy 30 phút chưa được đo lại.
+- Đợt chậm 3 phút khi chạy 30 phút không lặp lại ở lần đo 2026-11-17; còn hai gợn dưới một phút lúc 1000 tài xế nối lại cùng lúc.
 - Observability mới kiểm chứng trên Kubernetes; phía Docker Compose mới có test sinh cấu hình.
 - D1 (circuit breaker) chưa đo: cần tắt Routing giữa lúc đo để xem báo giá lỗi nhanh và hồi phục, và đo lại ở tải cao để chắc breaker không ngừng gọi nhầm.
 - Chưa có nhiều replica cho service nào; đây là việc của tính sẵn sàng, chưa cần cho hiệu năng ở các mức đã đo.

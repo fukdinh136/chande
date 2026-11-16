@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-16 |
+| Rà soát | 2026-11-17 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Báo cáo kiểm thử hiệu năng cho mục P2.6 trong [kiến trúc mục tiêu](kien-truc-muc-tieu.md), đo ngày 2026-11-04 sau khi hoàn thành nhóm cải tiến A và cải tiến môi trường đo E1–E3 trong [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md). Mọi kết quả được so với mốc ban đầu đo ngày 2026-10-28/29 trên cùng máy và cùng kịch bản. Kế hoạch, test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md); công cụ nằm trong [deploy/load](../deploy/load/README.md).
@@ -499,3 +499,67 @@ Lỗi HTTP 0% ở mọi lần. Nhận xét:
 Kiểm chứng chức năng cùng ngày: smoke trên Kubernetes (một chuyến hoàn thành, một chuyến huỷ qua Gateway) qua ở cả `http` và `grpc`; ở chế độ `grpc`, đọc `/proc/net/tcp` trong pod cho thấy matching-worker giữ kết nối tới cổng 50051, 50053, 50054, 50055, trip-worker tới 50052, trip-api tới 50055, 50056 và realtime-api tới 50052.
 
 Lệnh đo: [mục 10](#10-phụ-lục-chạy-lại) với `--rate` tương ứng; khi đo, giao thức được chọn bằng biến `INTERNAL_TRANSPORT` (đã gỡ). Kết quả ở `deploy/.local/load/results/2026-11-15T14*` và `2026-11-15T15-01-01-652Z`.
+
+## 14. Tìm trần và quan sát Gateway (2026-11-17)
+
+Mã nguồn: nhánh `perf/adr-0008-trip-outbox`, commit `d019fac` (giao tiếp nội bộ HTTP; thêm OpenTelemetry Java agent cho Gateway). Cùng cách đo giống app (trong cụm, `/ws`, GPS 10 giây), 1000 tài xế, 2 phút mỗi mức, mỗi mức một lần.
+
+### 14.1 Trần thông lượng (tắt observability)
+
+| Đặt chuyến/giây | Được gán | p95 tới `ASSIGNED` | Báo giá p95 | Ack GPS p95 | Tổng câu SQL | CPU PostgreSQL TB / max | CPU matching-worker TB / max | CPU gateway-api TB / max | Đạt |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 40 | 4801/4801 | 1,6 giây | 71 ms | 8 ms | 899439 | 762 / 930 m | 353 / 408 m | 535 / 1002 m | Đạt |
+| 48 | 5761/5761 | 1,7 giây | 68 ms | 11 ms | 1084366 | 928 / 1143 m | 432 / 579 m | 527 / 673 m | Đạt |
+| 64 | 5632/5696, bỏ 1984 lượt | 42,7 giây | 154 ms | 48 ms | 1189135 | 1266 / 1428 m | 656 / 818 m | 621 / 765 m | **Không đạt** |
+
+Lỗi HTTP 0% ở cả ba mức. **Mức cao nhất đạt ngưỡng là 48 chuyến/giây.** Ở 64 chuyến/giây hệ thống chỉ gán được khoảng 45 chuyến/giây (5632 chuyến trong 125 giây), nên trần nằm quanh 45–50 chuyến/giây; chưa đo các mức giữa 48 và 64.
+
+Ở 64 chuyến/giây, thời gian dồn vào hai đoạn của Matching: `SEARCHING` → tạo offer p95 36,7 giây và offer → publish p95 12,3 giây; hai đoạn sau (tài xế nhận, Trip ghi `ASSIGNED`) vẫn 49 ms và 301 ms. Log của matching-worker trong lúc đó không có lần thử lại nào vì dependency bận, Routing không từ chối, breaker không mở, và không pod nào chạm giới hạn CPU của nó (PostgreSQL 1,27 core, matching-worker 0,66 core trung bình).
+
+Vì vậy điểm nghẽn là **số việc Matching worker làm được cùng lúc**, không phải thiếu CPU chung: pool job bị chặn ở `WORKER_CONCURRENCY` tối đa 16, pool kết nối PostgreSQL của Matching là 10 (một kết nối do Leader Election giữ), và worker là một process Node một luồng đã dùng 0,66–0,82 core. Đây là suy luận từ số đo và cấu hình, **chưa kiểm chứng bằng thử nghiệm** (nâng trần `WORKER_CONCURRENCY` và pool kết nối, hoặc chạy 2 replica worker, rồi đo lại 64).
+
+### 14.2 Gateway dưới tải (bật observability, 32 chuyến/giây)
+
+Lần đo này: 3841/3841 chuyến, p95 2,3 giây (bật observability nên chậm hơn, xem [mục 12.2](#122-chi-phí-của-observability)). Số liệu của Gateway lấy từ Prometheus trong 2 phút bơm tải:
+
+| Chỉ số | Giá trị |
+| --- | --- |
+| Request vào Gateway | 347/giây (trip-api và matching-api khoảng 200/giây mỗi service) |
+| Trong đó `POST /internal/events/trips` từ Trip | 172/giây, gần một nửa |
+| `/api/v1/trips/**` (báo giá, đặt, đọc, huỷ) | 117/giây, p95 95 ms; gần hết thời gian là chờ trip-api |
+| CPU JVM | 0,53 core |
+| GC (Serial: Copy + MarkSweepCompact) | khoảng 3% thời gian |
+| Luồng | 15 runnable, 68 chờ |
+
+Hai điều rút ra:
+
+1. **Mỗi event của Trip tới Gateway hai lần.** Outbox của Trip có hai đích `gateway` và `notification`, cả hai đang trỏ về `gateway-api:8090`. Gộp hai đích (đề xuất B2, [ADR-0002](adr/0002-truc-su-kien-rabbitmq.md)) sẽ bỏ khoảng một phần tư số request vào Gateway và một nửa số delivery outbox của Trip.
+2. **Gateway chưa phải điểm nghẽn.** CPU tăng gần tuyến tính theo tải (0,34 core ở 32 chuyến/giây khi tắt observability, 0,53–0,62 ở 40–64) và còn xa giới hạn 2 core; GC không đáng kể. Nó vẫn là pod ứng dụng tốn CPU nhất vì mọi request đi qua nó.
+
+### 14.3 Chạy liên tục 30 phút ở 16 chuyến/giây
+
+Tắt observability, thêm `--login 1` để khách tự đăng nhập lại (token sống 15 phút). Lần chạy đầu thiếu tham số này nên nửa sau các lượt đặt không gọi được; kết quả đó bị bỏ, không tính.
+
+| Chỉ số | Kết quả |
+| --- | --- |
+| Được gán | 28800/28800, lỗi HTTP 0%, không bỏ lượt nào |
+| Tới `ASSIGNED` | p50 0,70 giây, p95 0,93 giây, p99 1,33 giây, max 15,6 giây |
+| Theo từng phút | Mỗi phút đủ 960 chuyến; p95 0,71–0,86 giây ở 29 phút, một phút 1,40 giây |
+| Ack GPS | 184088/184088, p95 4 ms |
+| CPU trung bình | PostgreSQL 0,32 core, gateway-api 0,17, matching-worker 0,14, trip-api 0,14 |
+| RAM đầu → cuối (MiB) | PostgreSQL 471 → 509, gateway-api 514 → 505, matching-worker 80 → 89, trip-worker 77 → 87, realtime-api 154 → 147, Redis 158 → 189 |
+
+1. **Không còn đợt chậm 3 phút** như lần chạy 30 phút ngày 2026-11-04 ([mục 6.5](#65-chạy-lâu-30-phút)); khi đó hàng đợi còn nghỉ theo nhịp và tải chỉ 3 chuyến/giây.
+2. **Có hai gợn ngắn dưới một phút** ở phút thứ 14 và 24 (29 và 33 trong 960 chuyến chờ quá 2 giây; phút kế tiếp p95 1,40 giây). Mỗi tài xế rớt kết nối đúng 2 lần trong 30 phút (2000 lần cho 1000 tài xế) vì Realtime ngắt socket khi JWT hết hạn, và 1000 tài xế đăng nhập cùng lúc nên nối lại cùng lúc. Thời điểm trùng nhau nhưng chưa đo riêng để khẳng định; app thật đăng nhập rải rác nên ít gặp hơn. Đề xuất B5 (làm mới token trước hạn, nối lại có jitter) nhắm đúng chỗ này.
+3. Vài chuyến lẻ chờ 7–15 giây (khoảng một chuyến mỗi vài phút), chưa tìm nguyên nhân.
+4. RAM các service ổn định; Redis tăng 31 MiB trong 30 phút, cần theo dõi ở lần chạy dài hơn.
+
+### 14.4 Kết luận
+
+1. Trần hiện tại khoảng 45–50 chuyến/giây với 1000 tài xế trên máy đo; mức đã chứng minh đạt ngưỡng tăng từ 32 lên **48 chuyến/giây**.
+2. Điểm nghẽn kế tiếp là sức xử lý đồng thời của Matching worker (pool job 16, pool kết nối 10, một process), chưa kiểm chứng bằng thử nghiệm.
+3. Gateway chưa nghẽn, nhưng nhận gấp đôi số event cần thiết từ Trip (B2).
+4. Hệ thống chạy ổn định 30 phút ở một phần ba mức trần.
+5. Giới hạn: mỗi mức một lần, một laptop; chưa đo giữa 48 và 64; User (Java) chưa có telemetry.
+
+Kết quả ở `deploy/.local/load/results/2026-11-16T18-2*`, `18-3*` (trần, Gateway) và `2026-11-16T19-10-28-963Z` (30 phút); tên thư mục theo giờ UTC.

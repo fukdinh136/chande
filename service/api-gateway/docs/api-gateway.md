@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | api-gateway |
-| Rà soát | 2026-11-16 |
+| Rà soát | 2026-11-17 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 > Cập nhật 06/10/2026, theo code nhánh `api-gateway` (commit `8e3ea97`).
@@ -530,7 +530,7 @@ cd api-gateway && ./mvnw test
 5. **Hai định dạng lỗi.** Gateway dùng `{error, meta}`. user-service (v1, và v2 theo quyết định hiện tại) dùng `{code, message, fieldErrors}`.
 6. **Sự kiện phát lúc instance khởi động lại hoặc app mất mạng sẽ không được gửi lại.** App phải đồng bộ bằng `GET /api/v1/trips/active`; thiết kế hiện tại chấp nhận điều này.
 7. **`/actuator/health` phụ thuộc Redis.** Nếu cấu hình nhầm load balancer gọi endpoint này, Redis lỗi sẽ kéo cả gateway ra khỏi load balancer, dù REST vẫn chạy được.
-8. **Gateway là pod ứng dụng tốn CPU nhất khi tải cao và chưa có observability.** Đo ngày 2026-11-15 với 1000 tài xế: trung bình 0,11 core ở 8 chuyến/giây, 0,16 ở 16 và 0,34 (đỉnh 0,52) ở 32 chuyến/giây, trong khi mỗi service Node dưới 0,3 core ([báo cáo kiểm thử tải, mục 13](../../../docs/bao-cao-kiem-thu-tai.md#13-http-và-grpc-giữa-các-service-2026-11-15)). Gateway, User, Payment (Java) chưa gửi metric/trace ([ADR-0003](../../../docs/adr/0003-observability-opentelemetry.md)), nên chưa biết CPU tốn vào đâu; đây là ứng viên điểm nghẽn kế tiếp nếu đo trên 32 chuyến/giây.
+8. **Gateway là pod ứng dụng tốn CPU nhất khi tải cao, nhưng chưa phải điểm nghẽn.** Từ 2026-11-17 Gateway gửi metric và trace qua OpenTelemetry Java agent khi deploy với `OBSERVABILITY=on` ([ADR-0003](../../../docs/adr/0003-observability-opentelemetry.md)). Đo ở 32 chuyến/giây: 347 request/giây, CPU JVM 0,53 core trên giới hạn 2 core, GC khoảng 3% thời gian. Gần một nửa request là `POST /internal/events/trips`, và mỗi event của Trip tới hai lần vì hai đích `gateway` và `notification` của outbox cùng trỏ về Gateway; gộp lại (B2) bỏ được khoảng một phần tư số request ([báo cáo kiểm thử tải, mục 14.2](../../../docs/bao-cao-kiem-thu-tai.md#142-gateway-dưới-tải-bật-observability-32-chuyếngiây)).
 
 ## 14. Cần nhóm chốt
 

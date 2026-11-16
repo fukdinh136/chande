@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-16 |
+| Rà soát | 2026-11-17 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Stack đã chạy trên Docker Desktop, Kubernetes context docker-desktop v1.34.1, namespace chande-local. Public ingress: Docker http://127.0.0.1:18080; Kubernetes http://127.0.0.1:18081 qua port-forward loopback. Đây là deployment local, chưa phải hosting Internet/production.
@@ -93,7 +93,7 @@ node deploy/run.cjs kube-up
 - Tắt: chạy lại lệnh không có biến; service không nạp OpenTelemetry và bốn pod bị gỡ. Trên Docker Compose dùng `docker-up` tương tự; lần kiểm chứng 2026-11-10 chỉ chạy trên Kubernetes, phía Compose mới có test sinh cấu hình.
 - Khi bật, CPU các service Node tăng 20–50% tuỳ tải ([báo cáo, mục 12.2](bao-cao-kiem-thu-tai.md#122-chi-phí-của-observability)); tắt khi đo trần thông lượng.
 - `OTEL_SAMPLE_RATIO` (0–1, mặc định 0,1) là tỉ lệ trace được giữ. Đặt 1 khi cần chắc chắn thấy trace của một chuyến smoke; giữ 0,1 khi đo tải.
-- Gateway, User và Payment (Java) chưa gửi telemetry.
+- Gateway (Java) gửi telemetry qua OpenTelemetry Java agent có sẵn trong image; agent chỉ chạy khi bật observability. User (Java) chưa gửi telemetry.
 
 ## Routes public
 
