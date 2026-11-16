@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | driver-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Hợp đồng theo controller/DTO/use case hiện tại. Base URL local http://localhost:3003, không prefix /api/v1. [Routes](routes.md), [Nghiệp vụ](nghiep-vu.md), [Deploy](deploy.md).

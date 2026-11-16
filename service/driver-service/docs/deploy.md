@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | driver-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Hướng dẫn chạy trực tiếp từ repository; không cần Gateway demo. [API](api.md), [Routes](routes.md), [Kiến trúc](kien-truc.md). Các bước runtime và kiểm thử storage cần môi trường riêng; không tạo schema phỏng đoán từ ERD.
@@ -62,7 +62,7 @@ if (-not (Test-Path -LiteralPath '.env')) {
 | MATCHING_LOOKUP_TOKEN, MATCHING_BASE_URL | Credential và origin Matching cho batch reservation; cấu hình cùng TRIP_LOOKUP_TOKEN |
 | SUPPORTED_VEHICLE_TYPES | BIKE,CAR_4,CAR_7 |
 | MAX_VEHICLES | 20 |
-| GATEWAY_PROXY_TOKEN | Optional trusted official proxy, để trống cho direct |
+| GATEWAY_PROXY_TOKEN | Credential Gateway gửi kèm IP thật của người dùng (`X-Driver-Proxy-Token`, `X-Driver-Client-IP`, A4). Khớp `DRIVER_PROXY_TOKEN` của Gateway thì giới hạn OTP tính theo IP đó; để trống khi gọi Driver trực tiếp |
 
 Các secret qua helper có thể dùng NAME_FILE, gồm DATABASE_URL/REDIS_URL/issuer/tokens. Private signing key chỉ đọc qua AUTH_SIGNING_KEY_FILE. Không dùng cùng credential Matching/Realtime/Routing, không đưa server secret vào EXPO_PUBLIC_*.
 

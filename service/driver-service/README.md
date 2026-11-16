@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | driver-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
 
 Backend Driver của Chande: đăng nhập OTP cho tài xế đã tồn tại, phiên JWT/refresh, hồ sơ, phương tiện, chọn xe, ý định nhận cuốc và eligibility cho các service nội bộ.
@@ -24,11 +24,23 @@ Nguồn đối chiếu: [tài liệu chung](../../docs/README.md), [Trip](../tri
 
 ## Trạng thái triển khai
 
-Có mã cho OTP local/provider adapter, JWT RS256/JWKS, refresh rotation, hồ sơ/xe, selection Redis, ONLINE/OFFLINE PostgreSQL, reconcile và batch eligibility Realtime. Domain/Application độc lập NestJS, TypeORM, Redis và HTTP.
+Có mã cho OTP local/provider adapter, JWT RS256/JWKS, refresh rotation, hồ sơ/xe, selection Redis, ONLINE/OFFLINE PostgreSQL, reconcile và eligibility theo lô cho Matching. Domain/Application độc lập NestJS, TypeORM, Redis và HTTP.
 
 Các repository PostgreSQL và adapter Redis/Trip là adapter thật. OTP mock chỉ dùng local, lưu challenge/rate limit trong bộ nhớ và mất khi restart; production từ chối mock. HTTP OTP provider có contract riêng cần xác nhận. Không có Trip/Matching mock service trong backend Driver.
 
 DDL Driver có thẩm quyền production chưa nằm trong repository; mapping/fixture không thay DDL. PostgreSQL/Redis tests chạy trên fixture cô lập; Driver issuer/Trip/availability đã liên thông smoke Matching Hà Nội. Occupancy đối soát active Trip/reservation để project AVAILABLE/BUSY; ONLINE không tự bảo đảm nhận cuốc. Nhiều replica, production và app offer UI/thiết bị chưa nghiệm thu. [Báo cáo validation](../../docs/bao-cao-validation.md).
+
+### Cải tiến hiệu năng và chịu lỗi
+
+Làm trên nhánh `perf/adr-0008-trip-outbox`; tổng quan ở [tổng hợp cải tiến hiệu năng](../../docs/tong-hop-cai-tien-hieu-nang.md).
+
+| Cải tiến | Thay đổi trong Driver | Commit |
+| --- | --- | --- |
+| A4 | Giới hạn OTP theo IP thật do Gateway chuyển kèm credential `GATEWAY_PROXY_TOKEN` | `7a0eec9` |
+| B7 | Kiểm điều kiện cả lô bằng số lượt truy cập cố định, không khoá ở đường chỉ đọc | `3cb0d8a` |
+| [ADR-0001](../../docs/adr/0001-matching-so-huu-tim-ung-vien.md) | Thêm `eligibility/candidates` cho Matching; gỡ `eligibility/batch` cho Realtime | `50f4f17`, `fe97068` |
+| B6, [ADR-0003](../../docs/adr/0003-observability-opentelemetry.md) | OpenTelemetry tuỳ chọn | `7ae5bd2` |
+| D1 | Circuit breaker cho client Trip và Matching | `b0b21b4` |
 
 ## Cấu trúc
 

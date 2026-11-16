@@ -3,14 +3,14 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | driver-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 C3 theo layer và implementation hiện tại. [API](api.md), [Nghiệp vụ](nghiep-vu.md), [Deploy](deploy.md).
 
 ## 1. Container và ranh giới
 
-Driver dùng PostgreSQL/Redis riêng, OTP adapter, HTTP Trip Active và HttpOccupancy lookup Trip/Matching khi cấu hình. Realtime chỉ dùng JWKS của Driver; Matching dùng eligibility theo lô ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)), giữ GPS Redis riêng. App gọi direct; Gateway proxy REST đã có source, chưa nghiệm thu ingress chung của stack smoke.
+Driver dùng PostgreSQL/Redis riêng, OTP adapter, HTTP Trip Active và HttpOccupancy lookup Trip/Matching khi cấu hình; mỗi client HTTP ra ngoài có circuit breaker (D1): 5 lỗi liên tiếp thì ngừng gọi đích 5 giây và trả `DEPENDENCY_UNAVAILABLE` ngay, như khi đích lỗi. Realtime chỉ dùng JWKS của Driver; Matching dùng eligibility theo lô ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)), giữ GPS Redis riêng. App gọi direct; Gateway proxy REST đã có source, chưa nghiệm thu ingress chung của stack smoke.
 
 Driver không truy cập trip_db, không tạo Trip/Matching thay thế, không sở hữu reservation lock Matching.
 
@@ -105,7 +105,7 @@ src/
       profile/{profile.use-cases,profile.dto}.ts
       vehicle/{vehicle.use-cases,edit.policy}.ts
       availability/availability.use-cases.ts
-      eligibility/{eligibility.use-case,batch-eligibility.use-case}.ts
+      eligibility/{eligibility.use-case,candidate-eligibility.use-case,read-batch}.ts
   domain/
     driver/{driver,status}.ts
     vehicle/{vehicle,vehicle.policy}.ts
@@ -145,6 +145,8 @@ Startup inspector chỉ đọc metadata/status, kiểm type/length, nullable ava
 Refresh khóa token row; revoke/insert cùng transaction. Vehicle và profile writes dùng repository/UoW. PostgreSQL/Redis không có transaction chung hoặc outbox; crash/commit reply mất vẫn có kết quả không xác định.
 
 ## 5. Điều phối và projection
+
+Đường chỉ đọc cho Matching (eligibility đơn và theo lô) không khoá: lô đọc hồ sơ và xe bằng `id = ANY` và trạng thái Redis bằng một script (B7, `read-batch.ts`). Các thao tác ghi bên dưới vẫn khoá từng tài xế.
 
 PostgresStore.coordinate dùng session advisory lock trên QueryRunner riêng, key hash driverId. Có FIFO local và polling acquire với DRIVER_LOCK_WAIT_MS; thời gian chờ FIFO local nằm ngoài timeout acquire. Khóa session tồn tại sau COMMIT tới khi HTTP/projection ngoài transaction hoàn tất.
 

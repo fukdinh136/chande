@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | driver-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Tài liệu mô tả hành vi trong mã hiện tại. “Có implementation” không đồng nghĩa đã kiểm chứng với database, service thật hoặc thiết bị. [API](api.md), [Kiến trúc](kien-truc.md), [Routes](routes.md), [Deploy](deploy.md).
@@ -63,7 +63,7 @@ Selection hiện chỉ lưu Redis, mất cache có thể phải chọn lại. Đ
 
 Matching GET nội bộ trả profileEligible, desiredStatus, vehicleId, reasons và snapshot nếu hồ sơ/xe hợp lệ; không chứng minh presence, operational availability, reservation hoặc Trip rảnh.
 
-Realtime POST batch trả eligible, availabilityKnown, vehicleType, operationalStatus và reasons. Mỗi batch 1–100 UUID không trùng, tối đa bốn lượt kiểm tra song song. Legacy, OFFLINE, xe sai owner/inactive/sai loại hoặc hồ sơ thiếu đều bị từ chối. ONLINE/hồ sơ/xe hợp lệ nhưng UNKNOWN trả availabilityKnown=false; Realtime xử lý thành lỗi rõ thay vì danh sách rỗng giả.
+Matching POST eligibility theo lô (`/internal/drivers/eligibility/candidates`, [ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)) trả cho mỗi tài xế: eligible, reasons, vehicleId và snapshot, cùng luật với GET đơn. Mỗi lô 1–100 UUID không trùng và một `vehicleType`; cả lô đọc bằng 2 câu SQL và 1 script Redis, không khoá và không ghi (B7). Không hỏi Trip/Matching ai đang bận: Matching tự loại tài xế đang giữ chỗ, và kiểm lại từng người bằng GET đơn ngay trước khi gán. Endpoint batch cũ cho Realtime đã gỡ ngày 2026-11-05.
 
 Snapshot trả brand từ nguyên chuỗi brand_model; không bịa phân tách brand/model. Không công khai licenseNumber/credential qua nearby.
 

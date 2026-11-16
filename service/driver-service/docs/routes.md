@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | driver-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Driver trực tiếp không có global prefix. Path Gateway chính thức phải được xác nhận trước khi bật gateway mode trong app. [API](api.md), [Deploy](deploy.md).
