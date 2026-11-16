@@ -1,6 +1,6 @@
 /**
  * Circuit breaker for the calls one service makes to one dependency (proposal D1).
- * The same file is copied into every Node service (HTTP and gRPC clients use it); keep the copies identical.
+ * The same file is copied into every Node service that calls another service over HTTP; keep the copies identical.
  *
  * - closed: calls go through. `failureThreshold` failures in a row open the breaker.
  * - open: calls fail at once, without touching the dependency, for `openMs`.

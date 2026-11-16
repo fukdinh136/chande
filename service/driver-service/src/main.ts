@@ -7,8 +7,6 @@ import { Request, Response, NextFunction } from "express";
 import { AppModule } from "./bootstrap/modules/driver.module";
 import { ErrorFilter } from "./presentation/http/filters/error.filter";
 import { DriverContext, CONTEXT } from "./bootstrap/modules/driver-context";
-import { driverGrpc } from "./presentation/grpc/internal.grpc";
-import { grpcPort } from "./infrastructure/grpc";
 export async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ["error", "warn"],
@@ -36,15 +34,7 @@ export async function bootstrap() {
   );
   app.useGlobalFilters(new ErrorFilter());
   app.enableShutdownHooks();
-  const context = app.get<DriverContext>(CONTEXT);
-  await app.listen(context.config.port);
-  // The same internal API over gRPC (GRPC_PORT, default 50053); Matching picks it with INTERNAL_TRANSPORT=grpc.
-  const grpcServer = driverGrpc(context);
-  await grpcServer.listen("0.0.0.0", grpcPort("driver"));
-  for (const signal of ["SIGTERM", "SIGINT"] as const)
-    process.once(signal, () => {
-      void grpcServer.close();
-    });
+  await app.listen(app.get<DriverContext>(CONTEXT).config.port);
   console.log(`Driver service is running at ${await app.getUrl()}`);
   return app;
 }

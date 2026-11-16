@@ -10,10 +10,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
-COPY --chown=node:node proto ./proto
 COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
 COPY --chown=node:node config/fare-policy.example.json config/fare-policy.mock.json ./config/
 USER node
-EXPOSE 3005 50056
+EXPOSE 3005
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3005)+'/health/ready',{signal:AbortSignal.timeout(2000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 CMD ["node", "dist/main.js"]

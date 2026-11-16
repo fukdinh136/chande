@@ -11,12 +11,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
-COPY --chown=node:node proto ./proto
 COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
 COPY --chown=node:node config/vehicle-profiles.example.json ./config/vehicle-profiles.example.json
 COPY --chown=node:node config/vehicle-profiles.mock.json ./config/vehicle-profiles.mock.json
 COPY --chown=node:node config/vehicle-profiles.osrm.json ./config/vehicle-profiles.osrm.json
 USER node
-EXPOSE 3004 50055
+EXPOSE 3004
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3004)+'/health/ready',{signal:AbortSignal.timeout(2000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 CMD ["node", "dist/main.js"]

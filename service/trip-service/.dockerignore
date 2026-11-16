@@ -4,5 +4,3 @@
 !tsconfig.json
 !src/
 !src/**
-!proto/
-!proto/**

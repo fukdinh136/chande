@@ -28,57 +28,49 @@ export const codes: Record<string, number> = {
   RATE_LIMITED: 429,
   DEPENDENCY_UNAVAILABLE: 503,
 };
-/** HTTP status and error code for an error; shared by the HTTP filter and the gRPC server. */
-export function describeError(error: unknown): {
-  status: number;
-  code: string;
-} {
-  let code = "INTERNAL_ERROR";
-  let status = 500;
-  if (error instanceof DriverError) {
-    code = error.code;
-    status = codes[code] ?? 500;
-  } else if (error instanceof HttpException) {
-    status = error.getStatus();
-    code =
-      status === 404
-        ? "RESOURCE_NOT_FOUND"
-        : status === 401
-          ? "UNAUTHENTICATED"
-          : status === 403
-            ? "FORBIDDEN_ACTION"
-            : status < 500
-              ? "INVALID_REQUEST"
-              : "INTERNAL_ERROR";
-  } else if (error && typeof error === "object") {
-    const pg = (
-      error as {
-        driverError?: { code?: string; constraint?: string; detail?: string };
-      }
-    ).driverError;
-    if (pg?.code === "23505") {
-      const field = `${pg.constraint ?? ""} ${pg.detail ?? ""}`;
-      code = field.includes("license_number")
-        ? "LICENSE_NUMBER_CONFLICT"
-        : field.includes("license_plate")
-          ? "LICENSE_PLATE_CONFLICT"
-          : field.includes("active")
-            ? "VEHICLE_ACTIVE_CONSTRAINT"
-            : "LICENSE_PLATE_CONFLICT";
-      status = 409;
-    } else if (pg?.code?.startsWith("08") || pg?.code === "57P01") {
-      code = "DEPENDENCY_UNAVAILABLE";
-      status = 503;
-    }
-  }
-  return { status, code };
-}
 @Catch()
 export class ErrorFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost) {
     const req = host.switchToHttp().getRequest<DriverRequest>();
     const res = host.switchToHttp().getResponse<Response>();
-    const { status, code } = describeError(error);
+    let code = "INTERNAL_ERROR";
+    let status = 500;
+    if (error instanceof DriverError) {
+      code = error.code;
+      status = codes[code] ?? 500;
+    } else if (error instanceof HttpException) {
+      status = error.getStatus();
+      code =
+        status === 404
+          ? "RESOURCE_NOT_FOUND"
+          : status === 401
+            ? "UNAUTHENTICATED"
+            : status === 403
+              ? "FORBIDDEN_ACTION"
+              : status < 500
+                ? "INVALID_REQUEST"
+                : "INTERNAL_ERROR";
+    } else if (error && typeof error === "object") {
+      const pg = (
+        error as {
+          driverError?: { code?: string; constraint?: string; detail?: string };
+        }
+      ).driverError;
+      if (pg?.code === "23505") {
+        const field = `${pg.constraint ?? ""} ${pg.detail ?? ""}`;
+        code = field.includes("license_number")
+          ? "LICENSE_NUMBER_CONFLICT"
+          : field.includes("license_plate")
+            ? "LICENSE_PLATE_CONFLICT"
+            : field.includes("active")
+              ? "VEHICLE_ACTIVE_CONSTRAINT"
+              : "LICENSE_PLATE_CONFLICT";
+        status = 409;
+      } else if (pg?.code?.startsWith("08") || pg?.code === "57P01") {
+        code = "DEPENDENCY_UNAVAILABLE";
+        status = 503;
+      }
+    }
     if (status === 429 || status === 503)
       res.setHeader("Retry-After", status === 429 ? "60" : "1");
     res.setHeader("Cache-Control", "no-store");
