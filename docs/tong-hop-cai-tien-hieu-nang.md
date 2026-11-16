@@ -165,7 +165,7 @@ Số liệu khác:
 | API nội bộ mới | Realtime `driver-locations`; Driver `eligibility/candidates`; Routing `eta-matrix` | Matching cần token gọi Realtime; generator đã sinh sẵn |
 | Database | Trip: một migration thêm index cho việc dọn outbox. Matching: index cho dòng outbox chưa gửi | Chỉ thêm index, không đổi cột; migration chạy trong `kube-up` như cũ |
 | Dữ liệu | Tin outbox đã gửi bị xoá sau 24 giờ | Ai đang dùng bảng outbox làm lịch sử sẽ mất dữ liệu cũ hơn 24 giờ |
-| Hành vi Driver | Kiểm tra theo lô không còn khoá từng tài xế; tài xế đổi trạng thái giữa chừng trả `DRIVER_STATE_CHANGED` | Matching bỏ qua ứng viên đó và tìm tiếp |
+| Hành vi Driver | Kiểm tra theo lô (`eligibility/candidates`) chỉ đọc, không khoá từng tài xế, nên có thể thấy trạng thái cũ vài mili giây | Matching kiểm lại từng tài xế bằng eligibility đơn ngay trước khi gán; Trip ghi trạng thái có điều kiện nên không gán trùng |
 | Gateway | Giới hạn đăng nhập theo IP thật; header IP do client tự gửi bị bỏ qua | Gateway chỉ tin header IP từ proxy nội bộ (nginx ở edge ghi đè header); thêm biến `DRIVER_PROXY_TOKEN`, generator đã sinh sẵn |
 | Thư viện | Sáu service Node thêm các gói `@opentelemetry/*` | Image lớn hơn; không nạp khi tắt observability |
 | Deploy | `kube-up` thay Secret và khởi động lại pod khi cấu hình đổi; thêm thư mục `deploy/load` và `deploy/observability` | Lần `kube-up` đầu sau merge sẽ khởi động lại mọi pod |
