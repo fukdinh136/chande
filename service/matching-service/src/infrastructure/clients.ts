@@ -20,15 +20,13 @@ async function failure(r: Response, dependency: string): Promise<UpstreamError> 
   const after = Number(r.headers.get('retry-after'));
   return new UpstreamError(r.status, code, dependency, Number.isFinite(after) && after > 0 ? Math.min(after, 60) * 1000 : null);
 }
-export const eligibility = z.object({ driverId: uuid, profileEligible: z.boolean(), desiredStatus: z.string(), vehicleId: uuid.nullable(), driverSnapshot: z.object({ fullName: z.string().min(1).max(100), avatarUrl: z.string().nullable() }).nullable(), vehicleSnapshot: z.object({ vehicleType: z.string(), licensePlate: z.string().min(1).max(15), brand: z.string().nullable(), color: z.string().nullable() }).nullable() });
+const eligibility = z.object({ driverId: uuid, profileEligible: z.boolean(), desiredStatus: z.string(), vehicleId: uuid.nullable(), driverSnapshot: z.object({ fullName: z.string().min(1).max(100), avatarUrl: z.string().nullable() }).nullable(), vehicleSnapshot: z.object({ vehicleType: z.string(), licensePlate: z.string().min(1).max(15), brand: z.string().nullable(), color: z.string().nullable() }).nullable() });
 const snapshotsOf = { driverSnapshot: eligibility.shape.driverSnapshot, vehicleSnapshot: eligibility.shape.vehicleSnapshot };
-export const locations = z.object({ radiusMeters: z.number().int().positive(), drivers: z.array(z.object({ driverId: uuid, latitude: z.number().min(-85.0511).max(85.0511), longitude: z.number().min(-180).max(180), distanceMeters: z.number().nonnegative(), recordedAt: z.iso.datetime() })).max(200) });
-export const candidates = z.object({ items: z.array(z.object({ driverId: uuid, eligible: z.boolean(), reasons: z.array(z.string()), vehicleId: uuid.nullable(), ...snapshotsOf })).max(100) });
-export const eta = z.object({ entries: z.array(z.object({ id: z.string(), status: z.enum(['OK', 'NO_ROUTE']), distanceMeters: z.number().int().nonnegative().nullable(), durationSeconds: z.number().int().nonnegative().nullable() })).max(50), calculatedAt: z.iso.datetime() });
-export const assignmentAck = z.object({ eventId: uuid, tripId: uuid, accepted: z.literal(true), assignedVersion: z.number().int().positive() }).strict();
-export const matchingState = z.object({ tripId: uuid, status: z.enum(['CREATED','SEARCHING','ASSIGNED','DRIVER_ARRIVED','IN_PROGRESS','CANCELLED','COMPLETED']), driverId: uuid.nullable(), version: z.number().int().positive() });
+const locations = z.object({ radiusMeters: z.number().int().positive(), drivers: z.array(z.object({ driverId: uuid, latitude: z.number().min(-85.0511).max(85.0511), longitude: z.number().min(-180).max(180), distanceMeters: z.number().nonnegative(), recordedAt: z.iso.datetime() })).max(200) });
+const candidates = z.object({ items: z.array(z.object({ driverId: uuid, eligible: z.boolean(), reasons: z.array(z.string()), vehicleId: uuid.nullable(), ...snapshotsOf })).max(100) });
+const eta = z.object({ entries: z.array(z.object({ id: z.string(), status: z.enum(['OK', 'NO_ROUTE']), distanceMeters: z.number().int().nonnegative().nullable(), durationSeconds: z.number().int().nonnegative().nullable() })).max(50), calculatedAt: z.iso.datetime() });
 /** True when `got` holds exactly the ids in `want`, once each. */
-export const sameIds = (want: string[], got: string[]) => got.length === want.length && new Set(got).size === got.length && got.every(id => want.includes(id));
+const sameIds = (want: string[], got: string[]) => got.length === want.length && new Set(got).size === got.length && got.every(id => want.includes(id));
 export class HttpClients implements Clients, CandidateClients {
   private readonly breakers = new Map<string, CircuitBreaker>();
   constructor(private readonly c: Config, private readonly breakerOptions: BreakerOptions = {}) {}
@@ -64,8 +62,8 @@ export class HttpClients implements Clients, CandidateClients {
     return data.entries;
   }
   async assign(tripId: string, assignment: Assignment) {
-    const ack = await this.request(this.c.tripUrl, `/internal/trips/${tripId}/assignment`, this.c.tripToken, assignmentAck, assignment, 202);
+    const ack = await this.request(this.c.tripUrl, `/internal/trips/${tripId}/assignment`, this.c.tripToken, z.object({ eventId: uuid, tripId: uuid, accepted: z.literal(true), assignedVersion: z.number().int().positive() }).strict(), assignment, 202);
     if (ack.eventId !== assignment.eventId || ack.tripId !== tripId) throw new UpstreamError(503, 'INVALID_RESPONSE', 'trip');
   }
-  async trip(id: string) { const data = await this.request(this.c.tripUrl, `/internal/trips/${id}/matching-state`, this.c.tripToken, matchingState); if (data.tripId !== id) throw new UpstreamError(503); return data; }
+  async trip(id: string) { const data = await this.request(this.c.tripUrl, `/internal/trips/${id}/matching-state`, this.c.tripToken, z.object({ tripId: uuid, status: z.enum(['CREATED','SEARCHING','ASSIGNED','DRIVER_ARRIVED','IN_PROGRESS','CANCELLED','COMPLETED']), driverId: uuid.nullable(), version: z.number().int().positive() })); if (data.tripId !== id) throw new UpstreamError(503); return data; }
 }

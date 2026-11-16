@@ -3,25 +3,19 @@ import { z } from 'zod';
 import type { Config } from '../../bootstrap/config';
 import { JsonHttpClient, TransportError } from '../clients/http';
 import { MatchingClient } from '../clients/matching';
-import { GrpcMatchingClient, grpcClient } from '../clients/grpc';
-import { internalTransport } from '../grpc';
 import { PgOutbox, type Delivery } from './repository';
 import { recordDelivery, traced } from './metrics';
 export interface DeliverySender { send(delivery: Delivery): Promise<void> }
 export class HttpDeliverySender implements DeliverySender {
-  private readonly matching: MatchingClient | GrpcMatchingClient;
-  private readonly grpc: GrpcMatchingClient | undefined;
+  private readonly matching: MatchingClient;
   private readonly targets: Record<string, JsonHttpClient>;
-  constructor(config: Config, env: NodeJS.ProcessEnv = process.env) {
+  constructor(config: Config) {
     this.targets = { matching: new JsonHttpClient(config.matchingUrl, config.matchingToken, config.httpTimeout), gateway: new JsonHttpClient(config.gatewayUrl, config.gatewayToken, config.httpTimeout), notification: new JsonHttpClient(config.notificationUrl, config.notificationToken, config.httpTimeout) };
-    // INTERNAL_TRANSPORT=grpc sends commands and events for Matching over gRPC; Gateway and notification stay on HTTP.
-    this.grpc = internalTransport(env) === 'grpc' ? new GrpcMatchingClient(grpcClient('matching', config.matchingUrl, config, env), config.matchingToken) : undefined;
-    this.matching = this.grpc ?? new MatchingClient(this.targets.matching!);
+    this.matching = new MatchingClient(this.targets.matching!);
   }
   async send(delivery: Delivery): Promise<void> {
     const requestId = randomUUID();
     if (delivery.kind !== 'event') { if (delivery.destination !== 'matching') throw new TransportError(false, 'INVALID_DESTINATION'); return this.matching.send(delivery.kind, delivery.payload, requestId); }
-    if (delivery.destination === 'matching' && this.grpc) return this.grpc.event(delivery.payload, requestId);
     const ack = await this.targets[delivery.destination]!.post('/internal/events/trips', delivery.payload, requestId, z.object({ eventId: z.uuid(), accepted: z.literal(true) }).strict(), 202);
     if (ack.eventId !== delivery.payload.eventId) throw new TransportError(false, 'INVALID_ACK');
   }

@@ -3,7 +3,6 @@ import type { Namespace } from 'socket.io';
 import type Redis from 'ioredis';
 import { z } from 'zod';
 import { CircuitBreaker, failedStatus } from '../circuit-breaker';
-import { CallError, type GrpcClient } from '../grpc';
 const status = z.enum(['PENDING','ASSIGNMENT_PENDING','ASSIGNED','DECLINED','EXPIRED','REJECTED','REVOKED']);
 export const eventSchema = z.object({ eventId: z.uuid(), type: z.enum(['DRIVER_TRIP_OFFER','DRIVER_TRIP_OFFER_UPDATED']), offerId: z.uuid(), tripId: z.uuid(), driverId: z.uuid(), version: z.number().int().positive(), status, expiresAt: z.iso.datetime() }).strict();
 const offerSchema = z.object({ offerId: z.uuid(), tripId: z.uuid(), driverId: z.uuid(), version: z.number().int().positive(), status, expiresAt: z.iso.datetime(), pickup: z.object({ lat: z.number(), lng: z.number(), address: z.string().optional() }), destination: z.object({ lat: z.number(), lng: z.number(), address: z.string().optional() }), vehicleType: z.enum(['BIKE','CAR_4','CAR_7']), fare: z.object({ currency: z.literal('VND'), amount: z.string().regex(/^\d+$/) }) });
@@ -12,12 +11,10 @@ export function canDeliver(o: DriverOffer, now: number) { return o.status !== 'P
 const CACHE = `local old=redis.call('GET',KEYS[1]);if old then local data=cjson.decode(old);if tonumber(data.version)>=tonumber(ARGV[1]) then return 0 end end;redis.call('SET',KEYS[1],ARGV[2],'EX',604800);return 1`;
 export class OfferConsumer {
   private server?: Namespace; private model?: ChannelModel; private channel?: ConfirmChannel; private timer?: NodeJS.Timeout; private connecting = false; private stopped = false;
-  /** `grpc` set (INTERNAL_TRANSPORT=grpc): offers are read from Matching over gRPC, with that client's own breaker. */
-  constructor(private readonly redis: Redis, private readonly config: { rabbitUrl: string; matchingUrl: string; matchingToken: string }, readonly breaker = new CircuitBreaker('matching'), private readonly grpc?: GrpcClient) {}
+  constructor(private readonly redis: Redis, private readonly config: { rabbitUrl: string; matchingUrl: string; matchingToken: string }, readonly breaker = new CircuitBreaker('matching')) {}
   attach(server: Namespace) { this.server = server; }
   /** Reads the current offer from Matching. While the breaker for Matching is open (D1) it fails at once with MATCHING_UNAVAILABLE. */
   async lookup(path: string): Promise<DriverOffer | null> {
-    if (this.grpc) return this.lookupGrpc(this.grpc, path);
     if (this.breaker.acquire() > 0) throw new Error('MATCHING_UNAVAILABLE');
     let response: Response;
     try { response = await fetch(this.config.matchingUrl + path, { redirect: 'error', signal: AbortSignal.timeout(3000), headers: { 'X-Service-Token': this.config.matchingToken } }); }
@@ -26,20 +23,6 @@ export class OfferConsumer {
     if (response.status === 404) return null; if (!response.ok || !response.body) { await response.body?.cancel(); throw new Error('MATCHING_UNAVAILABLE'); }
     const chunks: Uint8Array[] = []; let bytes = 0; for await (const chunk of response.body) { bytes += chunk.length; if (bytes > 65536) throw new Error('INVALID_OFFER'); chunks.push(chunk); }
     return z.object({ data: offerSchema.nullable() }).parse(JSON.parse(Buffer.concat(chunks).toString('utf8'))).data;
-  }
-  /** The two HTTP paths above as gRPC calls; a missing offer is null, any other failure MATCHING_UNAVAILABLE. */
-  private async lookupGrpc(grpc: GrpcClient, path: string): Promise<DriverOffer | null> {
-    const driver = /^\/internal\/matching\/drivers\/([^/]+)\/offer$/.exec(path), offer = /^\/internal\/matching\/offers\/([^/]+)$/.exec(path);
-    if (!driver && !offer) throw new Error('MATCHING_UNAVAILABLE');
-    let data: unknown;
-    try {
-      const metadata = { 'x-service-token': this.config.matchingToken };
-      data = driver ? (await grpc.call<{ offer?: unknown }>('DriverOffer', { driverId: driver[1] }, metadata, 3000)).offer ?? null : await grpc.call('GetOffer', { offerId: offer![1] }, metadata, 3000);
-    } catch (error) {
-      if (error instanceof CallError && error.status === 404) return null;
-      throw new Error('MATCHING_UNAVAILABLE');
-    }
-    return offerSchema.nullable().parse(data);
   }
   async replay(driverId: string) {
     if (!this.config.rabbitUrl || !this.server) return;

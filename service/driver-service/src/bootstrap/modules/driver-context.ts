@@ -16,8 +16,6 @@ import { RedisState } from "../../infrastructure/redis/redis-state";
 import { HttpTripActive } from "../../infrastructure/clients/trip-active.client";
 import { Config } from "../config/configuration";
 import { HttpOccupancy } from '../../infrastructure/clients/occupancy.client';
-import { GrpcOccupancy, GrpcTripActive, matchingClient, tripClient } from '../../infrastructure/clients/grpc.client';
-import { internalTransport } from '../../infrastructure/grpc';
 export const CONTEXT = "DRIVER_CONTEXT";
 export class DriverContext {
   readonly store: PostgresStore;
@@ -68,15 +66,10 @@ export class DriverContext {
       config.accessTtl,
       config.refreshTtl,
     );
-    // INTERNAL_TRANSPORT=grpc sends the calls to Trip and Matching over gRPC instead of HTTP.
-    const grpc = internalTransport() === 'grpc';
-    const trip = grpc ? tripClient(config.tripUrl, config.httpTimeout) : undefined;
-    const occupancy = config.tripLookupToken && config.matchingLookupToken && config.matchingUrl
-      ? trip ? new GrpcOccupancy(trip, config.tripLookupToken, matchingClient(config.matchingUrl, config.httpTimeout), config.matchingLookupToken) : new HttpOccupancy(config.tripUrl, config.tripLookupToken, config.matchingUrl, config.matchingLookupToken, config.httpTimeout)
-      : undefined;
+    const occupancy = config.tripLookupToken && config.matchingLookupToken && config.matchingUrl ? new HttpOccupancy(config.tripUrl, config.tripLookupToken, config.matchingUrl, config.matchingLookupToken, config.httpTimeout) : undefined;
     const policy = new EditPolicy(
       this.store,
-      trip ? new GrpcTripActive(trip) : new HttpTripActive(config.tripUrl, config.httpTimeout),
+      new HttpTripActive(config.tripUrl, config.httpTimeout),
       occupancy,
     );
     this.profile = new ProfileUseCases(this.store, runtime, policy);
