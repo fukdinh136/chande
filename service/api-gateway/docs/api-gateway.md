@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | api-gateway |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 > Cập nhật 06/10/2026, theo code nhánh `api-gateway` (commit `8e3ea97`).
@@ -530,6 +530,7 @@ cd api-gateway && ./mvnw test
 5. **Hai định dạng lỗi.** Gateway dùng `{error, meta}`. user-service (v1, và v2 theo quyết định hiện tại) dùng `{code, message, fieldErrors}`.
 6. **Sự kiện phát lúc instance khởi động lại hoặc app mất mạng sẽ không được gửi lại.** App phải đồng bộ bằng `GET /api/v1/trips/active`; thiết kế hiện tại chấp nhận điều này.
 7. **`/actuator/health` phụ thuộc Redis.** Nếu cấu hình nhầm load balancer gọi endpoint này, Redis lỗi sẽ kéo cả gateway ra khỏi load balancer, dù REST vẫn chạy được.
+8. **Gateway là pod ứng dụng tốn CPU nhất khi tải cao và chưa có observability.** Đo ngày 2026-11-15 với 1000 tài xế: trung bình 0,11 core ở 8 chuyến/giây, 0,16 ở 16 và 0,34 (đỉnh 0,52) ở 32 chuyến/giây, trong khi mỗi service Node dưới 0,3 core ([báo cáo kiểm thử tải, mục 13](../../../docs/bao-cao-kiem-thu-tai.md#13-http-và-grpc-giữa-các-service-2026-11-15)). Gateway, User, Payment (Java) chưa gửi metric/trace ([ADR-0003](../../../docs/adr/0003-observability-opentelemetry.md)), nên chưa biết CPU tốn vào đâu; đây là ứng viên điểm nghẽn kế tiếp nếu đo trên 32 chuyến/giây.
 
 ## 14. Cần nhóm chốt
 

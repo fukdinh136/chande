@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | price-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày 06/10/2026. POST `/internal/fares/estimate` đã triển khai, tương thích PricingClient của Trip. Local port 3005. Chỉ Trip dùng service token, endpoint private. Không thêm `/fare/calculate` alias.
@@ -30,5 +30,6 @@ GET `/health/live`, `/health/ready` không gọi dependency. `/docs`, `/openapi.
 - `SUPPORTED_VEHICLE_TYPES=CAR,BIKE`, `FARE_POLICY_FILE=config/fare-policy.example.json`. Loader validate biểu giá trước startup; không hard-code vào hàm tính.
 - Default CAR/BIKE phục vụ cấu hình cũ; stack Matching override CAR_4,CAR_7. Policy example đã khai báo cả hai CAR mới cùng mức CAR mẫu; không fallback từ mã không được cho phép.
 - `SWAGGER_ENABLED=true|false`; production tắt docs và từ chối enabled MOCK_BIKE.
+- Observability tuỳ chọn ([ADR-0003](../../../docs/adr/0003-observability-opentelemetry.md)): đặt biến `OTEL_*` (deploy bật bằng `OBSERVABILITY=on`) thì service gửi metric HTTP và trace qua OTLP; không đặt thì không nạp OpenTelemetry. Price không có thay đổi nào khác trên nhánh `perf/adr-0008-trip-outbox`; ở 32 chuyến/giây dùng khoảng 0,02 core ([báo cáo kiểm thử tải](../../../docs/bao-cao-kiem-thu-tai.md)).
 - Docker build từ service root; Node 24 image pin digest, multi-stage, non-root, không bake env/secrets/local config. Production mount policy file và secret file rồi chọn đường dẫn trong container.
 - Local tích hợp dùng [Trip Compose](../../trip-service/compose.local.yml), policy mock có CAR/BIKE/MOCK_BIKE explicit. Không triển khai User/Driver/Matching trong package này.

@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | api-gateway |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
 
 Cổng vào duy nhất cho Customer App, Driver App và Web quản trị (sơ đồ C2). Gateway xác thực JWT, phân quyền
@@ -114,6 +114,8 @@ Production cần bật AOF cho Redis (`appendonly yes`) để "đã lưu" thật
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | localhost, 6379 | Redis |
 | `AUTH_MAX_ATTEMPTS` | 5 | Số lần thử đăng nhập/OTP mỗi phút mỗi IP (IP thật từ `X-Forwarded-For` do edge đặt) |
 | `DRIVER_PROXY_TOKEN` | rỗng | Credential để Driver tin `X-Driver-Client-IP` do Gateway gửi; trùng `GATEWAY_PROXY_TOKEN` của Driver |
+
+Cải tiến trên nhánh `perf/adr-0008-trip-outbox` (A4, commit `7a0eec9`): giới hạn đăng nhập/OTP tính theo IP thật của người dùng (edge nginx ghi đè `X-Forwarded-For`, Gateway chỉ tin header từ proxy nội bộ) và chuyển IP đó sang Driver kèm `DRIVER_PROXY_TOKEN`. Chi tiết ở [tài liệu Gateway, mục 5](docs/api-gateway.md#5-giới-hạn-số-lần-thử-rate-limit); tổng quan ở [tổng hợp cải tiến hiệu năng](../../docs/tong-hop-cai-tien-hieu-nang.md).
 
 Load balancer nên kiểm tra `GET /actuator/health/readiness` (không phụ thuộc Redis).
 
