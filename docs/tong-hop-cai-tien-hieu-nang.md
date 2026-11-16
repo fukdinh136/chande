@@ -134,7 +134,7 @@ Thêm sau lần đo cuối, **chưa đo**. Không nhằm tăng thông lượng.
 ### 3.10 Tìm trần và quan sát Gateway (2026-11-17)
 
 - Gateway (Java) có OpenTelemetry qua Java agent, bật cùng `OBSERVABILITY=on`.
-- Đo tiếp trên 32 chuyến/giây: **48 chuyến/giây vẫn đạt** (p95 1,7 giây), 64 thì không; trần quanh 45–50. Điểm nghẽn kế tiếp là sức xử lý đồng thời của Matching worker, chưa kiểm chứng bằng thử nghiệm.
+- Đo tiếp trên 32 chuyến/giây: **48 chuyến/giây vẫn đạt** (p95 1,7 giây), 64 thì không; trần quanh 45–50. Thử nghiệm cho thấy điểm nghẽn là PostgreSQL ghi commit (khoảng 2900 commit/giây trên máy đo), không phải pool của Matching: nâng pool làm tệ hơn, 2 replica worker gần như không đổi. Mỗi chuyến đang tốn khoảng 190 câu SQL và 60 commit; hướng tiếp theo là giảm số lần ghi (ví dụ B2).
 - Chạy liên tục 30 phút ở 16 chuyến/giây: 28800/28800 chuyến, p95 0,93 giây, không còn đợt chậm 3 phút.
 - Chi tiết: [báo cáo, mục 14](bao-cao-kiem-thu-tai.md#14-tìm-trần-và-quan-sát-gateway-2026-11-17).
 
@@ -192,7 +192,7 @@ API public qua Gateway, app Android và web không đổi.
 
 - User (Java) chưa có observability; Gateway đã có từ 2026-11-17.
 - Một chuyến hiện là ba đoạn trace, chưa phải một trace liền từ đầu tới cuối.
-- Trần quanh 45–50 chuyến/giây (48 đạt, 64 không); chưa đo các mức ở giữa và chưa thử nâng sức xử lý của Matching worker.
+- Trần quanh 45–50 chuyến/giây (48 đạt, 64 không) do PostgreSQL ghi commit; chưa đo các mức ở giữa và chưa làm việc giảm số lần ghi mỗi chuyến.
 - Mỗi mức tải mới đo một lần, 2 phút, trên một laptop. Hai lần đo cùng mức có thể lệch đáng kể (ví dụ p95 2,0 và 1,5 giây).
 - Lần 5000 tài xế ở 8 chuyến/giây không đạt ngày 2026-11-05 nay đạt, nhưng chưa xác định được vì sao hôm đó không đạt.
 - Đợt chậm 3 phút khi chạy 30 phút không lặp lại ở lần đo 2026-11-17; còn hai gợn dưới một phút lúc 1000 tài xế nối lại cùng lúc.

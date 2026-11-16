@@ -516,7 +516,7 @@ Lỗi HTTP 0% ở cả ba mức. **Mức cao nhất đạt ngưỡng là 48 chuy
 
 Ở 64 chuyến/giây, thời gian dồn vào hai đoạn của Matching: `SEARCHING` → tạo offer p95 36,7 giây và offer → publish p95 12,3 giây; hai đoạn sau (tài xế nhận, Trip ghi `ASSIGNED`) vẫn 49 ms và 301 ms. Log của matching-worker trong lúc đó không có lần thử lại nào vì dependency bận, Routing không từ chối, breaker không mở, và không pod nào chạm giới hạn CPU của nó (PostgreSQL 1,27 core, matching-worker 0,66 core trung bình).
 
-Vì vậy điểm nghẽn là **số việc Matching worker làm được cùng lúc**, không phải thiếu CPU chung: pool job bị chặn ở `WORKER_CONCURRENCY` tối đa 16, pool kết nối PostgreSQL của Matching là 10 (một kết nối do Leader Election giữ), và worker là một process Node một luồng đã dùng 0,66–0,82 core. Đây là suy luận từ số đo và cấu hình, **chưa kiểm chứng bằng thử nghiệm** (nâng trần `WORKER_CONCURRENCY` và pool kết nối, hoặc chạy 2 replica worker, rồi đo lại 64).
+Suy luận đầu tiên là Matching worker thiếu chỗ chạy đồng thời (pool job 16, pool kết nối 10). Thử nghiệm ở [mục 14.5](#145-thử-nghiệm-tìm-điểm-nghẽn-ở-64-chuyếngiây) **bác suy luận này**: điểm nghẽn là PostgreSQL ghi commit, không phải pool của Matching.
 
 ### 14.2 Gateway dưới tải (bật observability, 32 chuyến/giây)
 
@@ -557,9 +557,37 @@ Tắt observability, thêm `--login 1` để khách tự đăng nhập lại (to
 ### 14.4 Kết luận
 
 1. Trần hiện tại khoảng 45–50 chuyến/giây với 1000 tài xế trên máy đo; mức đã chứng minh đạt ngưỡng tăng từ 32 lên **48 chuyến/giây**.
-2. Điểm nghẽn kế tiếp là sức xử lý đồng thời của Matching worker (pool job 16, pool kết nối 10, một process), chưa kiểm chứng bằng thử nghiệm.
+2. Điểm nghẽn ở trần là PostgreSQL: ghi WAL khi commit trước, rồi tới giới hạn 2 core của nó ([mục 14.5](#145-thử-nghiệm-tìm-điểm-nghẽn-ở-64-chuyếngiây)). Nâng pool của Matching không giúp; mỗi chuyến đang tốn khoảng 190 câu SQL và 60 commit.
 3. Gateway chưa nghẽn, nhưng nhận gấp đôi số event cần thiết từ Trip (B2).
 4. Hệ thống chạy ổn định 30 phút ở một phần ba mức trần.
-5. Giới hạn: mỗi mức một lần, một laptop; chưa đo giữa 48 và 64; User (Java) chưa có telemetry.
+5. Giới hạn: mỗi mức một lần, một laptop (PostgreSQL ghi xuống đĩa ảo của Docker Desktop, nên trần commit phụ thuộc máy đo); chưa đo giữa 48 và 64; User (Java) chưa có telemetry.
 
-Kết quả ở `deploy/.local/load/results/2026-11-16T18-2*`, `18-3*` (trần, Gateway) và `2026-11-16T19-10-28-963Z` (30 phút); tên thư mục theo giờ UTC.
+### 14.5 Thử nghiệm tìm điểm nghẽn ở 64 chuyến/giây
+
+Cùng kịch bản 64 chuyến/giây, mỗi cấu hình một lần. Hai biến `WORKER_CONCURRENCY` (nay tối đa 64) và `DB_POOL_SIZE` của Matching đổi được khi deploy bằng `MATCHING_WORKER_CONCURRENCY`, `MATCHING_DB_POOL_SIZE`.
+
+| Cấu hình | Được gán trong 2 phút | p95 tới `ASSIGNED` | `SEARCHING` → offer p95 | Offer → publish p95 | Commit/giây của PostgreSQL | CPU PostgreSQL TB / max |
+| --- | --- | --- | --- | --- | --- | --- |
+| Mặc định (16 job, 10 kết nối, 1 worker) | 5632 | 42,7 giây | 36,7 giây | 12,3 giây | 2827 | 1266 / 1428 m |
+| 32 job, 20 kết nối, 1 worker | 4138 | 49,7 giây | 43,0 giây | 16,9 giây | 2472 | 1217 / 1305 m |
+| Mặc định, 2 replica worker | 6106 | 40,2 giây | 36,1 giây | 1,7 giây | 2948 | 1452 / 1624 m |
+| Mặc định, 2 replica worker (lặp lại, có lấy mẫu) | 5554 | 46,4 giây | 43,5 giây | 1,0 giây | 2807 | 1435 / 1565 m |
+| 2 replica worker, `synchronous_commit=off` (chỉ để chẩn đoán) | 7181 | 17,7 giây | 15,2 giây | 0,6 giây | 3468 | 1481 / 1629 m |
+
+Ở 48 chuyến/giây (đạt ngưỡng) PostgreSQL đã chạy 2878 commit/giây.
+
+1. **Nâng pool của Matching làm tệ hơn** (4138 so với 5632 chuyến): thêm việc chạy đồng thời chỉ thêm tranh chấp ở database. Giữ mặc định 16 job, 10 kết nối.
+2. **Hai replica worker** giải toả đoạn gửi offer (12,3 giây xuống 1–1,7 giây, vì publisher không còn chung một luồng với việc tìm xe) nhưng bước tìm xe vẫn dồn và tổng số chuyến gán gần như không đổi.
+3. **Số commit mỗi giây đứng ở khoảng 2800–2950** dù tải, pool hay số replica thay đổi. Lấy mẫu `pg_stat_activity` mỗi giây trong lúc chạy: trong các phiên đang thực thi lệnh, khoảng một nửa đang chờ ghi WAL (`WALWrite`, `WalSync`, `WALInsert`).
+4. **Tắt `synchronous_commit`** (PostgreSQL trả lời commit trước khi ghi WAL xuống đĩa) đưa commit lên 3468/giây và số chuyến gán lên 7181, p95 từ 46 xuống 17,7 giây, nhưng vẫn không đạt ngưỡng; lúc đó PostgreSQL dùng 1,5–1,6 core trên giới hạn 2 core. Cấu hình này làm mất các commit cuối khi PostgreSQL sập nên **không dùng cho dữ liệu chuyến**; đã đặt lại `on` ngay sau lần đo.
+
+Kết luận: trần 45–50 chuyến/giây là trần của **một PostgreSQL trên máy đo**, trước hết ở việc ghi commit xuống đĩa, kế đó ở CPU của nó. Hướng cải tiến là giảm việc ghi cho mỗi chuyến, không phải thêm worker. Ở 48 chuyến/giây mỗi chuyến tốn khoảng 188 câu SQL (Trip 85, Matching 96, Driver 7) và khoảng 60 commit. Các nhóm ghi nhiều nhất mỗi chuyến:
+
+| Nhóm | Số câu mỗi chuyến | Ghi chú |
+| --- | --- | --- |
+| Outbox của Trip: `outbox_deliveries` | 8 dòng tạo, 8 lần cập nhật, 8 lần kiểm lease | 5 tin, trong đó 3 event gửi tới hai đích cùng là Gateway; gộp đích (B2) còn 5 delivery, bớt 3 trong 8 |
+| Matching: `matching_searches`, `matching_offers` | 5 lần ghi mỗi bảng, 6 lần khoá | Mỗi bước của search/offer là một transaction riêng |
+| Matching: `matching_outbox` | 4 dòng tạo, 4 lần đánh dấu đã gửi, 4 lần claim | Có thể đánh dấu đã gửi theo lô |
+| Trip: `trip_status_history`, `outbox` | 4 và 5 dòng tạo | Theo số lần đổi trạng thái của kịch bản đo (tạo, tìm, gán, huỷ) |
+
+Kết quả ở `deploy/.local/load/results/2026-11-16T18-2*`, `18-3*` (trần, Gateway), `2026-11-16T19-10-28-963Z` (30 phút) và `2026-11-16T19-4*`, `19-5*` (thử nghiệm 14.5); tên thư mục theo giờ UTC.

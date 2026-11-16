@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | matching-service |
-| Rà soát | 2026-11-16 |
+| Rà soát | 2026-11-17 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Matching API mặc định 3007. Local tích hợp dùng Driver 3008, Realtime 3009 để tránh Trip mock 3003 và Routing 3004. Một worker, tối đa 16 job async đồng thời; polling 5 giây, expiry scan 250 ms; retry nominal 1–30 giây với jitter hệ số 0.8–1.0 (delay thực có thể từ 800 ms); dependency bận (`ROUTING_BUSY`, 429 hoặc có `Retry-After`) được thử lại theo `Retry-After`, tối đa 2 giây, không tăng dần.
@@ -21,7 +21,8 @@ Readiness kiểm tra schema/database. Worker và consumer reconnect có backoff;
 | `REALTIME_BASE_URL` / `REALTIME_MATCHING_TOKEN` | bắt buộc | Worker tìm ứng viên ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)): gọi `GET /internal/realtime/driver-locations`; token khớp `MATCHING_LOCATION_TOKEN` của Realtime |
 | `NEARBY_LIMIT` | 200 (tối đa 200) | Số vị trí gần nhất lấy từ Realtime mỗi lần tìm |
 | `MATRIX_CANDIDATES` | 25 (tối đa 50) | Số tài xế hợp lệ gần nhất (đường chim bay) được tính ETA |
-| `WORKER_CONCURRENCY` | 16 (tối đa 16) | Số job tìm xe chạy cùng lúc; job xong là claim job mới ngay. Khi nhiều job đến hạn hơn số chỗ trống, worker lấy theo thứ tự ưu tiên (Priority Queue): job gán chuyến (tài xế đã nhận) trước, rồi chuyến đặt sớm nhất, cuối cùng theo `due_at` |
+| `WORKER_CONCURRENCY` | 16 (tối đa 64) | Số job tìm xe chạy cùng lúc; job xong là claim job mới ngay. Khi nhiều job đến hạn hơn số chỗ trống, worker lấy theo thứ tự ưu tiên (Priority Queue): job gán chuyến (tài xế đã nhận) trước, rồi chuyến đặt sớm nhất, cuối cùng theo `due_at` |
+| `DB_POOL_SIZE` | 10 (tối đa 50) | Số kết nối PostgreSQL của mỗi process. Đo ngày 2026-11-17: nâng lên 32 job / 20 kết nối làm thông lượng ở 64 chuyến/giây giảm, vì điểm nghẽn là PostgreSQL ghi commit ([báo cáo kiểm thử tải, mục 14.5](../../../docs/bao-cao-kiem-thu-tai.md#145-thử-nghiệm-tìm-điểm-nghẽn-ở-64-chuyếngiây)); giữ mặc định |
 | `WORKER_SCAN_MS` | 250 | Thời gian worker nghỉ khi không còn search tới hạn, và nhịp vòng hết hạn offer |
 | `SEARCH_POLL_MS` | 5000 | Hạn tìm lại khi chưa có ứng viên |
 | `PUBLISHER_BATCH_MAX` | 200 (tối đa 1000) | Số tin outbox tối đa publisher gửi trong một lượt; chạm trần thì chạy lượt kế ngay |
