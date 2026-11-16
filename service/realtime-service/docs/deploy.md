@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | realtime-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Hướng dẫn chạy trên môi trường riêng. Các bước runtime bên dưới là quy trình vận hành và tiêu chí kiểm chứng, không phải kết quả kiểm thử đã chạy. [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Nghiệp vụ](nghiep-vu.md).
@@ -16,7 +16,7 @@ Kết quả GPS/offer/reconnect thật: [báo cáo Matching](../../matching-serv
 | --- | --- | --- |
 | Realtime | http://localhost:3004 | HTTP và Socket.IO /realtime cùng process |
 | Redis riêng Realtime | 127.0.0.1:56379 | GPS/expiry/watermark; không dùng key Driver |
-| Driver/JWKS | http://127.0.0.1:3003 | OTP/JWT, JWKS, batch eligibility |
+| Driver/JWKS | http://127.0.0.1:3003 | OTP/JWT và JWKS; Realtime không gọi eligibility từ 2026-11-05 |
 | App Expo | Web origin thường localhost:8081 | Foreground GPS; thiết bị/emulator dùng URL thích hợp |
 | Trip | Theo config Driver | Driver có thể cần Trip khi chọn/sửa xe; Realtime không gọi Trip |
 

@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | realtime-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
 
 Service nhận GPS tài xế và trả vị trí tài xế gần điểm đón cho Matching của Chande.
@@ -64,6 +64,18 @@ service/realtime-service/
 | Production ingress | — | Chưa nghiệm thu |
 | Operational AVAILABLE/BUSY | Driver đối soát active Trip và reservation Matching | BUSY/AVAILABLE đã kiểm tra trong smoke; snapshot không thay thế reservation DB |
 | Offer delivery/reconnect | Rabbit consumer, Redis version/tombstone, Matching lookup | 2 consumer tests và smoke WebSocket/reconnect pass; không reset deadline |
+
+### Cải tiến hiệu năng và chịu lỗi
+
+Làm trên nhánh `perf/adr-0008-trip-outbox`; tổng quan ở [tổng hợp cải tiến hiệu năng](../../docs/tong-hop-cai-tien-hieu-nang.md).
+
+| Cải tiến | Thay đổi trong Realtime | Commit |
+| --- | --- | --- |
+| [ADR-0001](../../docs/adr/0001-matching-so-huu-tim-ung-vien.md) | Thêm `driver-locations` cho Matching (tối đa 200 vị trí, `GEOSEARCH COUNT`); gỡ `/nearby-drivers` và client gọi Driver | `bcc8ecd`, `a3cd200` |
+| B6, [ADR-0003](../../docs/adr/0003-observability-opentelemetry.md) | OpenTelemetry tuỳ chọn; metric thời gian xử lý mỗi bản tin GPS | `7ae5bd2`, `abea764` |
+| D1 | Circuit breaker cho lookup offer sang Matching | `b0b21b4` |
+
+Ở 32 chuyến/giây với 1000 tài xế, ack GPS p95 vẫn 3–6 ms ([báo cáo kiểm thử tải](../../docs/bao-cao-kiem-thu-tai.md)).
 
 Key Driver legacy drivers:geo:* còn có thao tác cleanup tương thích; Realtime dùng namespace riêng realtime:{gps}:*. Không tự đổi consumer cũ hay dual-write. Chi tiết khác biệt và hợp đồng còn chờ ở [Kiến trúc](docs/kien-truc.md) và [API](docs/api.md).
 

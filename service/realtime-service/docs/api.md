@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | realtime-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày đối chiếu: 06/10/2026. GPS/offer đã liên thông dependency thật trong smoke Matching Hà Nội; từ 2026-11-05 Realtime trả vị trí thô cho Matching và không gọi Driver ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)). [Nghiệp vụ](nghiep-vu.md), [Kiến trúc](kien-truc.md), [Routes](routes.md), [Deploy](deploy.md).

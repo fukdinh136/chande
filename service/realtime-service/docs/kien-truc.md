@@ -3,14 +3,14 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | realtime-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày đối chiếu mã: 06/10/2026. C3 dưới đây mô tả implementation hiện tại, không xác nhận đã vận hành nhiều instance. [Nghiệp vụ](nghiep-vu.md), [API](api.md), [Routes](routes.md), [Deploy](deploy.md).
 
 ## 1. Phạm vi và cách đọc
 
-Realtime nhận GPS, trả vị trí thô cho Matching ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)) và giao offer qua Socket.IO. Driver cấp identity (JWKS); Redis giữ GPS/version/tombstone. Không có PostgreSQL hoặc Trip client; OfferConsumer dùng RabbitMQ và Matching HTTP state lookup. Gateway WebSocket thuần là kênh khác.
+Realtime nhận GPS, trả vị trí thô cho Matching ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)) và giao offer qua Socket.IO. Driver cấp identity (JWKS); Redis giữ GPS/version/tombstone. Không có PostgreSQL hoặc Trip client; OfferConsumer dùng RabbitMQ và Matching HTTP state lookup, có circuit breaker cho Matching (D1). Gateway WebSocket thuần là kênh khác.
 
 Mũi tên liền thể hiện lời gọi lúc chạy; mũi tên nét đứt từ adapter đến port thể hiện triển khai interface. Bootstrap nối dependency, không phải một bước nghiệp vụ bắt buộc sau Infrastructure. Application/Domain dùng TypeScript thuần, không import NestJS, ioredis, jose hay HTTP client.
 

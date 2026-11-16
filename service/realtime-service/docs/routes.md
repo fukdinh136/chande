@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | realtime-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày đối chiếu: 06/10/2026. GPS/offer đã kiểm chứng Docker local Hà Nội; thiết bị và ingress production chưa nghiệm thu. [API](api.md), [Kiến trúc](kien-truc.md), [Nghiệp vụ](nghiep-vu.md), [Deploy](deploy.md).
@@ -42,7 +42,7 @@ R01 `GET /internal/realtime/nearby-drivers` cho Routing đã gỡ ngày 2026-11-
 | H01 | GET /health/live | Operator/probe | Không guard trong code | HealthController.live | Nên ở mạng vận hành; 200 {status:ok} |
 | H02 | GET /health/ready | Operator/probe | Không guard trong code | HealthController.ready → LocationStore.ready | Redis PING; 200 ready / 503 not_ready |
 
-Health không business envelope; ready không kiểm Driver/JWKS/Trip hay quyền EVAL/GEO. Chưa có /metrics, /docs hoặc /openapi.json. Invalid HTTP route nhận 404 qua ErrorFilter, không phải API mới.
+Health không business envelope; ready không kiểm Driver/JWKS/Trip hay quyền EVAL/GEO. Chưa có /metrics, /docs hoặc /openapi.json; khi bật observability ([ADR-0003](../../../docs/adr/0003-observability-opentelemetry.md)) metric và trace được đẩy qua OTLP, gồm `realtime_location_update_duration` cho mỗi bản tin GPS. Invalid HTTP route nhận 404 qua ErrorFilter, không phải API mới.
 
 ## 5. Realtime → Driver Service
 
@@ -83,6 +83,8 @@ Năm key realtime:{gps}:geo/meta/expiry/order/order-expiry ở [Kiến trúc](ki
 | Rabbit → Realtime | DRIVER_TRIP_OFFER / DRIVER_TRIP_OFFER_UPDATED | Durable queue driver.offers; manual ACK, retry/DLQ |
 | Realtime → Matching | GET /internal/matching/offers/:offerId | MATCHING_REALTIME_TOKEN; state authoritative |
 | Realtime → Matching | GET /internal/matching/drivers/:driverId/offer | Cùng credential; reconnect chính driver đã xác thực |
+
+Hai lookup sang Matching dùng chung một circuit breaker (D1): 5 lỗi liên tiếp (timeout, không kết nối được, 5xx không có `Retry-After`) thì ngừng gọi Matching 5 giây, lookup thất bại ngay với `MATCHING_UNAVAILABLE` và message đi theo đường retry/DLQ như khi Matching lỗi.
 | Realtime → Driver App | driver.trip.offer / driver.trip.offer.updated | Room driver từ JWT; `{data:<offer>}` |
 
 Accept/decline thuộc REST Matching, không thêm socket command trong Realtime. Registry/rotation credential, ingress Gateway, trip room US8 và legacy GEO migration chưa nghiệm thu; producer occupancy Driver đã triển khai.

@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | realtime-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày đối chiếu: 06/10/2026. GPS/offer đã chạy qua Docker local Hà Nội; thiết bị/background và production chưa nghiệm thu. [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Deploy](deploy.md).
@@ -30,7 +30,7 @@ OTP/refresh/logout, hồ sơ/xe/ONLINE, assignment/vòng đời Trip, thuật to
 | --- | --- | --- |
 | Driver App | Quyền vị trí, đo GPS, foreground/focus, phiên người dùng | Gửi GPS với Driver JWT; hiển thị ACK/lỗi |
 | Realtime | Vị trí mới nhất, thời gian đo/nhận, GEO, expiry, watermark | Lưu Redis riêng; nhận GPS và trả vị trí cho Matching |
-| Driver | Identity, ý định PostgreSQL ONLINE/OFFLINE, xe chọn/active, policy eligibility | Cấp JWT/JWKS; trả batch eligibility qua credential riêng |
+| Driver | Identity, ý định PostgreSQL ONLINE/OFFLINE, xe chọn/active, policy eligibility | Cấp JWT/JWKS; trả eligibility theo lô cho Matching (không cho Realtime) |
 | Routing | Tính ETA cho vị trí Matching gửi | Không gọi Realtime từ 2026-11-05 |
 | Matching | Tìm ứng viên, mời/accept/decline và reservation | Gọi driver-locations mỗi lần tìm; kiểm điều kiện ở Driver |
 | Trip | Active Trip, assignment, version và lịch sử trạng thái | Realtime không gọi Trip hoặc đọc trip_db |
