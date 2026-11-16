@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | matching-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Response `{data,meta:{requestId}}`; lỗi `{error:{code,message},meta:{requestId}}`. X-Request-Id UUID được giữ qua service. Body strict, giới hạn 64 KiB. Service credential riêng cho Trip, Driver và Realtime; không proxy internal qua Gateway.
@@ -29,3 +29,14 @@ Search command dùng contract Trip hiện có: commandId/type/tripId/tripVersion
 Rabbit event `DRIVER_TRIP_OFFER`: eventId, offerId, driverId, tripId, version, status, expiresAt. Event cập nhật `DRIVER_TRIP_OFFER_UPDATED` dùng cùng offerId và version tăng. Realtime truy vấn Matching để lấy trạng thái hiện tại và dữ liệu pickup/destination/vehicleType/fare; không dùng payload cũ để hồi sinh offer. Socket emits `driver.trip.offer` / `driver.trip.offer.updated` với `{data:<offer>}`; room driverId được lấy từ JWT. REST decision trả `{offerId,status,accepted}`; decline có accepted=false và status=DECLINED.
 
 Trip bổ sung POST /internal/trips/active-drivers/batch (Driver token) và GET /internal/trips/:id/matching-state (Matching token). Callback POST /internal/trips/:id/assignment trả 202 sau commit.
+
+Matching gọi ra khi tìm ứng viên ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)), mỗi service một lần cho mỗi lượt tìm:
+
+| Đích | Method/path | Credential |
+| --- | --- | --- |
+| Realtime | GET /internal/realtime/driver-locations | `REALTIME_MATCHING_TOKEN` |
+| Driver | POST /internal/drivers/eligibility/candidates; GET /internal/drivers/:id/eligibility trước khi gán | `DRIVER_MATCHING_TOKEN` |
+| Routing | POST /internal/routes/eta-matrix | `ROUTING_MATCHING_TOKEN` |
+| Trip | POST /internal/trips/:id/assignment; GET /internal/trips/:id/matching-state | `TRIP_MATCHING_TOKEN` |
+
+Lỗi từ đích giữ mã lỗi và `Retry-After`; khi circuit breaker của đích đang mở, lời gọi thất bại ngay với `CIRCUIT_OPEN`.

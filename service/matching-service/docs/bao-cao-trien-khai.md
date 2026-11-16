@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | matching-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 ## M00
@@ -80,3 +80,23 @@ GitHub Actions đã hoàn tất **success** cho commit runtime `2c82f85`: [Match
 Smoke gọi REST Matching trực tiếp, chưa kiểm chứng ingress Gateway hoặc UI thiết bị. RIDER issuer và Gateway/Notification event sink dùng mock; fixture SQL chỉ dành database Driver mới của stack smoke, không phải migration production. BIKE OSRM thật, GPS background/traffic, nhiều replica và hosting production chưa nghiệm thu. Không ghi đè `.env`, key/token local hoặc xóa volume có sẵn.
 
 Chạy lại, startup/shutdown, requeue và giới hạn Gateway: [runbook](deploy.md). Component/source và C3: [kiến trúc](kien-truc.md). Contract và quyền: [API](api.md).
+
+## Cải tiến hiệu năng và chịu lỗi
+
+Làm trên nhánh `perf/adr-0008-trip-outbox` (2026-10-28 → 2026-11-16), mỗi bước đo lại bằng bộ đo tải. Tổng quan: [tổng hợp cải tiến hiệu năng](../../../docs/tong-hop-cai-tien-hieu-nang.md).
+
+| Cải tiến | Thay đổi trong Matching | Commit |
+| --- | --- | --- |
+| A2, [ADR-0008](../../../docs/adr/0008-xu-ly-hang-doi-lien-tuc.md) | Publisher chạy vòng riêng, không còn trần 10 offer mỗi nhịp | `2dac6c0` |
+| A3, ADR-0008 | Worker chạy pool job tự lấp chỗ trống; giữ offer tới khi hết hạn | `a0fe3c3` |
+| A5 | Index riêng cho tin outbox chưa publish | `3d1e440` |
+| A6 | Xoá tin outbox đã publish sau 24 giờ | `bfac1f3` |
+| A7 | Log lý do mỗi lần thử lại; dependency bận thì thử lại sớm theo `Retry-After` | `64ede3e` |
+| [ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md) | Tự tìm ứng viên từ Realtime, Driver, Routing; bỏ đường `/routes/matrix` và `CANDIDATE_SOURCE` | `80093e0`, `304cf6f` |
+| B6, [ADR-0003](../../../docs/adr/0003-observability-opentelemetry.md) | OpenTelemetry tuỳ chọn; metric thời gian từng bước tìm xe | `7ae5bd2`, `abea764` |
+| D1 | Circuit breaker cho mỗi dependency; ngân sách cho lần thử lại sớm | `b0b21b4` |
+| Leader Election | Chỉ một replica worker dọn outbox | `65489b1` |
+| Priority Queue | Lấy job gán chuyến trước, rồi chuyến đặt sớm nhất | `69b6472` |
+
+Kết quả của cả hệ thống: mức đạt ngưỡng tăng từ 2 lên 32 chuyến/giây với 1000 tài xế ([báo cáo kiểm thử tải](../../../docs/bao-cao-kiem-thu-tai.md)). Vai trò của Matching trong luồng chuyến đi và các bước bù trừ: [saga chuyến đi](../../../docs/saga-chuyen-di.md).
+

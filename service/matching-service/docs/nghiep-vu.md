@@ -3,12 +3,12 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | matching-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 ## Quyết định đã xác nhận
 
-- Routing lấy GPS qua Realtime, trả matrix trong bán kính 2 km. Matching gửi pickup và vehicleType, không gửi candidates.
+- Matching tự tìm ứng viên ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)): lấy tối đa `NEARBY_LIMIT` (200) vị trí mới trong bán kính 2 km từ Realtime, kiểm điều kiện cả lô (tối đa 100) ở Driver, rồi chỉ tính ETA đường đi cho `MATRIX_CANDIDATES` (25) người hợp lệ gần nhất ở Routing. Tài xế ngoài 200 vị trí gần nhất không được xét trong lần tìm đó.
 - BIKE, CAR_4, CAR_7. CAR dùng OSRM Hà Nội; BIKE dùng mock đến khi có profile xe máy đã kiểm chứng.
 - Xếp theo ETA, khoảng cách đường đi, driverId. Bỏ NO_ROUTE, GPS quá 30 giây, tương lai quá 5 giây, sai loại xe, offline/busy, đã mời hoặc đang bị giữ chỗ.
 - Mỗi chuyến một offer chờ; mỗi driver một reservation. Offer hết hạn sau 20 giây kể từ thời gian tạo ở server, không gia hạn khi retry/reconnect.

@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | matching-service |
-| Rà soát | 2026-11-15 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Matching API mặc định 3007. Local tích hợp dùng Driver 3008, Realtime 3009 để tránh Trip mock 3003 và Routing 3004. Một worker, tối đa 16 job async đồng thời; polling 5 giây, expiry scan 250 ms; retry nominal 1–30 giây với jitter hệ số 0.8–1.0 (delay thực có thể từ 800 ms); dependency bận (`ROUTING_BUSY`, 429 hoặc có `Retry-After`) được thử lại theo `Retry-After`, tối đa 2 giây, không tăng dần.
