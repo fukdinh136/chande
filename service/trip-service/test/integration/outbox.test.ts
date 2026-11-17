@@ -64,3 +64,11 @@ test('purge removes only old messages whose deliveries are all delivered or skip
   const orphans: { n: number }[] = await store.db.query('SELECT count(*)::int AS n FROM outbox_deliveries WHERE outbox_id = ANY($1::uuid[])', [[done, skipped]]);
   assert.equal(orphans[0]!.n, 0);
 });
+test('a destination the sender no longer has is skipped, not blocked, so the message can be purged', async () => {
+  await seed();
+  let sent = 0;
+  await new OutboxDispatcher(outbox, { send: async () => { sent++; }, accepts: destination => destination !== 'notification' }, config).tick();
+  const rows: { destination: string; status: string }[] = await store.db.query('SELECT destination,status FROM outbox_deliveries ORDER BY destination');
+  assert.deepEqual(rows, [{ destination: 'gateway', status: 'delivered' }, { destination: 'notification', status: 'skipped' }]); assert.equal(sent, 1);
+});
+

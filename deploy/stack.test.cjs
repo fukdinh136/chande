@@ -5,6 +5,8 @@ test('real issuer and callback topology keeps credentials scoped and public port
   const apps=stack(secrets);
   assert.equal(apps['trip-api'].env.AUTH_JWKS_URL,'http://user-api:3011/.well-known/jwks.json');
   assert.equal(apps['trip-worker'].env.GATEWAY_EVENTS_BASE_URL,'http://gateway-api:8090');
+  // B2: trip events reach the Gateway once; there is no second destination pointing at it.
+  assert.ok(!Object.keys(apps['trip-worker'].env).some(k=>k.startsWith('NOTIFICATION_')));
   assert.equal(apps['trip-api'].env.DRIVER_AUTH_JWT_ISSUER,apps['driver-api'].env.AUTH_JWT_ISSUER);
   assert.equal(apps['trip-api'].env.MATCHING_CALLBACK_TOKEN,apps['matching-api'].env.TRIP_MATCHING_TOKEN);
   assert.equal(apps['gateway-api'].env.ROUTING_GATEWAY_TOKEN,apps['routing-api'].env.ROUTING_GATEWAY_TOKEN);

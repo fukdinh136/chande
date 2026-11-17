@@ -5,14 +5,16 @@ import { JsonHttpClient, TransportError } from '../clients/http';
 import { MatchingClient } from '../clients/matching';
 import { PgOutbox, type Delivery } from './repository';
 import { recordDelivery, traced } from './metrics';
-export interface DeliverySender { send(delivery: Delivery): Promise<void> }
+/** `accepts` false: the destination is not configured here, so its pending deliveries are skipped instead of sent. */
+export interface DeliverySender { send(delivery: Delivery): Promise<void>; accepts?(destination: string): boolean }
 export class HttpDeliverySender implements DeliverySender {
   private readonly matching: MatchingClient;
   private readonly targets: Record<string, JsonHttpClient>;
   constructor(config: Config) {
-    this.targets = { matching: new JsonHttpClient(config.matchingUrl, config.matchingToken, config.httpTimeout), gateway: new JsonHttpClient(config.gatewayUrl, config.gatewayToken, config.httpTimeout), notification: new JsonHttpClient(config.notificationUrl, config.notificationToken, config.httpTimeout) };
+    this.targets = { matching: new JsonHttpClient(config.matchingUrl, config.matchingToken, config.httpTimeout), gateway: new JsonHttpClient(config.gatewayUrl, config.gatewayToken, config.httpTimeout), ...(config.notificationUrl ? { notification: new JsonHttpClient(config.notificationUrl, config.notificationToken, config.httpTimeout) } : {}) };
     this.matching = new MatchingClient(this.targets.matching!);
   }
+  accepts(destination: string) { return destination in this.targets; }
   async send(delivery: Delivery): Promise<void> {
     const requestId = randomUUID();
     if (delivery.kind !== 'event') { if (delivery.destination !== 'matching') throw new TransportError(false, 'INVALID_DESTINATION'); return this.matching.send(delivery.kind, delivery.payload, requestId); }
@@ -39,7 +41,7 @@ export class OutboxDispatcher {
           if (!await this.repository.owns(delivery.id, owner)) continue;
           await traced(delivery.destination, delivery.tripId, async () => {
             try {
-              if (delivery.kind === 'search' && !await this.repository.searching(delivery.tripId)) { await this.repository.finish(delivery.id, owner, 'skipped'); recordDelivery(delivery.destination, 'skipped', delivery.ageMs, performance.now() - claimed); }
+              if (this.sender.accepts?.(delivery.destination) === false || delivery.kind === 'search' && !await this.repository.searching(delivery.tripId)) { await this.repository.finish(delivery.id, owner, 'skipped'); recordDelivery(delivery.destination, 'skipped', delivery.ageMs, performance.now() - claimed); }
               else { await this.sender.send(delivery); await this.repository.finish(delivery.id, owner, 'delivered'); recordDelivery(delivery.destination, 'delivered', delivery.ageMs, performance.now() - claimed); }
             } catch (error) {
               const retryable = !(error instanceof TransportError) || error.retryable;

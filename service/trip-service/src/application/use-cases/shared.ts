@@ -21,7 +21,7 @@ export async function idempotent<T>(store: Store, principal: Principal, key: str
 const eventTypes: Record<string, string> = { SEARCHING: 'trip.searching', ASSIGNED: 'trip.assigned', DRIVER_ARRIVED: 'trip.driver_arrived', IN_PROGRESS: 'trip.started', COMPLETED: 'trip.completed', CANCELLED: 'trip.cancelled' };
 export async function enqueueEvent(tx: Transaction, data: TripData, runtime: Runtime, at: Date): Promise<void> {
   const id = runtime.id();
-  await tx.enqueue({ id, tripId: data.tripId, tripVersion: data.version, kind: 'event', payload: { schemaVersion: 1, eventId: id, type: eventTypes[data.status], tripId: data.tripId, tripVersion: data.version, occurredAt: at.toISOString(), data: { riderId: data.riderId, driverId: data.driverId, status: data.status } } }, data.status === 'COMPLETED' ? ['gateway', 'notification', 'matching'] : ['gateway', 'notification']);
+  await tx.enqueue({ id, tripId: data.tripId, tripVersion: data.version, kind: 'event', payload: { schemaVersion: 1, eventId: id, type: eventTypes[data.status], tripId: data.tripId, tripVersion: data.version, occurredAt: at.toISOString(), data: { riderId: data.riderId, driverId: data.driverId, status: data.status } } }, [...(runtime.eventDestinations ?? ['gateway', 'notification']), ...(data.status === 'COMPLETED' ? ['matching' as const] : [])]);
 }
 export async function enqueueMatching(tx: Transaction, data: TripData, runtime: Runtime, at: Date, kind: 'search' | 'cancel'): Promise<void> {
   const id = runtime.id();

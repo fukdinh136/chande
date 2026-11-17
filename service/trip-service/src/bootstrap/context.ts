@@ -16,7 +16,9 @@ export class TripContext {
   readonly estimate: EstimateTrip; readonly create: CreateTrip; readonly assignment: ReceiveAssignment;
   readonly get: GetTrip; readonly update: UpdateTrip; readonly cancel: CancelTrip;
   readonly identity: IdentityVerifier;
-  constructor(readonly config: Config, readonly store: Store, runtime: Runtime = { now: () => new Date(), id: randomUUID }, identity?: IdentityVerifier) {
+  // Trip events go to the Gateway, and to a notification receiver only when NOTIFICATION_BASE_URL names one (B2):
+  // without it no notification delivery is written, which saves one outbox delivery per event.
+  constructor(readonly config: Config, readonly store: Store, runtime: Runtime = { now: () => new Date(), id: randomUUID, eventDestinations: config.notificationUrl ? ['gateway', 'notification'] : ['gateway'] }, identity?: IdentityVerifier) {
     this.estimate = new EstimateTrip(store, new RoutingClient(new JsonHttpClient(config.routingUrl, config.routingToken, config.httpTimeout)), new PricingClient(new JsonHttpClient(config.pricingUrl, config.pricingToken, config.httpTimeout)), runtime, config.vehicleTypes);
     this.create = new CreateTrip(store, runtime); this.assignment = new ReceiveAssignment(store, runtime);
     this.get = new GetTrip(store, new HistoryCursor(config.cursorKey)); this.update = new UpdateTrip(store, runtime); this.cancel = new CancelTrip(store, runtime);
