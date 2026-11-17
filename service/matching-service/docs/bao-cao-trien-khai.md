@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | matching-service |
-| Rà soát | 2026-11-16 |
+| Rà soát | 2026-11-17 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 ## M00
@@ -97,6 +97,7 @@ Làm trên nhánh `perf/adr-0008-trip-outbox` (2026-10-28 → 2026-11-16), mỗi
 | D1 | Circuit breaker cho mỗi dependency; ngân sách cho lần thử lại sớm | `b0b21b4` |
 | Leader Election | Chỉ một replica worker dọn outbox | `65489b1` |
 | Priority Queue | Lấy job gán chuyến trước, rồi chuyến đặt sớm nhất | `69b6472` |
+| Giảm ghi | `lock_timeout` theo kết nối, claim một câu lệnh, publisher theo lô, gộp câu đọc khi tạo offer; bớt 30–40% câu SQL mỗi chuyến, trần từ 48 lên 64 chuyến/giây | `7afca59` |
 
-Kết quả của cả hệ thống: mức đạt ngưỡng tăng từ 2 lên 32 chuyến/giây với 1000 tài xế ([báo cáo kiểm thử tải](../../../docs/bao-cao-kiem-thu-tai.md)). Vai trò của Matching trong luồng chuyến đi và các bước bù trừ: [saga chuyến đi](../../../docs/saga-chuyen-di.md).
+Kết quả của cả hệ thống: mức đạt ngưỡng tăng từ 2 lên 64 chuyến/giây với 1000 tài xế ([báo cáo kiểm thử tải](../../../docs/bao-cao-kiem-thu-tai.md)). Vai trò của Matching trong luồng chuyến đi và các bước bù trừ: [saga chuyến đi](../../../docs/saga-chuyen-di.md).
 

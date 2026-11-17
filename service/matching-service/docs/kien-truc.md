@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | matching-service |
-| Rà soát | 2026-11-16 |
+| Rà soát | 2026-11-17 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 ```mermaid
@@ -42,7 +42,7 @@ Một process API, một process worker, một Realtime replica v1. Shutdown ng�
 | Clients | ports → Realtime/Driver/Routing/Trip HTTP | timeout, redirect error, schema/identity/ACK, response cap; mỗi dependency một circuit breaker (D1): 5 lỗi liên tiếp thì trả `CIRCUIT_OPEN` 5 giây; infrastructure/clients.ts, circuit-breaker.ts |
 | Repository | aggregate → PostgreSQL | unique active offer/reservation, receipt, terminal marker, lease; infrastructure/persistence.ts |
 | Worker / expiry | due jobs/expired offers → bounded processing | pool tối đa `WORKER_CONCURRENCY` job, job xong là lấy job mới ([ADR-0008](../../../docs/adr/0008-xu-ly-hang-doi-lien-tuc.md)); lấy job gán chuyến trước rồi chuyến đặt sớm nhất (Priority Queue); lease renewal; thử lại sớm khi dependency bận (A7) trong ngân sách 20% số job (D1); expiry độc lập I/O; application/worker.ts, retry.ts, expiry.ts |
-| Publisher | outbox → confirmed Rabbit message | vòng riêng, được đánh thức ngay khi có offer, chạy tiếp khi lô đầy (ADR-0008); index riêng cho tin chưa gửi; persistent/mandatory/confirm; cùng ID khi retry; infrastructure/publisher.ts |
+| Publisher | outbox → confirmed Rabbit message | vòng riêng, được đánh thức ngay khi có offer, chạy tiếp khi lô đầy (ADR-0008); lấy, gửi và đánh dấu theo lô tối đa 50 tin, giữ thứ tự `due_at`, chỉ đánh dấu tin đã được broker xác nhận; index riêng cho tin chưa gửi; persistent/mandatory/confirm; cùng ID khi retry; infrastructure/publisher.ts |
 | Dọn outbox | tin đã publish quá `OUTBOX_RETENTION_MS` → xoá theo lô | chỉ replica giữ advisory lock `leader:matching-outbox-purge` chạy (Leader Election); worker.ts, infrastructure/leader.ts |
 | Realtime consumer | Rabbit/current offer → Redis/driver room | manual ACK, backoff/DLQ, version/tombstone, reconnect; realtime-service/src/infrastructure/offers/consumer.ts |
 
