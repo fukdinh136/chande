@@ -82,6 +82,7 @@ function book(token) {
   if (quote.status !== 200) { failed.add(1, {step: 'quote'}); return null; }
   const created = call('POST', '/trips', token, {quoteId: data(quote).quoteId}, 'create', {'Idempotency-Key': crypto.randomUUID()});
   if (created.status !== 201) { failed.add(1, {step: 'create'}); return null; }
+  createdTrips.add(1);
   return data(created);
 }
 
@@ -93,12 +94,14 @@ function finish(token, trip, createdAt, assignedAt) {
 
 // Like the app: one /ws session per rider; trip.assigned for this trip ends the wait, then one REST read.
 function viaEvents(token) {
-  let trip = null, createdAt = 0, assignedAt = 0;
+  let trip = null, createdAt = 0, assignedAt = 0, authed = false, closeCode = 0;
   const res = ws.connect(WS_URL, {tags: {name: 'ws'}}, socket => {
     socket.on('open', () => socket.send(JSON.stringify({type: 'auth', token})));
+    socket.on('close', code => { closeCode = code; });
     socket.on('message', raw => {
       let message; try { message = JSON.parse(raw); } catch { return; }
       if (message.type === 'auth.ok' && !trip) {
+        authed = true;
         trip = book(token); createdAt = Date.now();
         if (!trip) { socket.close(); return; }
         socket.setInterval(() => socket.send(JSON.stringify({type: 'ping'})), 25000);
@@ -113,6 +116,8 @@ function viaEvents(token) {
     socket.setTimeout(() => socket.close(), ASSIGN_TIMEOUT_MS + 15000);
   });
   if (!res || res.status !== 101) { wsFailed.add(1); failed.add(1, {step: 'ws'}); return; }
+  // Upgraded but closed before auth.ok, e.g. 4503 SERVER_BUSY when the Gateway is full: the rider could not book.
+  if (!authed) { wsFailed.add(1); failed.add(1, {step: 'ws', status: String(closeCode)}); return; }
   if (!trip) return;
   if (!assignedAt) { const body = data(call('GET', '/trips/' + trip.tripId, token, undefined, 'read')); if (body && body.trip) trip = body.trip; }
   finish(token, trip, createdAt, assignedAt);
@@ -152,7 +157,7 @@ export function handleSummary(summary) {
   const m = summary.metrics, ms = name => m[name] ? m[name].values : null;
   const lines = ['', 'BOOKING SUMMARY',
     `trips created=${m.trips_created ? m.trips_created.values.count : 0} assigned=${m.trips_assigned ? m.trips_assigned.values.count : 0} notAssigned=${m.trips_not_assigned ? m.trips_not_assigned.values.count : 0} failed=${m.trips_failed ? m.trips_failed.values.count : 0}`,
-    `http_req_failed=${(m.http_req_failed.values.rate * 100).toFixed(2)}% requests=${m.http_reqs.values.count} dropped_iterations=${m.dropped_iterations ? m.dropped_iterations.values.count : 0}`];
+    `http_req_failed=${m.http_req_failed ? (m.http_req_failed.values.rate * 100).toFixed(2) : '0.00'}% requests=${m.http_reqs ? m.http_reqs.values.count : 0} ws_failed=${m.ws_failed ? m.ws_failed.values.count : 0} dropped_iterations=${m.dropped_iterations ? m.dropped_iterations.values.count : 0}`];
   for (const name of ['time_to_assigned', 'http_req_duration{name:quote}', 'http_req_duration{name:create}', 'http_req_duration{name:poll}', 'http_req_duration{name:read}', 'http_req_duration{name:cancel}']) {
     const v = ms(name);
     if (v) lines.push(`${name.padEnd(32)} p50=${v.med.toFixed(0)}ms p95=${v['p(95)'].toFixed(0)}ms p99=${v['p(99)'].toFixed(0)}ms max=${v.max.toFixed(0)}ms`);
