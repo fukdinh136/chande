@@ -52,6 +52,7 @@ Refresh token xoay vòng sau mỗi lần dùng. Nếu một lần chạy bị d�
 | `--events` | poll | `poll` hoặc `ws`: khách chờ gán bằng poll 300 ms hay bằng sự kiện `/ws` như app |
 | `--in-cluster` | 0 | 1: chạy tài xế giả lập và k6 trong pod `load-runner`, gọi thẳng Service `edge`, không qua `kubectl port-forward` |
 | `--drain` | 900 | Chế độ đợt: số giây tối đa chờ mọi chuyến được gán trước khi huỷ hết |
+| `--riders-online` | 0 | Số khách giữ phiên `/ws` của Gateway suốt lần đo như app đang mở (`riders.cjs`); cần đủ khách đã seed và edge đủ kết nối (`EDGE_PEAK_DRIVERS`). Kết quả ở `riders-online.json` |
 
 Số rider giới hạn số chuyến đang chờ cùng lúc: mỗi VU k6 dùng một rider. Với `--rate 1` và thời gian tới `ASSIGNED` khoảng vài giây, 40 rider là đủ. Tăng rate thì seed thêm rider.
 

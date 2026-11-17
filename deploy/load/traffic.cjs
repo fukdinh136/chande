@@ -5,7 +5,7 @@
 const fs = require('node:fs'), path = require('node:path'), {spawn} = require('node:child_process');
 const {base, pause, args} = require('./lib.cjs');
 
-const o = args({drivers: 50, radius: 2000, ramp: 0, gpsMs: 10000, rate: 1, duration: '5m', warmup: 20, trips: 0, login: 0, events: 'poll', hold: 0, out: ''});
+const o = args({drivers: 50, radius: 2000, ramp: 0, gpsMs: 10000, rate: 1, duration: '5m', warmup: 20, trips: 0, login: 0, events: 'poll', hold: 0, ridersOnline: 0, out: ''});
 if (!o.out) throw new Error('--out is required');
 fs.mkdirSync(o.out, {recursive: true});
 const exited = child => new Promise(resolve => child.once('exit', code => resolve(code)));
@@ -16,6 +16,15 @@ const exited = child => new Promise(resolve => child.once('exit', code => resolv
     drivers.stdout.on('data', chunk => { process.stdout.write(chunk); if (/READY \d+/.test(chunk)) resolve(); });
     drivers.once('exit', code => reject(new Error('Driver simulator exited early with code ' + code)));
   });
+  // Concurrent users: keep this many riders connected to the Gateway /ws like open apps, during the whole k6 window.
+  let riders;
+  if (o.ridersOnline) {
+    riders = spawn(process.execPath, [path.join(__dirname, 'riders.cjs'), '--count', String(o.ridersOnline), '--out', path.join(o.out, 'riders-online.json')], {stdio: ['ignore', 'pipe', 'inherit']});
+    await new Promise((resolve, reject) => {
+      riders.stdout.on('data', chunk => { process.stdout.write(chunk); if (/RIDERS_READY \d+/.test(chunk)) resolve(); });
+      riders.once('exit', code => reject(new Error('Rider simulator exited early with code ' + code)));
+    });
+  }
   console.info(`Warm-up ${o.warmup}s so every driver has fresh GPS in Redis`);
   await pause(o.warmup * 1000);
   console.info('K6_START ' + new Date().toISOString());
@@ -23,5 +32,6 @@ const exited = child => new Promise(resolve => child.once('exit', code => resolv
   const code = await exited(k6);
   console.info('K6_END ' + new Date().toISOString() + ' ' + code);
   if (o.hold) while (!fs.existsSync(path.join(o.out, 'release'))) await pause(1000);
+  if (riders) { riders.kill('SIGTERM'); await exited(riders); }
   drivers.kill('SIGTERM'); await exited(drivers);
 })().catch(e => { console.error(e.message); process.exitCode = 1; });
