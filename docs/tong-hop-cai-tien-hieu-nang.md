@@ -134,7 +134,7 @@ Thêm sau lần đo cuối, **chưa đo**. Không nhằm tăng thông lượng.
 ### 3.10 Tìm trần và quan sát Gateway (2026-11-17)
 
 - Gateway (Java) có OpenTelemetry qua Java agent, bật cùng `OBSERVABILITY=on`.
-- Đo tiếp trên 32 chuyến/giây: **48 chuyến/giây vẫn đạt** (p95 1,7 giây), 64 thì không; trần quanh 45–50. Thử nghiệm cho thấy điểm nghẽn là PostgreSQL ghi commit (khoảng 2900 commit/giây trên máy đo), không phải pool của Matching: nâng pool làm tệ hơn, 2 replica worker gần như không đổi. Mỗi chuyến đang tốn khoảng 190 câu SQL và 60 commit; hướng tiếp theo là giảm số lần ghi (ví dụ B2).
+- Đo tiếp trên 32 chuyến/giây: **48 chuyến/giây vẫn đạt** (p95 1,7 giây), 64 thì không; trần quanh 45–50. Thử nghiệm cho thấy điểm nghẽn là PostgreSQL ghi commit (khoảng 2900 commit/giây trên máy đo), không phải pool của Matching: nâng pool làm tệ hơn, 2 replica worker gần như không đổi. Mỗi chuyến đang tốn khoảng 190 câu SQL và 60 commit; B2 (event của Trip tới Gateway một lần thay vì hai) đã làm: bớt khoảng 10% việc ghi của Trip nhưng không nâng trần, vì phần nghẽn nằm ở đường ghi của Matching.
 - Chạy liên tục 30 phút ở 16 chuyến/giây: 28800/28800 chuyến, p95 0,93 giây, không còn đợt chậm 3 phút.
 - Chi tiết: [báo cáo, mục 14](bao-cao-kiem-thu-tai.md#14-tìm-trần-và-quan-sát-gateway-2026-11-17).
 

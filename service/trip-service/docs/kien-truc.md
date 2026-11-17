@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | trip-service |
-| Rà soát | 2026-11-16 |
+| Rà soát | 2026-11-17 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày cập nhật: 05/10/2026. Kiến trúc triển khai v1; API/worker và Docker local đã chạy, contract ngoài dùng mock. Báo cáo và bằng chứng kiểm thử: [Báo cáo triển khai](bao-cao-trien-khai.md).
@@ -191,7 +191,7 @@ Gateway/Notification giao tiếp với worker theo các route riêng trong [Rout
 - Retry mạng/timeout/5xx/429 có backoff. Không giới hạn tuổi search command theo thời gian tìm xe.
 - 400/401/403/404/409 từ đích được phân loại theo contract, không mặc nhiên coi là thành công. Lỗi contract/credential chuyển blocked và cảnh báo; sau sửa cấu hình có cơ chế requeue có kiểm soát, không bỏ record.
 - Lệnh tìm chưa gửi cho Trip đã hủy có thể skipped; vẫn bảo đảm có cancel command nếu từng có khả năng đích đã nhận search. Không chỉ dựa vào một lần đọc trước HTTP để kết luận race đã được giải quyết.
-- Gateway và Notification có delivery riêng; lỗi một đích không làm đích khác bị mất event.
+- Gateway và Notification có delivery riêng; lỗi một đích không làm đích khác bị mất event. Delivery `notification` chỉ được ghi khi `NOTIFICATION_BASE_URL` được cấu hình (B2); delivery còn chờ của một đích đã bỏ cấu hình được đánh dấu `skipped`.
 - Worker xử lý liên tục ([ADR-0008](../../../docs/adr/0008-xu-ly-hang-doi-lien-tuc.md)): lô claim đầy thì chạy lượt kế ngay, chỉ nghỉ `OUTBOX_POLL_INTERVAL_MS` khi hết việc hoặc lỗi.
 - Tin đã gửi xong (mọi delivery `delivered` hoặc `skipped`) bị xoá sau `OUTBOX_RETENTION_MS` (mặc định 24 giờ), theo lô 1000. Khi có nhiều replica worker, chỉ replica giữ advisory lock `leader:trip-outbox-purge` chạy việc này (Leader Election); leader chết thì replica khác nhận ở lượt sau.
 - Mỗi `JsonHttpClient` (một cho mỗi đích) có circuit breaker (D1): 5 lỗi liên tiếp (timeout, không kết nối được, 5xx không có `Retry-After`) thì ngừng gọi đích đó 5 giây, delivery thất bại ngay với lý do `CIRCUIT_OPEN` và được thử lại theo backoff như lỗi mạng.

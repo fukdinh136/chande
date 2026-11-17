@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-15 |
+| Rà soát | 2026-11-17 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Tài liệu duy nhất gom các đề xuất cải tiến hiệu năng: kết quả nhóm cải tiến đã làm, điểm nghẽn còn lại, đề xuất tiếp theo kèm chi phí, đối chiếu ADR và lộ trình. Mọi căn cứ lấy từ [báo cáo kiểm thử tải](bao-cao-kiem-thu-tai.md) ngày 2026-11-04; test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md).
@@ -122,7 +122,7 @@ Xếp theo thứ tự nên làm.
 | B6 | **Đã triển khai 2026-11-10 cho sáu service Node ([mục 3.2](#32-b6-và-a8-đo-ngày-2026-11-10)); Gateway, User, Payment chưa làm.** Observability: metrics HTTP, event loop lag, thời gian chờ trong pool Routing, độ dài outbox, HikariCP; dashboard | Hai hiện tượng chưa giải thích được: thông lượng ở 8–10 chuyến/giây thấp hơn ở 12–16; đợt chậm 3 phút khi chạy 30 phút | P1.4, [ADR-0003](adr/0003-observability-opentelemetry.md) | Đã tính trong Phase 1 | khoảng 0,8 GB | Xác định được nguyên nhân hai hiện tượng trên; điều kiện để đo các bước sau |
 | B5 | App tài xế làm mới token trước hạn và kết nối lại có jitter | Đợt chậm khi chạy lâu trùng với lúc 1000 tài xế cùng làm mới token; 2000 lần kết nối lại đúng lúc JWT hết hạn | Mới (app) | 1 ngày | Không | Tránh đợt làm mới và kết nối lại đồng loạt |
 | B4 | 2 replica driver-api | driver-api là process nóng nhất (đỉnh 1,1–1,2 core ở 8–12 chuyến/giây). Phần chuyển IP thật cho Driver đã xong ở A4 | P2.5 | 0,5–1 ngày | khoảng 0,1 GB | Gấp đôi trần của driver-api; làm sau B7 vì B7 có thể đủ |
-| B2 | Gộp đích `gateway` và `notification` của outbox Trip thành một đích trên RabbitMQ | Outbox Trip không còn là trần (offer → publish và accept → `ASSIGNED` đều dưới 0,3 giây); câu ghi `outbox_deliveries` vẫn nằm trong 5 câu tốn nhất của Trip | P1.3, [ADR-0002](adr/0002-truc-su-kien-rabbitmq.md) | Đã tính trong Phase 1 | Không | Giảm khoảng 40% tin outbox Trip; lợi ích hiệu năng nhỏ, lợi ích chính là không mất event khi Gateway tắt |
+| B2 | **Đã làm phần gộp đích 2026-11-17, giữ HTTP** (`f0d424c`): Trip chỉ ghi delivery `notification` khi đích đó được cấu hình riêng; bớt 3 trong 8 delivery mỗi chuyến, không nâng trần thông lượng ([báo cáo, mục 14.6](bao-cao-kiem-thu-tai.md#146-sau-b2-event-của-trip-tới-gateway-một-lần)). Phần chuyển sang RabbitMQ của ADR-0002 chưa làm. Đề xuất ban đầu: gộp đích `gateway` và `notification` của outbox Trip thành một đích trên RabbitMQ | Outbox Trip không còn là trần (offer → publish và accept → `ASSIGNED` đều dưới 0,3 giây); câu ghi `outbox_deliveries` vẫn nằm trong 5 câu tốn nhất của Trip | P1.3, [ADR-0002](adr/0002-truc-su-kien-rabbitmq.md) | Đã tính trong Phase 1 | Không | Giảm khoảng 40% tin outbox Trip; lợi ích hiệu năng nhỏ, lợi ích chính là không mất event khi Gateway tắt |
 | B3 | 2 replica matching-worker | matching-worker dưới 0,15 core ở mọi mức đo | P2.5 | Đã tính trong Phase 2 | khoảng 0,08 GB | Không cần cho hiệu năng; giữ vì tính sẵn sàng |
 
 ### 5.2 Nhóm C: đắt hoặc để sau

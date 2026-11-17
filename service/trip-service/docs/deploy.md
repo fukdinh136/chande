@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | trip-service |
-| Rà soát | 2026-11-16 |
+| Rà soát | 2026-11-17 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày cập nhật: 06/10/2026. Backend, image, Compose local/test/deploy, npm scripts và migration đã có. Docker local gọi API Routing và Price; xem [báo cáo tích hợp](tich-hop-routing-price.md). Compose deploy đã kiểm tra cấu hình, chưa phát hành trên hosting thật.
@@ -96,6 +96,7 @@ Các artifact đã tồn tại. `.github/workflows/trip-service.yml` chạy lint
 | `ROUTING_BASE_URL` / `PRICING_BASE_URL` | Mock base URL | Private URL/HTTPS service thật | API |
 | `MATCHING_BASE_URL` | Mock base URL | Matching service thật | Worker |
 | `GATEWAY_EVENTS_BASE_URL` / `NOTIFICATION_BASE_URL` | Mock base URL | Private URL hai đích nhận event | Worker |
+| `NOTIFICATION_BASE_URL` (tuỳ chọn từ 2026-11-17) | — | Bỏ trống thì Trip không ghi delivery `notification` (B2); đặt thì phải có ở cả API và worker, và worker cần `NOTIFICATION_TOKEN`. Stack backend chung không đặt vì đích này từng trỏ trùng Gateway | API, Worker |
 | `MATCHING_CALLBACK_TOKEN_FILE` | Credential Matching thử | Secret cho incoming assignment | API |
 | `ROUTING_TOKEN_FILE` / `PRICING_TOKEN_FILE` | Credential thử | Outbound token riêng mỗi đích | API |
 | `MATCHING_TOKEN_FILE` | Credential thử | Outbound token tới Matching, tách khỏi callback token | Worker |

@@ -533,7 +533,7 @@ Lần đo này: 3841/3841 chuyến, p95 2,3 giây (bật observability nên ch�
 
 Hai điều rút ra:
 
-1. **Mỗi event của Trip tới Gateway hai lần.** Outbox của Trip có hai đích `gateway` và `notification`, cả hai đang trỏ về `gateway-api:8090`. Gộp hai đích (đề xuất B2, [ADR-0002](adr/0002-truc-su-kien-rabbitmq.md)) sẽ bỏ khoảng một phần tư số request vào Gateway và một nửa số delivery outbox của Trip.
+1. **Mỗi event của Trip tới Gateway hai lần.** Outbox của Trip có hai đích `gateway` và `notification`, cả hai đang trỏ về `gateway-api:8090`. Gộp hai đích (đề xuất B2, [ADR-0002](adr/0002-truc-su-kien-rabbitmq.md)) sẽ bỏ khoảng một phần tư số request vào Gateway và 3 trong 8 delivery outbox mỗi chuyến của Trip. Phần gộp đích đã làm ở commit `f0d424c`, kết quả ở [mục 14.6](#146-sau-b2-event-của-trip-tới-gateway-một-lần).
 2. **Gateway chưa phải điểm nghẽn.** CPU tăng gần tuyến tính theo tải (0,34 core ở 32 chuyến/giây khi tắt observability, 0,53–0,62 ở 40–64) và còn xa giới hạn 2 core; GC không đáng kể. Nó vẫn là pod ứng dụng tốn CPU nhất vì mọi request đi qua nó.
 
 ### 14.3 Chạy liên tục 30 phút ở 16 chuyến/giây
@@ -557,7 +557,7 @@ Tắt observability, thêm `--login 1` để khách tự đăng nhập lại (to
 ### 14.4 Kết luận
 
 1. Trần hiện tại khoảng 45–50 chuyến/giây với 1000 tài xế trên máy đo; mức đã chứng minh đạt ngưỡng tăng từ 32 lên **48 chuyến/giây**.
-2. Điểm nghẽn ở trần là PostgreSQL: ghi WAL khi commit trước, rồi tới giới hạn 2 core của nó ([mục 14.5](#145-thử-nghiệm-tìm-điểm-nghẽn-ở-64-chuyếngiây)). Nâng pool của Matching không giúp; mỗi chuyến đang tốn khoảng 190 câu SQL và 60 commit.
+2. Điểm nghẽn ở trần là PostgreSQL: ghi WAL khi commit trước, rồi tới giới hạn 2 core của nó ([mục 14.5](#145-thử-nghiệm-tìm-điểm-nghẽn-ở-64-chuyếngiây)). Nâng pool của Matching không giúp; mỗi chuyến đang tốn khoảng 190 câu SQL và 60 commit. Gộp đích outbox của Trip (B2) bớt việc ghi nhưng không nâng trần ([mục 14.6](#146-sau-b2-event-của-trip-tới-gateway-một-lần)): phần nghẽn nằm ở đường ghi của Matching.
 3. Gateway chưa nghẽn, nhưng nhận gấp đôi số event cần thiết từ Trip (B2).
 4. Hệ thống chạy ổn định 30 phút ở một phần ba mức trần.
 5. Giới hạn: mỗi mức một lần, một laptop (PostgreSQL ghi xuống đĩa ảo của Docker Desktop, nên trần commit phụ thuộc máy đo); chưa đo giữa 48 và 64; User (Java) chưa có telemetry.
@@ -590,4 +590,21 @@ Kết luận: trần 45–50 chuyến/giây là trần của **một PostgreSQL 
 | Matching: `matching_outbox` | 4 dòng tạo, 4 lần đánh dấu đã gửi, 4 lần claim | Có thể đánh dấu đã gửi theo lô |
 | Trip: `trip_status_history`, `outbox` | 4 và 5 dòng tạo | Theo số lần đổi trạng thái của kịch bản đo (tạo, tìm, gán, huỷ) |
 
-Kết quả ở `deploy/.local/load/results/2026-11-16T18-2*`, `18-3*` (trần, Gateway), `2026-11-16T19-10-28-963Z` (30 phút) và `2026-11-16T19-4*`, `19-5*` (thử nghiệm 14.5); tên thư mục theo giờ UTC.
+### 14.6 Sau B2: event của Trip tới Gateway một lần
+
+Commit `f0d424c`: Trip không còn ghi delivery `notification` khi đích đó không được cấu hình riêng. Cùng kịch bản, tắt observability, mỗi mức một lần; đo cách các lần ở 14.1 khoảng 6 giờ trên cùng máy.
+
+| Đặt chuyến/giây | Được gán | p95 tới `ASSIGNED` | Câu SQL của Trip mỗi chuyến | Commit/giây | CPU PostgreSQL TB / max | Đạt |
+| --- | --- | --- | --- | --- | --- | --- |
+| 48 (trước B2, mục 14.1) | 5761/5761 | 1,7 giây | 85 | 2878 | 928 / 1143 m | Đạt |
+| 48 | 5761/5761 | 2,3 giây | 76 | 2583 | 1143 / 1489 m | Đạt |
+| 56 | 5230/5304, bỏ 1413 lượt | 45,8 giây | 77 | 2236 | 1213 / 1387 m | Không đạt |
+| 64 (trước B2, mục 14.1) | 5632/5696, bỏ 1984 lượt | 42,7 giây | — | 2827 | 1266 / 1428 m | Không đạt |
+| 64 | 5640/5736, bỏ 1945 lượt | 44,5 giây | 77 | 2516 | 1246 / 1387 m | Không đạt |
+
+1. **B2 làm đúng việc của nó:** mỗi chuyến của kịch bản đo bớt 9 câu SQL ở Trip (3 delivery: tạo, cập nhật, kiểm lease) và khoảng 10% commit; Gateway không còn nhận mỗi event hai lần.
+2. **B2 không nâng trần:** ở 64 chuyến/giây số chuyến gán gần như y nguyên (5640 so với 5632), và 56 chuyến/giây cũng không đạt. Trần vẫn ở khoảng 45–50 và nay biết thêm là dưới 56.
+3. Số commit mỗi giây ở 64 thấp hơn trước (2516 so với 2827) mà thông lượng không đổi, nên **tổng số commit không phải là giới hạn duy nhất**. Thời gian vẫn dồn ở bước tìm xe của Matching (`SEARCHING` → offer p95 39 giây): phần việc của Matching trên `matching_db` mỗi chuyến không đổi sau B2. Điểm nghẽn hẹp hơn kết luận ở 14.5: đường ghi của Matching (khoảng 96 câu SQL mỗi chuyến, mỗi bước một transaction) cùng một process worker một luồng, chứ không phải PostgreSQL nói chung.
+4. p95 ở 48 chuyến/giây là 2,3 giây so với 1,7 giây trước B2; với một lần đo mỗi bên, cách nhau nhiều giờ, chưa kết luận được là B2 làm chậm hay nhiễu.
+
+Kết quả ở `deploy/.local/load/results/2026-11-16T18-2*`, `18-3*` (trần, Gateway), `2026-11-16T19-10-28-963Z` (30 phút) `2026-11-16T19-4*`, `19-5*` (thử nghiệm 14.5) và `2026-11-17T00-5*` (sau B2); tên thư mục theo giờ UTC.
