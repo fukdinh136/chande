@@ -630,7 +630,7 @@ Kết quả ở `deploy/.local/load/results/2026-11-16T18-2*`, `18-3*` (trần, 
 
 Kịch bản C4 trong [kế hoạch kiểm thử](ke-hoach-kiem-thu-hieu-nang.md#56-concurrent-users-testing-nhiều-người-cùng-lúc): 5000 tài xế online (Socket.IO, GPS mỗi 10 giây), 5000 khách mỗi người giữ một phiên `/ws` của Gateway như app đang mở (công cụ mới `riders.cjs`, tham số `--riders-online`), đồng thời đặt 32 chuyến/giây trong 5 phút. Trong cụm, tắt observability, edge cấu hình cho 10000 kết nối (`EDGE_PEAK_DRIVERS=10000`). Commit đang chạy: `b150f94` cộng các sửa ghi ở 15.2.
 
-**Kết quả: không đạt.** Hệ thống không giữ được 5000 khách cùng lúc trên một Gateway.
+**Kết quả: từ lần 9 (mục 15.6) giữ được đủ 5000 khách, nhưng các ngưỡng độ trễ ở mục 4 của kế hoạch vẫn chưa đạt** vì cả cụm bão hoà CPU. Các lần 1–8 không giữ được 5000 khách trên một Gateway; nguyên nhân chính là nén `permessage-deflate` giữ bộ nhớ ngoài heap cho mỗi phiên.
 
 ### 15.1 Các lần chạy
 
@@ -686,4 +686,61 @@ Gateway từ chối kết nối thứ 3001 trở đi bằng mã 4503 `SERVER_BUS
 | Gateway | **vẫn bị giết vì hết bộ nhớ** (7 lần); CPU trung bình 0,8 core, cao nhất 1,74 |
 
 Giới hạn hoạt động đúng nhưng 3000 phiên vẫn quá sức một Gateway 768 MiB khi có thêm 32 chuyến/giây: con số 3404 ở mục 15.4 là mức cao nhất trước khi bị giết, không phải mức an toàn. Cần đo mức an toàn thật (giảm giới hạn từng bậc, hoặc tăng bộ nhớ Gateway) trước khi chọn giá trị mặc định.
+
+### 15.6 Nguyên nhân thật: nén `permessage-deflate` (2026-11-18)
+
+Đo bằng Native Memory Tracking (image Gateway chẩn đoán chạy trên JDK để có `jcmd`) cùng `memory.stat` của cgroup, lấy mẫu mỗi 5 giây:
+
+- Lần bị giết gần nhất ở mục 15.5 xảy ra **25 giây sau khi Gateway khởi động**: khách nối lại ồ ạt, khoảng 2900 kết nối trong vài giây.
+- Ngay trước khi bị giết, cgroup tính **713 MB**, JVM tự ghi nhận 482 MB, heap thực dùng khoảng 200 MB. Khoảng **231 MB nằm ngoài sổ của JVM** và tăng theo số kết nối.
+- Phần tăng là bộ nhớ `anon` của tiến trình, không phải bộ đệm socket của kernel (`sock` 2–8 MB, `slab` 11–14 MB).
+- Gateway nhận nén `permessage-deflate` với mọi client có đề nghị. Client Node (`riders.cjs`) đề nghị mặc định, OkHttp trên Android cũng vậy. Mỗi phiên nén giữ một bộ zlib `Deflater` và `Inflater`, cấp phát bằng malloc. Phần này nằm ngoài heap, ngoài `MaxRAMPercentage` và ngoài NMT.
+
+Sửa: Gateway giấu header `Sec-WebSocket-Extensions` của request `/ws` trước khi Tomcat thấy nó, nên không phiên nào được nén. Cách lọc trong handshake handler của Spring không có tác dụng: Tomcat tự thương lượng lại và hiểu danh sách rỗng là "mọi extension có sẵn". Test tích hợp bắt được điều này. Tin nhắn của app đều dưới 1 KB nên nén gần như không được lợi gì. Giới hạn phiên mặc định đổi từ 3000 lên 6000.
+
+| Lần | Cấu hình (768 MiB) | Khách online (cao nhất) | Chuyến được gán | Lỗi HTTP | Gateway |
+| --- | --- | --- | --- | --- | --- |
+| 7 (mục 15.5) | Có nén, giới hạn 3000 | 3000/5000 | 493 | 37% | Bị giết 7 lần |
+| 8 | Tắt nén, giới hạn 3000 | 3000/5000; khách k6 bị từ chối 4503 nên không đặt được chuyến | 0 | 0% | Không khởi động lại; cao nhất 558 MB |
+| 9 | **Tắt nén, giới hạn 6000** | **5000/5000**, 0 lần rớt | **8739** / 9600 lượt | **0,11%** | **Không khởi động lại**; cao nhất 763 MB |
+
+Lần 9 chi tiết:
+
+- 5000 khách xác thực, p95 32 ms. Không khách nào rớt kết nối; khách nhận 26217 sự kiện chuyến.
+- 5000 tài xế không rớt kết nối, ack GPS p95 1,2 giây. 8740 offer, 8739 được nhận.
+- **Không đạt ngưỡng mục 4 của kế hoạch:**
+  - gán chuyến p95 32,5 giây (ngưỡng 10 giây; `searchingToOffer` p95 31 giây);
+  - báo giá p95 1,4 giây (ngưỡng 300 ms);
+  - tạo chuyến p95 0,9 giây (ngưỡng 300 ms);
+  - ack GPS p95 1,2 giây (ngưỡng 200 ms);
+  - publish tới tài xế nhận p95 628 ms (ngưỡng 500 ms);
+  - 822 lượt bị k6 bỏ vì hết VU (ngưỡng 0);
+  - cache hit 98% (ngưỡng 99%).
+- Lý do là cả cụm đã bão hoà CPU (postgres trung bình 0,9 core, cao nhất 1,3; realtime-api trung bình 0,5; trip-api 0,4; matching-worker cao nhất 0,73; Gateway trung bình 0,58, cao nhất 0,93), không riêng Gateway. Khi khách chưa online (mục 14), cùng 32 chuyến/giây với 1000 tài xế vẫn đạt; thêm 5000 phiên `/ws` và 4000 tài xế nữa thì cụm 10 CPU không còn đủ.
+- Mới đo một lần, chưa đủ ba lần như quy tắc của kế hoạch.
+- Toàn vẹn dữ liệu sạch: không tài xế nào có hai chuyến đang mở, không chuyến nào có hai offer đang giữ.
+- Bộ nhớ Gateway: 316 MB lúc chưa có khách, 582 MB khi đủ 5000 khách, cao nhất 763 MB dưới tải đặt xe (khoảng 5800 phiên tính cả khách k6). Mức này **chỉ còn khoảng 5% dư** so với giới hạn 805 MB. Phần tăng thêm dưới tải chủ yếu là heap nở dần tới trần 60% (GC Serial không trả bộ nhớ lại), nên không vượt được trần đó, nhưng biên vẫn mỏng.
+
+Sửa thêm trong bộ đo: `booking.js` ghi lỗi `ws` khi phiên `/ws` bị đóng trước `auth.ok` (trước đây lượt đó bị bỏ qua không đếm), đếm `trips_created` ở chế độ `EVENTS=ws`, và `handleSummary` không còn lỗi khi không có request HTTP nào. Pod `load-runner` dùng image `chande-load:local` đóng sẵn script, nên lần 9 và 10 vẫn chạy bản `booking.js` cũ (vì vậy `trips_created` báo 0). Hai lần này không có phiên nào bị từ chối nên các số khác không bị ảnh hưởng; image đã được build lại sau lần 10.
+
+### 15.7 Gateway 1 GiB
+
+Để có biên bộ nhớ, `deploy/stack.cjs` cấp riêng cho Gateway 1 GiB (User API giữ 768 MiB). Heap vẫn 60% giới hạn nên trần heap tăng theo, khoảng 614 MiB. Chạy lại đúng kịch bản lần 9:
+
+| Chỉ số | Lần 9 (768 MiB) | Lần 10 (1 GiB) |
+| --- | --- | --- |
+| Khách online | 5000/5000, 0 lần rớt | 5000/5000, 0 lần rớt |
+| Chuyến được gán | 8739 | 8790 |
+| Lỗi HTTP | 0,11% | 0,04% |
+| Bộ nhớ Gateway cao nhất | 763 / 805 MB (dư 5%) | **875 / 1074 MB (dư 19%)** |
+| Gateway khởi động lại | 0 | 0 |
+| Gán chuyến p95 | 32,5 giây | 33,1 giây |
+| Báo giá p95 / tạo chuyến p95 | 1,4 / 0,9 giây | 0,86 / 0,70 giây |
+| Ack GPS p95 | 1,2 giây | 0,91 giây |
+| Lượt k6 bị bỏ | 822 | 795 |
+| Cache hit PostgreSQL | 98% | 96,6% |
+
+Toàn vẹn dữ liệu vẫn sạch. Thêm bộ nhớ cho Gateway chỉ mua thêm biên an toàn; các ngưỡng độ trễ vẫn trượt như lần 9 vì nguyên nhân là CPU của cả cụm (PostgreSQL trung bình 0,98 core, cao nhất 1,39; Gateway 0,59; realtime-api 0,52; matching-worker 0,45; trip-api 0,44). Muốn C4 đạt ngưỡng cần thêm CPU (máy lớn hơn hoặc tách PostgreSQL ra máy riêng) hoặc giảm việc mỗi chuyến làm trên PostgreSQL. Thêm RAM không giúp được.
+
+Kết quả ở `deploy/.local/load/results/2026-11-17T16-36-53-662Z` (lần 8), `2026-11-17T16-49-39-436Z` (lần 9) và `2026-11-17T17-05-10-762Z` (lần 10).
 
