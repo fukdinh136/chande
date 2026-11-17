@@ -675,3 +675,15 @@ Bản sửa giữ được nhiều khách hơn nhưng **chưa đủ cho 5000 kh�
 
 Kết quả ở `deploy/.local/load/results/2026-11-17T15-10-04-907Z`.
 
+### 15.5 Giới hạn số phiên `/ws` trên một Gateway
+
+Gateway từ chối kết nối thứ 3001 trở đi bằng mã 4503 `SERVER_BUSY` ngay khi mở, trước khi xác minh JWT (`gateway.realtime.max-sessions`, mặc định 3000); khách giả lập chờ ngẫu nhiên 10–30 giây rồi thử lại. Chạy lại cùng kịch bản ở cấu hình chuẩn 768 MiB:
+
+| Chỉ số | Kết quả |
+| --- | --- |
+| Khách kết nối được (cao nhất) | **3000/5000**, đúng giới hạn; 4397 lần bị từ chối 4503 |
+| Chuyến được gán | 493; lỗi HTTP 37% |
+| Gateway | **vẫn bị giết vì hết bộ nhớ** (7 lần); CPU trung bình 0,8 core, cao nhất 1,74 |
+
+Giới hạn hoạt động đúng nhưng 3000 phiên vẫn quá sức một Gateway 768 MiB khi có thêm 32 chuyến/giây: con số 3404 ở mục 15.4 là mức cao nhất trước khi bị giết, không phải mức an toàn. Cần đo mức an toàn thật (giảm giới hạn từng bậc, hoặc tăng bộ nhớ Gateway) trước khi chọn giá trị mặc định.
+

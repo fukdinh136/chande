@@ -32,7 +32,10 @@ function open(index, retry = false) {
   ws.onclose = event => {
     stats.closeCodes[event.code] = (stats.closeCodes[event.code] ?? 0) + 1;
     if (authed) { stats.connected--; stats.disconnects++; } else stats.authFailures++;
-    if (!stopping) setTimeout(() => open(index, true), 1000 + Math.random() * 2000);
+    // 4503 SERVER_BUSY: the Gateway is full; wait 10-30 s with jitter so rejected riders do not come back together.
+    if (event.code === 4503) stats.busy = (stats.busy ?? 0) + 1;
+    const wait = event.code === 4503 ? 10000 + Math.random() * 20000 : 1000 + Math.random() * 2000;
+    if (!stopping) setTimeout(() => open(index, true), wait);
   };
 }
 

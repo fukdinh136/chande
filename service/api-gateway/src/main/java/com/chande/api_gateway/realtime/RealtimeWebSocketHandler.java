@@ -49,6 +49,8 @@ public class RealtimeWebSocketHandler extends TextWebSocketHandler implements Di
     static final CloseStatus TOKEN_EXPIRED = new CloseStatus(4401, "TOKEN_EXPIRED");
     static final CloseStatus IDENTITY_CHANGED = new CloseStatus(4401, "IDENTITY_CHANGED");
     static final CloseStatus TOO_MANY_CONNECTIONS = new CloseStatus(4429, "TOO_MANY_CONNECTIONS");
+    /** Instance đã giữ đủ max-sessions kết nối: app nên thử lại sau vài giây, có giãn cách ngẫu nhiên. */
+    static final CloseStatus SERVER_BUSY = new CloseStatus(4503, "SERVER_BUSY");
 
     private static final Logger log = LoggerFactory.getLogger(RealtimeWebSocketHandler.class);
     private static final Set<String> ROLES = Set.of("RIDER", "DRIVER");
@@ -80,6 +82,15 @@ public class RealtimeWebSocketHandler extends TextWebSocketHandler implements Di
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
+        // Từ chối trước khi xác thực: không tốn xác minh JWT, không giữ bộ đệm của phiên.
+        if (clients.size() >= properties.maxSessions()) {
+            try {
+                session.close(SERVER_BUSY);
+            } catch (IOException | IllegalStateException e) {
+                log.debug("Không đóng được kết nối WebSocket thừa: {}", e.getMessage());
+            }
+            return;
+        }
         limitBlockingSendTime(session);
         // Decorator cho phép nhiều luồng gửi an toàn; client đọc chậm quá giới hạn thì bị đóng
         Client client = new Client(

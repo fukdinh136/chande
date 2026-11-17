@@ -14,6 +14,8 @@ import java.time.Duration;
  * @param maxMessageSize      kích thước tối đa một tin nhắn từ client
  * @param eventRetention      thời gian giữ receipt chống trùng eventId và version mới nhất của chuyến
  * @param streamMaxLength     số sự kiện tối đa giữ trong Redis Stream
+ * @param maxSessions         số kết nối /ws tối đa trên một instance; vượt thì từ chối ngay (4503 SERVER_BUSY) thay vì
+ *                            để instance hết bộ nhớ. 768 MiB giữ được khoảng 3400 phiên khi đo 2026-11-17
  */
 @ConfigurationProperties(prefix = "gateway.realtime")
 public record RealtimeProperties(
@@ -23,9 +25,13 @@ public record RealtimeProperties(
         @DefaultValue("1s") Duration locationMinInterval,
         @DefaultValue("4KB") DataSize maxMessageSize,
         @DefaultValue("7d") Duration eventRetention,
-        @DefaultValue("100000") long streamMaxLength) {
+        @DefaultValue("100000") long streamMaxLength,
+        @DefaultValue("3000") int maxSessions) {
 
     public RealtimeProperties {
+        if (maxSessions < 1) {
+            throw new IllegalStateException("gateway.realtime.max-sessions phải >= 1");
+        }
         if (maxSessionsPerUser < 1) {
             throw new IllegalStateException("gateway.realtime.max-sessions-per-user phải >= 1");
         }
