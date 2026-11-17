@@ -20,6 +20,11 @@ test('real issuer and callback topology keeps credentials scoped and public port
   assert.ok(!Object.keys(apps['routing-api'].env).some(k=>k.startsWith('REALTIME_')));
   assert.ok(!Object.keys(apps['realtime-api'].env).some(k=>k.startsWith('DRIVER_')));
 });
+test('the Gateway gets 1 GiB: 5000 /ws sessions plus 32 trips/s peaked at 763 MB of 805 on 768 MiB',()=>{
+  const apps=stack(secrets);
+  assert.equal(apps['gateway-api'].memory,'1Gi');
+  assert.equal(apps['user-api'].memory,undefined);
+});
 test('edge nginx is sized from the drivers online at peak',()=>{
   const {edgeSizing}=require('./stack.cjs');
   assert.deepEqual(edgeSizing(5000),{peakDrivers:5000,workerConnections:12500,rlimitNofile:25000,memory:'448Mi'});
