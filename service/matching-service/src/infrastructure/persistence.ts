@@ -30,7 +30,8 @@ export class MatchingOutboxPublished1793750400001 implements MigrationInterface 
   async down(q: QueryRunner) { await q.query('DROP INDEX IF EXISTS matching_outbox_published'); }
 }
 /** `poolSize`: PostgreSQL connections of this process (DB_POOL_SIZE); the worker needs about one per two running jobs. */
-export function source(url: string, poolSize = 10) { return new DataSource({ type: 'postgres', url, migrations: [MatchingInitial1791244800000, MatchingOutboxPending1793750400000, MatchingOutboxPublished1793750400001], synchronize: false, logging: false, extra: { max: poolSize, connectionTimeoutMillis: 5000, query_timeout: 10000 } }); }
+export function source(url: string, poolSize = 10) { return new DataSource({ type: 'postgres', url, migrations: [MatchingInitial1791244800000, MatchingOutboxPending1793750400000, MatchingOutboxPublished1793750400001], synchronize: false, logging: false, // lock_timeout is set once per connection, not with SET LOCAL in every transaction: one round trip less per transaction.
+    extra: { max: poolSize, connectionTimeoutMillis: 5000, query_timeout: 10000, options: '-c lock_timeout=5000' } }); }
 export class Tx {
   constructor(readonly db: EntityManager) {}
   async lock(scope: string) { await this.db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [scope]); }
@@ -57,7 +58,7 @@ export class Repository {
     const [, count]: [unknown[], number] = await this.db.query(`DELETE FROM matching_outbox WHERE id IN (SELECT id FROM matching_outbox WHERE published_at < clock_timestamp() - $1*interval '1 millisecond' ORDER BY published_at LIMIT $2)`, [retentionMs, limit]);
     return count;
   }
-  transaction<T>(work: (tx: Tx) => Promise<T>) { return this.db.transaction(async db => { await db.query("SET LOCAL lock_timeout='5s'"); return work(new Tx(db)); }); }
+  transaction<T>(work: (tx: Tx) => Promise<T>) { return this.db.transaction(db => work(new Tx(db))); }
   async getSearch(id: string): Promise<Search | null> { const rows: { data: Search }[] = await this.db.query('SELECT data FROM matching_searches WHERE trip_id=$1', [id]); return rows[0]?.data ?? null; }
   async getOffer(id: string): Promise<Offer | null> { const rows: { data: Offer }[] = await this.db.query('SELECT data FROM matching_offers WHERE id=$1', [id]); return rows[0]?.data ?? null; }
   async activeOffer(driver: string): Promise<Offer | null> { const rows: { data: Offer }[] = await this.db.query(`SELECT o.data FROM matching_offers o JOIN matching_reservations r ON r.offer_id=o.id WHERE r.driver_id=$1 AND (o.status<>'PENDING' OR o.expires_at>clock_timestamp())`, [driver]); return rows[0]?.data ?? null; }
@@ -68,8 +69,9 @@ export class Repository {
    * then the trip booked earliest, since it is closest to giving up on finding a driver; a retried job never jumps
    * ahead of an older trip. The order matters only when more jobs are due than the pool has free slots.
    */
-  async claim(limit: number, leaseMs: number): Promise<{ trip_id: string; lease_id: string }[]> {
-    return this.db.transaction(db => db.query(`WITH due AS (SELECT trip_id FROM matching_searches WHERE status IN ('SEARCHING','ASSIGNMENT_PENDING') AND due_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<clock_timestamp()) ORDER BY status='ASSIGNMENT_PENDING' DESC, (data->'command'->>'occurredAt')::timestamptz ASC NULLS LAST, due_at LIMIT $1 FOR UPDATE SKIP LOCKED), claimed AS (UPDATE matching_searches s SET lease_id=$2,lease_until=clock_timestamp()+$3*interval '1 millisecond' FROM due WHERE s.trip_id=due.trip_id RETURNING s.trip_id,s.lease_id) SELECT * FROM claimed`, [limit, randomUUID(), leaseMs]));
+  async claim(limit: number, leaseMs: number): Promise<{ trip_id: string; lease_id: string; status: string }[]> {
+    // One statement is atomic by itself; no BEGIN/COMMIT around it.
+    return this.db.query(`WITH due AS (SELECT trip_id FROM matching_searches WHERE status IN ('SEARCHING','ASSIGNMENT_PENDING') AND due_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<clock_timestamp()) ORDER BY status='ASSIGNMENT_PENDING' DESC, (data->'command'->>'occurredAt')::timestamptz ASC NULLS LAST, due_at LIMIT $1 FOR UPDATE SKIP LOCKED), claimed AS (UPDATE matching_searches s SET lease_id=$2,lease_until=clock_timestamp()+$3*interval '1 millisecond' FROM due WHERE s.trip_id=due.trip_id RETURNING s.trip_id,s.lease_id,s.status) SELECT * FROM claimed`, [limit, randomUUID(), leaseMs]);
   }
   async finishLease(id: string, lease: string, delay?: number) { await this.db.query(`UPDATE matching_searches SET lease_id=NULL,lease_until=NULL${delay === undefined ? '' : ",due_at=clock_timestamp()+$3*interval '1 millisecond'"} WHERE trip_id=$1 AND lease_id=$2`, delay === undefined ? [id, lease] : [id, lease, delay]); }
   async ready() { try { return this.db.isInitialized && !await this.db.showMigrations(); } catch { return false; } }

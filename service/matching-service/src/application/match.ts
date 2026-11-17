@@ -34,9 +34,10 @@ export class MatchDriver {
       const created = await this.repo.transaction(async tx => {
         const s = await tx.search(tripId); if (!s || s.status !== 'SEARCHING' || s.offerId) return false;
         await tx.lock('driver:' + c.driverId);
-        const reserved: unknown[] = await tx.db.query('SELECT 1 FROM matching_reservations WHERE driver_id=$1', [c.driverId]); if (reserved.length) return false;
-        const previous: unknown[] = await tx.db.query('SELECT 1 FROM matching_offers WHERE trip_id=$1 AND driver_id=$2', [tripId, c.driverId]); if (previous.length) return false;
-        const now = await tx.now(); if (now - Date.parse(c.observedAt) > 30000) return false;
+        // One statement after the driver lock: its snapshot is taken once the lock is held.
+        const checks: { now: Date; reserved: boolean; previous: boolean }[] = await tx.db.query('SELECT clock_timestamp() AS now, EXISTS(SELECT 1 FROM matching_reservations WHERE driver_id=$1) AS reserved, EXISTS(SELECT 1 FROM matching_offers WHERE trip_id=$2 AND driver_id=$1) AS previous', [c.driverId, tripId]);
+        const check = checks[0]!; if (check.reserved || check.previous) return false;
+        const now = check.now.getTime(); if (now - Date.parse(c.observedAt) > 30000) return false;
         const o: Offer = { offerId: randomUUID(), tripId, driverId: c.driverId, version: 1, status: 'PENDING', createdAt: new Date(now).toISOString(), expiresAt: new Date(now + OFFER_TTL_MS).toISOString(), command: search.command!, assignment: { eventId: randomUUID(), driverId: c.driverId, vehicleId: eligible.vehicleId!, driverSnapshot: eligible.driverSnapshot!, vehicleSnapshot: eligible.vehicleSnapshot! } };
         await tx.saveOffer(o); if (!await tx.reserve(o)) throw new Error('RESERVATION_CONFLICT');
         s.offerId = o.offerId; s.attempts = 0; await tx.saveSearch(s, OFFER_TTL_MS + OFFER_RECHECK_SLACK_MS); await tx.enqueue(o); return true;

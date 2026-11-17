@@ -4,7 +4,7 @@ import { MatchDriver } from './match';
 import { AssignDriver } from './decisions';
 import { busy, describeFailure, retryDelay, RetryBudget } from './retry';
 import { recordJob, traced } from './metrics';
-type Job = { trip_id: string; lease_id: string };
+type Job = { trip_id: string; lease_id: string; status?: string };
 /**
  * Keeps up to `workers` search jobs running (ADR-0008). Whenever a slot frees up it claims more due
  * searches right away, so one slow job never holds back the others. It rests `scanMs` only when nothing
@@ -50,7 +50,8 @@ export class MatchingWorker {
     const started = performance.now(); let kind: 'search' | 'assignment' = 'search';
     this.budget.job();
     try {
-      const s = await this.repo.getSearch(job.trip_id); if (s?.status === 'ASSIGNMENT_PENDING') { kind = 'assignment'; await this.assign.execute(job.trip_id); } else await this.match.execute(job.trip_id);
+      // The claim returns the status it saw; both use cases read the search again and check it before acting.
+      const status = job.status ?? (await this.repo.getSearch(job.trip_id))?.status; if (status === 'ASSIGNMENT_PENDING') { kind = 'assignment'; await this.assign.execute(job.trip_id); } else await this.match.execute(job.trip_id);
       await this.repo.finishLease(job.trip_id, job.lease_id);
       recordJob(performance.now() - started, kind, 'done');
     } catch (error) {
