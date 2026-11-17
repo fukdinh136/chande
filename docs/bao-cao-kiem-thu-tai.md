@@ -66,7 +66,7 @@ Mỗi chuyến: báo giá → tạo chuyến → chờ tới `ASSIGNED` (tối �
 
 ### 3.2 Ngưỡng đạt
 
-Theo [kế hoạch](ke-hoach-kiem-thu-hieu-nang.md#5-ngưỡng-đạtkhông-đạt-đề-xuất): một mức tải **đạt** khi đồng thời có tạo chuyến → `ASSIGNED` p95 ≤ 10 giây, báo giá p95 ≤ 300 ms, ack GPS p95 ≤ 200 ms và lỗi HTTP < 0,5%.
+Theo [kế hoạch](ke-hoach-kiem-thu-hieu-nang.md#4-ngưỡng-đạt): một mức tải **đạt** khi đồng thời có tạo chuyến → `ASSIGNED` p95 ≤ 10 giây, báo giá p95 ≤ 300 ms, ack GPS p95 ≤ 200 ms và lỗi HTTP < 0,5%.
 
 ### 3.3 Hai cách đo
 

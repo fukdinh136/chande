@@ -47,7 +47,7 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 - [Hợp đồng liên service](hop-dong-lien-service.md): defaults/overrides, đơn vị, danh mục xe, giá, auth/routes và các khoảng trống tích hợp.
 - [Báo cáo validation](bao-cao-validation.md): commands, kết quả hiện tại, phạm vi thật/mock và lỗi tài liệu đã sửa.
 - [Rà soát và demo Kubernetes](bao-cao-demo-kubernetes.md): lần chạy hiện tại, tài khoản test lưu DB, Customer/Driver web, các lỗi sửa và giới hạn Android/production.
-- [Kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md): đối chiếu kiến trúc thật, luồng cần đo, môi trường và giám sát đề xuất, ngưỡng đạt/không đạt, test case theo giai đoạn (benchmark, load, stress, spike, soak, đồng thời, realtime, scalability), bottleneck và giả định cần xác minh.
+- [Kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md): mục tiêu 5000 tài xế và 32 chuyến/giây; kịch bản, lệnh chạy, ngưỡng và trạng thái cho load, stress, soak, Realtime và GPS, database, nhiều người dùng đồng thời, đăng nhập và rate limit; công cụ còn thiếu.
 - [Đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md): cải tiến kiến trúc và môi trường đo theo kết quả kiểm thử tải, xếp theo chi phí (công sức, RAM, tiền cloud), gắn với lộ trình Phase 1–2 và mục tiêu đo lại; kèm nhóm chịu lỗi và vận hành (circuit breaker, rolling update, RPO/RTO, saga).
 - [Tổng hợp cải tiến hiệu năng](tong-hop-cai-tien-hieu-nang.md): nhánh `perf/adr-0008-trip-outbox` đổi gì so với `main`, vì sao, kết quả đo, đánh đổi, việc chưa làm và xung đột khi merge; đọc trước khi quyết định merge.
 | Toàn hệ thống | [Saga chuyến đi](saga-chuyen-di.md) | Trạng thái chuyến, từng bước giữa Trip, Matching, Driver, Realtime, lỗi có thể xảy ra, bù trừ và chỗ còn thiếu |

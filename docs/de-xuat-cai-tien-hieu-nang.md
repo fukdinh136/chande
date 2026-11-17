@@ -179,7 +179,7 @@ Nhóm D không nâng thông lượng. Nhóm này giúp hệ thống trả lỗi 
 | Phase 2 | B5, B4, B3, D1 (cùng P2.5) | Tài xế lên ca đồng loạt; chạy lâu 2 giờ; tắt Routing trong lúc đo | Không có đợt chậm khi làm mới token; RAM ổn định; báo giá trả lỗi ngay khi Routing tắt |
 | Trước bảo vệ | E6, D2, D3, D4; tuỳ chọn E4 | Kịch bản 3500 tài xế + 3000 chuyến; deploy trong lúc chạy tải; diễn tập khôi phục | Ghi lại thời gian gán hết 3000 chuyến; 0% lỗi HTTP khi deploy; RTO đo được |
 
-Mỗi cải tiến chạy lại đúng kịch bản trước đó, so trong một bảng trước/sau và chỉ đổi một thay đổi mỗi lần ([kế hoạch, giai đoạn 9](ke-hoach-kiem-thu-hieu-nang.md#giai-đoạn-9-tối-ưu-và-đo-lại)).
+Mỗi cải tiến chạy lại đúng kịch bản trước đó, so trong một bảng trước/sau và chỉ đổi một thay đổi mỗi lần ([kế hoạch, giai đoạn 9](ke-hoach-kiem-thu-hieu-nang.md#7-thu-thập-và-báo-cáo)).
 
 ## 8. Kỳ vọng cho kịch bản 3000 khách
 
@@ -231,6 +231,6 @@ Với hạn tìm xe 3 phút ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md)),
 3. Mức "10–12 chuyến/giây sau B7 + B1" suy ra từ việc driver-api và PostgreSQL là hai pod nóng nhất, các pod còn lại dưới 0,35 core; nghẽn tiếp theo có thể là Realtime hoặc một node CPU dùng chung.
 4. Giá cloud ở E4 là khoảng tham khảo; cần kiểm tra bảng giá hiện tại và hạn mức tài khoản sinh viên nếu có.
 5. Năng lực OSRM triển khai thật cần đo lại với số thread và CPU của nó (A8 đo trên local); số tài xế cao điểm cho edge (A9) cần chốt với tải mục tiêu.
-6. Tải mục tiêu (số tài xế, số chuyến giờ cao điểm) chưa được chốt ([kế hoạch, mục 10](ke-hoach-kiem-thu-hieu-nang.md#10-giả-định-và-việc-cần-xác-minh-trước-khi-chạy-ở-môi-trường-thật)). Nếu mục tiêu chỉ là demo trước hội đồng, trạng thái hiện tại (6 chuyến/giây, 5000 tài xế) đã đủ; B7 là bước rẻ nhất để có thêm dư địa.
+6. Tải mục tiêu (số tài xế, số chuyến giờ cao điểm) chưa được chốt ([kế hoạch, mục 10](ke-hoach-kiem-thu-hieu-nang.md#8-giới-hạn-của-môi-trường-local)). Nếu mục tiêu chỉ là demo trước hội đồng, trạng thái hiện tại (6 chuyến/giây, 5000 tài xế) đã đủ; B7 là bước rẻ nhất để có thêm dư địa.
 7. Ngưỡng của breaker ở D1 (số lỗi liên tiếp, thời gian mở) cần chọn theo số đo loạt 2 sau B7; chọn trước khi đo có thể làm breaker mở oan ở tải cao.
 8. RPO 1 giờ và RTO 15 phút ở D3 là mục tiêu cho demo, cần chốt với yêu cầu nghiệp vụ. Khi có Payment, sổ cái cần RPO gần 0 (WAL archiving, khôi phục theo thời điểm), ngoài phạm vi demo.
