@@ -193,6 +193,7 @@ API public qua Gateway, app Android và web không đổi.
 - User (Java) chưa có observability; Gateway đã có từ 2026-11-17.
 - Một chuyến hiện là ba đoạn trace, chưa phải một trace liền từ đầu tới cuối.
 - Trần nằm giữa 64 và 72 chuyến/giây (64 đạt từ 2026-11-17); mỗi mức mới đo một lần, chưa đo các mức ở giữa.
+- 5000 tài xế và 5000 khách cùng online không đạt: Gateway tốn khoảng 300 KB bộ nhớ cho mỗi phiên `/ws` và bị giết ở cả 768 MiB và 1536 MiB; Redis giữ dữ liệu chuyến 7 ngày không giới hạn bộ nhớ ([báo cáo, mục 15](bao-cao-kiem-thu-tai.md#15-5000-tài-xế-và-5000-khách-cùng-online-2026-11-17)).
 - Mỗi mức tải mới đo một lần, 2 phút, trên một laptop. Hai lần đo cùng mức có thể lệch đáng kể (ví dụ p95 2,0 và 1,5 giây).
 - Lần 5000 tài xế ở 8 chuyến/giây không đạt ngày 2026-11-05 nay đạt, nhưng chưa xác định được vì sao hôm đó không đạt.
 - Đợt chậm 3 phút khi chạy 30 phút không lặp lại ở lần đo 2026-11-17; còn hai gợn dưới một phút lúc 1000 tài xế nối lại cùng lúc.

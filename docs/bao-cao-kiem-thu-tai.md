@@ -625,3 +625,36 @@ Commit `7afca59`: `lock_timeout` đặt ở mức kết nối thay vì `SET LOCA
 4. Ở 72 chuyến/giây ack GPS p95 lên 3 giây và commit/giây giảm còn 1962, tức cả cụm trên máy đo đã quá tải, không chỉ Matching. Trần hiện ở khoảng 64–72 chuyến/giây với 1000 tài xế trên laptop này; chưa đo các mức ở giữa và mỗi mức mới đo một lần.
 
 Kết quả ở `deploy/.local/load/results/2026-11-16T18-2*`, `18-3*` (trần, Gateway), `2026-11-16T19-10-28-963Z` (30 phút) `2026-11-16T19-4*`, `19-5*` (thử nghiệm 14.5) `2026-11-17T00-5*` (sau B2) và `2026-11-17T10-4*`, `10-5*` (sau khi giảm ghi của Matching); tên thư mục theo giờ UTC.
+
+## 15. 5000 tài xế và 5000 khách cùng online (2026-11-17)
+
+Kịch bản C4 trong [kế hoạch kiểm thử](ke-hoach-kiem-thu-hieu-nang.md#56-concurrent-users-testing-nhiều-người-cùng-lúc): 5000 tài xế online (Socket.IO, GPS mỗi 10 giây), 5000 khách mỗi người giữ một phiên `/ws` của Gateway như app đang mở (công cụ mới `riders.cjs`, tham số `--riders-online`), đồng thời đặt 32 chuyến/giây trong 5 phút. Trong cụm, tắt observability, edge cấu hình cho 10000 kết nối (`EDGE_PEAK_DRIVERS=10000`). Commit đang chạy: `b150f94` cộng các sửa ghi ở 15.2.
+
+**Kết quả: không đạt.** Hệ thống không giữ được 5000 khách cùng lúc trên một Gateway.
+
+### 15.1 Các lần chạy
+
+| Lần | Cấu hình | Khách kết nối được (cao nhất) | Chuyến được gán | Lỗi HTTP | Thứ hỏng đầu tiên |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Chuẩn | — | 0 | — | Edge hết cổng nguồn tới Gateway; tài xế không lên mạng được |
+| 2 | Pool keepalive (chưa có hiệu lực, xem 15.2) | 2473/5000 | 0 | 58% | Redis hết bộ nhớ (đầy sẵn từ các lần đo trước), kéo theo Gateway |
+| 3 | Như 2, đã dọn Redis | — | 0 | — | Lại edge hết cổng: edge vẫn chạy cấu hình nginx cũ |
+| 4 | Edge đã có pool keepalive | 2579/5000 | 41 | 57% | **Gateway hết bộ nhớ** (giới hạn 768 MiB), khởi động lại liên tục |
+| 5 | Như 4, Gateway tạm 1536 MiB | **5000/5000** | 1623 trong khoảng 9600 lượt | 33% | **Gateway vẫn hết bộ nhớ** ở 1534 MiB |
+
+Ở lần 5: ack GPS p95 51 ms (đạt), tài xế không rớt kết nối; nhưng khi Gateway bị giết thì mọi phiên `/ws` rớt (khách tự nối lại 41979 lần), báo giá p95 3,4 giây và tạo chuyến p95 2,6 giây vì request dồn chờ Gateway. Truy vấn toàn vẹn dữ liệu sau mỗi lần đều rỗng: không tài xế nào bị gán hai chuyến, không chuyến nào có hai offer đang giữ.
+
+### 15.2 Ba lỗi tìm ra và đã sửa
+
+1. **Edge mở kết nối mới tới Gateway cho mỗi request REST.** `location /api/v1/` đặt `Connection ""` nhưng không có khối `upstream` có `keepalive`, nên nginx vẫn đóng kết nối; lúc hỏng có khoảng 23000 socket `TIME_WAIT` từ edge tới cổng 8080 và nginx báo `Address not available`. Sửa: `upstream gateway_rest { keepalive 256; }` trong `deploy/nginx.conf`.
+2. **`kube-up` không khởi động lại edge khi cấu hình nginx đổi.** File cấu hình được mount bằng `subPath`, không tự cập nhật; bản sửa 1 vì vậy chưa có hiệu lực ở lần 3. Sửa: `generate.cjs` gắn mã băm cấu hình nginx vào pod template của edge, giống mã băm env của các service.
+3. **Redis giữ dữ liệu chuyến 7 ngày và không có `maxmemory`.** Khoảng 650000 key chống trùng event của Gateway (`gw:trip-event:*`, `gw:trip-version:*`) và 162000 key offer của Realtime (`realtime:offer:*`) từ các lần đo trước đã chiếm 243 MiB trên giới hạn 256 MiB. Ước tính ở 32 chuyến/giây Redis tăng khoảng 130 MB mỗi giờ (tính từ số key mỗi chuyến, chưa đo trực tiếp). **Chưa sửa tận gốc**: lần này chỉ xoá dữ liệu cũ trong Redis local. Cần rút hạn sống của hai nhóm key này và đặt giới hạn bộ nhớ cho Redis. Sau khi Redis bị giết, realtime-api không tự kết nối lại được và phải khởi động lại pod.
+
+### 15.3 Điểm gãy: bộ nhớ của Gateway cho phiên `/ws`
+
+Với 768 MiB, Gateway bị giết khi khoảng 2500 khách đã kết nối; với 1536 MiB, đủ 5000 khách kết nối được nhưng Gateway vẫn chạm 1534 MiB và bị giết. Ước tính **khoảng 300 KB bộ nhớ cho mỗi phiên `/ws`** (1,5 GB cho 5000 phiên), trong khi realtime-api giữ 5000 kết nối Socket.IO của tài xế chỉ với khoảng 280 MiB. Chưa tìm ra phần nào trong Gateway tốn bộ nhớ (bộ đệm WebSocket của Tomcat, đăng ký phiên, hay luồng nhận event từ Redis); cần heap dump.
+
+Hướng xử lý, chưa làm: tìm nguyên nhân bằng heap dump rồi giảm bộ nhớ mỗi phiên; đặt giới hạn số phiên `/ws` trên một Gateway để từ chối có kiểm soát thay vì bị giết; hoặc chạy nhiều replica Gateway (cần phân phối event theo phiên qua Redis, chưa có).
+
+Kết quả ở `deploy/.local/load/results/2026-11-17T13-35-16-700Z`, `14-10-24-166Z` và `14-34-11-615Z`.
+

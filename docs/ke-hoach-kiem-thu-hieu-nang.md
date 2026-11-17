@@ -42,7 +42,7 @@ Trước mỗi đợt đo:
 | Dữ liệu | Số lượng cần | Lệnh | Ghi chú |
 | --- | --- | --- | --- |
 | Tài xế | 5000 | `node deploy/load/accounts.cjs seed --drivers 5000` | Ghi thẳng vào `driver_db`, phiên OTP lấy trong pod driver-api |
-| Khách | 3000 | `node deploy/load/accounts.cjs seed --riders 3000` | Đi qua Gateway; stack local đặt `AUTH_MAX_ATTEMPTS=1000` nên seed không bị chặn |
+| Khách | 5000 | `node deploy/load/accounts.cjs seed --riders 5000` | Đã seed 2026-11-17. Đi qua Gateway; stack local đặt `AUTH_MAX_ATTEMPTS=1000` nên seed không bị chặn |
 | Vị trí | — | `--radius 6000` | Tài xế rải trong 6 km quanh Hoàn Kiếm; điểm đón trong 1,5 km |
 | Bảng lớn (cho 5.5) | 1 triệu dòng `outbox_deliveries`, `matching_outbox` đã gửi | Script cần viết (mục 9) | Để thấy index và vòng dọn làm việc khi bảng đã lớn |
 
@@ -185,10 +185,20 @@ Mục tiêu: nhiều người dùng thao tác cùng lúc không làm sai dữ li
 | C1 | 5000 tài xế online, 3000 khách mỗi người đặt một chuyến trong 2 phút (chế độ đợt), giữ chuyến | ≥ 95% chuyến được gán trong 3 phút; mọi chuyến được gán trước `--drain`; D6 rỗng | Chưa đo (kịch bản E6 trong đề xuất) |
 | C2 | 3000 khách cùng mở app: đọc chuyến và lịch sử song song với L3 | p95 đọc ≤ 300 ms; L3 vẫn đạt | Chưa có script đọc riêng (mục 9) |
 | C3 | Tranh chấp: nhiều chuyến cùng nhắm một tài xế; tài xế nhận và khách huỷ cùng lúc | 0 tài xế bị gán hai chuyến; chuyến huỷ không bị gán | Đã có test tích hợp (`match.test.ts`, `decisions.test.ts`); dưới tải kiểm bằng D6 |
-| C4 | 5000 kết nối Socket.IO của tài xế cùng 3000 kết nối `/ws` của khách | Edge không từ chối kết nối; ack GPS trong ngưỡng | Chưa đo đủ 8000 kết nối; edge được cấu hình cho 5000 tài xế (A9) |
+| C4 | **5000 tài xế và 5000 khách cùng online** (mỗi khách giữ một phiên `/ws`), đặt 32 chuyến/giây trong 5 phút | Mọi khách giữ được kết nối; các ngưỡng ở mục 4 đạt | **Đã chạy 2026-11-17: không đạt.** Gateway hết bộ nhớ ở khoảng 300 KB mỗi phiên `/ws` ([báo cáo, mục 15](bao-cao-kiem-thu-tai.md#15-5000-tài-xế-và-5000-khách-cùng-online-2026-11-17)) |
 
 ```bash
 node deploy/load/run.cjs --drivers 5000 --radius 6000 --ramp 25 --trips 3000 --rate 25 --drain 900 --in-cluster 1
+```
+
+C4 cần edge đủ chỗ cho cả kết nối của khách, nên deploy với `EDGE_PEAK_DRIVERS=10000`:
+
+```bash
+EDGE_PEAK_DRIVERS=10000 node deploy/run.cjs kube-up
+```
+
+```bash
+node deploy/load/run.cjs --drivers 5000 --radius 6000 --rate 32 --duration 5m --warmup 60 --in-cluster 1 --events ws --riders-online 5000
 ```
 
 ### 5.7 Login và rate limiting
