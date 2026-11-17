@@ -7,7 +7,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests package
 FROM eclipse-temurin:21-jre-jammy@sha256:f04fb34e053148344e83317976114ec3f37e4b830ec8bdab5a2fe3cecd7d010b AS base
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=70 -XX:ActiveProcessorCount=2"
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60 -XX:ActiveProcessorCount=2"
 USER 10001:10001
 EXPOSE 8080 8090
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

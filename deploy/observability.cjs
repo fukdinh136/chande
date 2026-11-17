@@ -27,7 +27,7 @@ const telemetryEnv = name => ({
  */
 const javaTelemetryEnv = name => ({
   ...telemetryEnv(name), OTEL_EXPORTER_OTLP_PROTOCOL: 'http/protobuf', OTEL_LOGS_EXPORTER: 'none',
-  JAVA_TOOL_OPTIONS: '-XX:MaxRAMPercentage=70 -XX:ActiveProcessorCount=2 -javaagent:/app/opentelemetry-javaagent.jar',
+  JAVA_TOOL_OPTIONS: '-XX:MaxRAMPercentage=60 -XX:ActiveProcessorCount=2 -javaagent:/app/opentelemetry-javaagent.jar',
 });
 // Collector, Prometheus and Grafana read YAML; JSON is valid YAML, so the files are written as JSON.
 const collector = {

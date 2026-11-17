@@ -21,7 +21,7 @@ public record RealtimeProperties(
         @DefaultValue("60s") Duration idleTimeout,
         @DefaultValue("5") int maxSessionsPerUser,
         @DefaultValue("1s") Duration locationMinInterval,
-        @DefaultValue("8KB") DataSize maxMessageSize,
+        @DefaultValue("4KB") DataSize maxMessageSize,
         @DefaultValue("7d") Duration eventRetention,
         @DefaultValue("100000") long streamMaxLength) {
 

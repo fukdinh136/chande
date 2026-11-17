@@ -43,7 +43,7 @@ test('observability is off by default and switches on the Node services and the 
     else { assert.equal(telemetry.OTEL_SERVICE_NAME,name); assert.equal(telemetry.OTEL_EXPORTER_OTLP_ENDPOINT,'http://otel-collector:4318'); assert.equal(telemetry.OTEL_TRACES_SAMPLER,'parentbased_traceidratio'); }
     // Nothing else changes when the flag is on.
     // The Gateway also gets the Java agent flag next to the image's own JVM flags.
-    if(name==='gateway-api') { assert.equal(telemetry.OTEL_LOGS_EXPORTER,'none'); assert.match(a.env.JAVA_TOOL_OPTIONS,/^-XX:MaxRAMPercentage=70 -XX:ActiveProcessorCount=2 -javaagent:\/app\/opentelemetry-javaagent\.jar$/); }
+    if(name==='gateway-api') { assert.equal(telemetry.OTEL_LOGS_EXPORTER,'none'); assert.match(a.env.JAVA_TOOL_OPTIONS,/^-XX:MaxRAMPercentage=60 -XX:ActiveProcessorCount=2 -javaagent:\/app\/opentelemetry-javaagent\.jar$/); }
     assert.deepEqual(Object.fromEntries(Object.entries(a.env).filter(([k])=>!k.startsWith('OTEL_')&&k!=='JAVA_TOOL_OPTIONS')),off[name].env,name);
   }
 });
