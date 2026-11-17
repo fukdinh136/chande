@@ -241,10 +241,13 @@ Các trường hợp gateway gửi `error` (kết nối không bị đóng):
 | 4401 | `TOKEN_EXPIRED` | Quá `exp` + 30 giây mà chưa gia hạn. Gateway kiểm mỗi 5 giây |
 | 4401 | `IDENTITY_CHANGED` | Gửi `auth` với token của người khác |
 | 4429 | `TOO_MANY_CONNECTIONS` | Đã có **5** kết nối cùng tài khoản |
+| 4503 | `SERVER_BUSY` | Instance đã giữ đủ `gateway.realtime.max-sessions` (mặc định **6000**) phiên. Đóng ngay khi mở, trước khi xác minh JWT; client nên chờ ngẫu nhiên 10–30 giây rồi nối lại |
+
+Gateway **không nhận nén** `permessage-deflate`, kể cả khi client đề nghị (Node, OkHttp trên Android đề nghị mặc định). Mỗi phiên nén giữ một bộ zlib riêng ngoài heap, khoảng 230 MB cho một đợt 2900 kết nối khi đo, trong khi tin nhắn của app đều dưới 1 KB.
 
 Ngoài ra kết nối còn bị đóng khi:
 
-- tin nhắn vượt **8 KB**;
+- tin nhắn vượt **4 KB**;
 - client đọc quá chậm: một lần gửi không xong trong 5 giây, hoặc hàng đợi gửi vượt 64 KB.
 
 **App phải làm:**
@@ -460,7 +463,8 @@ Request bị chặn ở bước 2–3 **không bị đọc body** và không ch�
 | `gateway.internal.port` / `callers.<service>` | `8090` / — | Mỗi caller một token |
 | `gateway.realtime.auth-timeout` / `idle-timeout` | `10s` / `60s` | |
 | `gateway.realtime.max-sessions-per-user` / `location-min-interval` | `5` / `1s` | |
-| `gateway.realtime.max-message-size` | `8KB` | |
+| `gateway.realtime.max-message-size` | `4KB` | |
+| `gateway.realtime.max-sessions` | `6000` | Số phiên `/ws` tối đa trên một instance; vượt thì đóng `4503`. Khoảng 5800 phiên kèm 32 chuyến/giây dùng tối đa 763 MB ở giới hạn 768 MiB, 875 MB ở 1 GiB (cụm local cấp 1 GiB) |
 | `gateway.realtime.event-retention` / `stream-max-length` | `7d` / `100000` | |
 | `jwt.clock-skew` | `30s` | |
 | `jwt.issuers[].issuer` / `jwk-set-uri` / `roles` / `audiences` | — | `audiences` để trống thì không kiểm `aud` |
@@ -483,7 +487,7 @@ Request bị chặn ở bước 2–3 **không bị đọc body** và không ch�
 - **JWT**: có ít nhất một issuer; issuer không trùng; `jwk-set-uri` là http(s); `roles` không rỗng.
 - **CORS**: danh sách không rỗng và không có `*`.
 - **Rate limit**: `max-attempts` ≥ 1, `window` > 0.
-- **Realtime**: `max-sessions-per-user` ≥ 1; `event-retention` ≥ 1 giây; `stream-max-length` ≥ 1.
+- **Realtime**: `max-sessions` ≥ 1; `max-sessions-per-user` ≥ 1; `event-retention` ≥ 1 giây; `stream-max-length` ≥ 1.
 
 ## 11. Triển khai
 

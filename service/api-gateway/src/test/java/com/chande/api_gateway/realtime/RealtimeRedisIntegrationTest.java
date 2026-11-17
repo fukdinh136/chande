@@ -13,6 +13,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketExtension;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
@@ -26,6 +27,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -124,6 +126,8 @@ class RealtimeRedisIntegrationTest {
         if (bearerToken != null) {
             headers.add("Authorization", "Bearer " + bearerToken);
         }
+        // Like Node's WebSocket and OkHttp: offer compression; the Gateway must turn it down.
+        headers.setSecWebSocketExtensions(List.of(new WebSocketExtension("permessage-deflate")));
         client.session = new StandardWebSocketClient()
                 .execute(client, headers, URI.create("ws://127.0.0.1:" + port + "/ws"))
                 .get(5, TimeUnit.SECONDS);
@@ -157,6 +161,9 @@ class RealtimeRedisIntegrationTest {
         // Tài xế xác thực bằng header lúc handshake (cách của app mobile)
         Client driver = connect(TOKENS.driver(driverId));
         assertThat(driver.next().get("role").asString()).isEqualTo("DRIVER");
+        // Compression offered, none accepted: no per-session zlib state in native memory
+        assertThat(rider.session.getExtensions()).isEmpty();
+        assertThat(driver.session.getExtensions()).isEmpty();
 
         UUID assignedId = UUID.randomUUID();
         String assigned = event(assignedId, "trip.assigned", "ASSIGNED", 2, driverId);
