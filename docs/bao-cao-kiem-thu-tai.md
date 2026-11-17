@@ -658,3 +658,20 @@ Hướng xử lý, chưa làm: tìm nguyên nhân bằng heap dump rồi giảm 
 
 Kết quả ở `deploy/.local/load/results/2026-11-17T13-35-16-700Z`, `14-10-24-166Z` và `14-34-11-615Z`.
 
+### 15.4 Tìm và giảm bộ nhớ mỗi phiên `/ws` (2026-11-17)
+
+Bảng thống kê đối tượng trên heap của Gateway (`-XX:+PrintClassHistogram` và `SIGQUIT`), đo trước và khi có 2500 khách online: dữ liệu sống tăng từ 53 lên 287 MiB, khoảng **94 KB mỗi phiên**. Trong đó `byte[]` 60 KB (các bộ đệm 8 KB mặc định của Tomcat cho mỗi phiên: đọc và ghi socket, khung WebSocket vào và ra, bộ mã hoá), `char[]` 17 KB (bộ đệm tin nhắn văn bản 8K ký tự), còn lại là header và map của phiên. Tin nhắn lớn nhất của app (auth kèm JWT) chỉ 672 ký tự.
+
+Container bị giết trước khi Java báo hết bộ nhớ vì JVM được dùng 70% giới hạn cho heap; GC Serial nở heap tới mức đó, cộng phần ngoài heap khoảng 160 MiB (270 MiB khi bật agent OpenTelemetry) là vượt giới hạn.
+
+Đã sửa: bộ đệm socket 4 KB, bộ đệm khung WebSocket 2 KB, giới hạn tin nhắn từ client 4 KB, heap 60% giới hạn container.
+
+| Lần | Cấu hình | Khách kết nối được (cao nhất) | Chuyến được gán | Lỗi HTTP | Kết quả |
+| --- | --- | --- | --- | --- | --- |
+| 4 (trước sửa) | 768 MiB | 2579/5000 | 41 | 57% | Gateway bị giết |
+| 6 (sau sửa) | 768 MiB, tắt observability | 3404/5000 | 248 | 44% | **Gateway vẫn bị giết** (7 lần), CPU trung bình 1,06 core, cao nhất 1,72 trên 2 |
+
+Bản sửa giữ được nhiều khách hơn nhưng **chưa đủ cho 5000 khách trên một Gateway 768 MiB**. Khi Gateway bị giết, mọi khách nối lại cùng lúc, mỗi lần nối lại đều phải xác minh JWT, nên Gateway chạy gần hết CPU và bộ nhớ lại dâng lên. Chưa đo lại số KB mỗi phiên sau khi sửa (lần lấy thống kê trùng lúc Gateway bị giết). Hướng tiếp theo: giới hạn số phiên `/ws` trên một Gateway để từ chối có kiểm soát; khách nối lại có giãn cách ngẫu nhiên; đo lại bộ nhớ mỗi phiên khi tắt agent; hoặc cấp Gateway nhiều bộ nhớ hơn hay nhiều replica.
+
+Kết quả ở `deploy/.local/load/results/2026-11-17T15-10-04-907Z`.
+
