@@ -28,6 +28,8 @@ test('edge nginx is sized from the drivers online at peak',()=>{
   const conf=require('node:fs').readFileSync(require('node:path').join(__dirname,'nginx.conf'),'utf8');
   assert.match(conf,/__WORKER_CONNECTIONS__/); assert.match(conf,/__RLIMIT_NOFILE__/);
   assert.match(conf,/proxy_set_header X-Forwarded-For \$remote_addr;/);
+  // REST to the Gateway goes through a keepalive pool; without it the edge ran out of local ports at 5000 drivers + 5000 riders.
+  assert.match(conf,/upstream gateway_rest \{[^}]*keepalive \d+;/); assert.match(conf,/location \/api\/v1\/ \{\s*proxy_pass http:\/\/gateway_rest;/);
 });
 const fs=require('node:fs'),path=require('node:path');
 const observability=require('./observability.cjs');

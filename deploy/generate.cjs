@@ -110,6 +110,10 @@ if (fs.existsSync(imageIdsFile)) {
   const ids = JSON.parse(fs.readFileSync(imageIdsFile, 'utf8'));
   for (const resource of workloads.filter(r=>r.kind==='Deployment')) resource.spec.template.metadata.annotations = {'chande.dev/image-id':ids[resource.spec.template.spec.containers[0].image] ?? 'infra'};
 }
+// nginx.conf is mounted with subPath, which never picks up a changed ConfigMap: hash it into the edge pod template
+// so a new config restarts edge (before this, kube-up updated the ConfigMap but edge kept the old config).
+{ const edgeDeployment = workloads.find(r=>r.kind==='Deployment' && r.metadata.name==='edge');
+  edgeDeployment.spec.template.metadata.annotations = {...edgeDeployment.spec.template.metadata.annotations, 'chande.dev/config-hash':crypto.createHash('sha256').update(nginxConf).digest('hex').slice(0,16)}; }
 for (const resource of workloads.filter(r=>r.kind==='Deployment' && envHash[r.metadata.name])) resource.spec.template.metadata.annotations = {...resource.spec.template.metadata.annotations, 'chande.dev/env-hash':envHash[resource.metadata.name]};
 fs.writeFileSync(path.join(out,'env-secrets.json'),JSON.stringify({apiVersion:'v1',kind:'List',items:envSecrets},null,2),{mode:0o600});
 const telemetry = observability.enabled() ? observability.kubeResources({deployment,service,metadata,secret,probeHTTP},secrets.grafanaPassword) : [];
