@@ -842,7 +842,11 @@ Kết quả ở `2026-11-17T18-45-54-491Z`, `18-53-36-537Z`, `19-43-42-037Z` và
 - **Câu tìm chuyến đang mở của khách, chưa sửa:** khi tạo chuyến, câu `SELECT data FROM trips WHERE rider_id=$1 AND status IN (...)` từng mất trung bình 152 ms trong lần L1 bị nhiễu.
   - Nguyên nhân là thống kê của `trips` đã cũ, nên planner ước tính mỗi khách 1 dòng và chọn index lịch sử `trips_rider_history`. Khi đó phải lọc toàn bộ chuyến cũ của khách: 579 dòng, 443 trang đọc từ đĩa.
   - Sau `ANALYZE`, planner chọn đúng partial index `uq_trips_active_rider`: 0,03 ms. Autoanalyze cũng đã tự chạy giữa lần đo, và các lần sau câu này còn khoảng 5 ms trung bình.
-  - Khách đi nhiều chuyến sẽ gặp lại hiện tượng này mỗi khi thống kê cũ. Hướng sửa: viết câu sao cho chỉ partial index dùng được, hoặc đặt `autovacuum_analyze_scale_factor` thấp hơn cho `trips`. Cần đo lại trước khi chọn.
+  - Khách đi nhiều chuyến sẽ gặp lại hiện tượng này mỗi khi thống kê cũ.
+  - **Đã sửa (2026-11-18), không còn phụ thuộc vào planner.** `uq_trips_active_rider` cho phép mỗi khách một chuyến đang mở, và khách không đặt được chuyến mới khi còn chuyến mở. Vì vậy chuyến đang mở luôn là chuyến mới nhất của khách.
+    - Câu mới đọc 2 chuyến mới nhất theo `trips_rider_history` (`ORDER BY requested_at DESC, id DESC LIMIT 2`) rồi chọn chuyến đang mở trong đó. Lấy 2 thay vì 1 để chịu được trường hợp đồng hồ của hai replica API lệch nhau và chuyến mở bị xếp thứ hai.
+    - Test tích hợp: khách có 40 chuyến đã huỷ cộng một chuyến mở, kể cả khi thứ tự bị đảo; plan dừng sau 2 dòng của index.
+    - Tài xế vẫn dùng câu cũ với `uq_trips_active_driver`, vì tài xế có thể nhận một chuyến được đặt trước chuyến họ vừa hoàn thành, nên chuyến mới nhất không chắc là chuyến đang mở.
 - **D6, toàn vẹn dữ liệu:** đã tự động hoá trong `run.cjs` và sạch ở mọi lần chạy.
 
 ### 16.7 Nhiều người cùng lúc
@@ -941,6 +945,38 @@ Kết quả ở `2026-11-17T18-45-54-491Z`, `18-53-36-537Z`, `19-43-42-037Z` và
 
   `pods.json` chỉ lưu giá trị đầu, cuối và cao nhất, nên chưa kiểm được ngưỡng "không tăng quá 10% sau 10 phút đầu". Cần lưu từng mẫu theo thời gian trước khi kết luận có rò bộ nhớ hay không.
 
+**Chạy lại sau hai bản sửa** (Redis `maxmemory` 128 MB; câu tìm chuyến đang mở của khách đọc 2 chuyến mới nhất). Cùng kịch bản, lần `2026-11-18T10-35-02-819Z`; mỗi phút lấy mẫu bộ nhớ pod Redis, số lần khởi động lại của từng pod, và áp lực bộ nhớ của VM.
+
+| Chỉ số | Lần 1 | Lần 2 |
+| --- | --- | --- |
+| Chuyến được gán | 114.616 (8 lỗi) | **115.188 (0 lỗi)** |
+| Lượt bị bỏ | 342 | **0** |
+| Gán chuyến p95 cả bài | 1,17 s | **0,80 s** |
+| p95 cao nhất trong một phút | 58,9 s (sự cố) | **1,25 s** |
+| Báo giá p95 / p99 | 35 / 219 ms | **14 / 40 ms** |
+| Tạo chuyến p95 | 36 ms | 14 ms |
+| Ack GPS p95 / lỗi GPS | 98 ms / 21.512 | **20 ms / 454** |
+| Pod khởi động lại | realtime-api 1 lần | **không pod nào** |
+| Redis | RSS 217 MB, pod chạm 256 MiB | **RSS 170 MB; cgroup 180 → 215 MiB trong giờ đầu rồi đứng yên, cuối bài 207 MiB**; đã xoá 720 nghìn key |
+| Áp lực bộ nhớ của VM | khoảng 50 giây bị đứng, swap tăng | không tăng; swap đứng ở 323 MB suốt bài |
+| Cache hit | 94,6% | 95,5% |
+
+- **Soak đạt mọi ngưỡng trừ cache hit:** không lượt nào bị bỏ, p95 từng phút trong ngưỡng, không pod nào khởi động lại, outbox ngừng tăng (Trip khoảng 150 nghìn, Matching khoảng 124 nghìn dòng), toàn vẹn dữ liệu sạch.
+- Câu tìm chuyến đang mở của khách không còn trong danh sách các câu SQL tốn nhất.
+- Mức đỉnh 251 MiB của cgroup Redis được ghi ngay lúc khởi động, khi Redis nạp lại khoảng 199 MB từ AOF rồi mới xoá bớt, không phải trong lúc chạy tải.
+- Vẫn còn 11 đợt 5000 tài xế nối lại vì JWT hết hạn, nhưng p95 ở các phút đó chỉ lên tới 1,25 giây.
+- p95 nền vẫn trôi từ khoảng 0,55 giây ở đầu bài lên khoảng 0,8 giây ở cuối bài.
+- RAM từng pod, đầu → cuối:
+
+  | Pod | MiB |
+  | --- | --- |
+  | Gateway | 343 → 378 |
+  | realtime-api | 253 → 302 |
+  | matching-worker | 39 → 94 |
+  | trip-worker | 52 → 84 |
+
+  Vẫn chưa có mẫu theo thời gian để kết luận về rò bộ nhớ.
+
 ### 16.10 Redis mỗi chuyến
 
 Đo khi Redis đầy (khoảng 200 MB):
@@ -974,17 +1010,14 @@ Khoảng 1,1 KB mỗi chuyến. Với hạn sống 1 giờ cho offer và 24 gi�
 **Lỗi tìm ra, theo mức ảnh hưởng:**
 
 1. **Matching không gán được chuyến khi 200 tài xế gần nhất đều bận** (C1, S3; mục 16.7). Khi nhu cầu tăng vọt ở một khu, 17–31% chuyến kẹt dù trong bán kính còn hàng trăm tài xế rảnh. **Đã sửa** bằng cách đọc trang tiếp theo: C1 lên 95,4% (đạt), S3 lên 91,8%.
-2. **Redis và Docker VM thiếu bộ nhớ dưới tải dài** (K3, mục 16.9). Realtime bị khởi động lại một lần, kéo 5000 tài xế nối lại. Chưa sửa. Có hai hướng:
-   - Hạ `maxmemory` của Redis tới mức mà RSS và bộ nhớ fork nằm dưới 256 MiB, ví dụ 128 MB.
-   - Hoặc tăng giới hạn pod Redis và bộ nhớ của Docker VM.
+2. **Redis và Docker VM thiếu bộ nhớ dưới tải dài** (K3, mục 16.9). Realtime bị khởi động lại một lần, kéo 5000 tài xế nối lại. **Đã sửa:** hạ `maxmemory` của Redis xuống 128 MB. Soak chạy lại 2 giờ: 0 lượt bị bỏ, không pod nào khởi động lại, RSS 170 MB.
 3. **Câu dọn outbox của Matching quét toàn bộ index** (D5). Đã sửa.
-4. **Câu tìm chuyến đang mở của khách phụ thuộc vào thống kê của bảng** (mục 16.6). Chậm hơn 5000 lần khi thống kê cũ. Chưa sửa.
+4. **Câu tìm chuyến đang mở của khách phụ thuộc vào thống kê của bảng** (mục 16.6). Chậm hơn 5000 lần khi thống kê cũ. **Đã sửa:** đọc 2 chuyến mới nhất theo index lịch sử.
 5. **Hạn sống key Redis 7 ngày và Redis không có giới hạn bộ nhớ** (mục 15.2). Đã sửa. Riêng receipt của Gateway vẫn cần khoảng 1,5 GB ở 32 chuyến/giây (mục 16.10).
 
 **Chưa đạt ở mọi bài:**
 - Cache hit PostgreSQL 92–98%, ngưỡng là 99%.
-- Lượt bị bỏ khác 0 ở soak, do sự cố và các đợt nối lại khi JWT hết hạn.
-- 5000 tài xế có JWT hết hạn cùng lúc, nên cứ 15 phút lại có một đợt nối lại làm p95 lên tới 3 giây (R4).
+- 5000 tài xế có JWT hết hạn cùng lúc, nên cứ 15 phút lại có một đợt nối lại (R4). Ở lần soak đầu, p95 lên tới 3 giây trong các phút đó; sau hai bản sửa, cao nhất 1,25 giây.
 
 **Giới hạn của loạt đo:**
 - Mỗi bậc stress mới chạy một lần.

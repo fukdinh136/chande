@@ -116,7 +116,7 @@ Mục tiêu: phát hiện rò RAM, bảng phình, vòng dọn dữ liệu không
 | --- | --- | --- |
 | K1 | 1000 tài xế, 16 chuyến/giây, 30 phút | Đã đo 2026-11-17: 28800/28800, p95 0,93 giây; có hai gợn dưới một phút |
 | K2 | 5000 tài xế, 16 chuyến/giây, 2 giờ | Chưa đo riêng; K3 chạy cùng tải đó |
-| K3 | Như K2 nhưng `OUTBOX_RETENTION_MS=1800000` (30 phút) cho Trip và Matching | Đã đo 2026-11-18 (2 giờ): 114.616 chuyến, p95 1,17 s; outbox ngừng tăng sau khi vòng dọn chạy; **không đạt**: 342 lượt bị bỏ, Realtime bị khởi động lại một lần vì Docker VM và Redis thiếu bộ nhớ ([báo cáo 16.9](bao-cao-kiem-thu-tai.md#169-soak-k3-2-giờ)) |
+| K3 | Như K2 nhưng `OUTBOX_RETENTION_MS=1800000` (30 phút) cho Trip và Matching | **Đạt (2026-11-18, lần 2)** sau khi hạ maxmemory Redis xuống 128 MB và sửa câu tìm chuyến của khách: 115.188 chuyến, 0 lượt bị bỏ, p95 0,80 s, p95 từng phút cao nhất 1,25 s, không pod nào khởi động lại; cache hit 95,5% vẫn dưới 99%. Lần 1 không đạt vì Redis và VM thiếu bộ nhớ ([báo cáo 16.9](bao-cao-kiem-thu-tai.md#169-soak-k3-2-giờ)) |
 
 ```bash
 node deploy/load/run.cjs --drivers 5000 --radius 6000 --rate 16 --duration 120m --warmup 60 --in-cluster 1 --events ws --login 1
@@ -135,7 +135,7 @@ Mục tiêu: kênh GPS và Socket.IO của tài xế, kênh `/ws` của khách g
 | R1 | 5000 tài xế, GPS mỗi 10 giây (500 bản tin/giây), 5 phút, gần như không đặt chuyến | Ack GPS p95/p99, CPU realtime-api, Redis | Đạt (2026-11-18): khoảng 620 bản tin/giây, ack p95 2 ms, realtime-api 0,13 core ([báo cáo 16.5](bao-cao-kiem-thu-tai.md#165-realtime-và-gps)) |
 | R2 | 5000 tài xế, GPS mỗi 3 giây (khoảng 1670 bản tin/giây) | Như R1; tìm mức ack vượt 200 ms | Đạt (2026-11-18): 2000 bản tin/giây ack p95 4 ms; mỗi 1 giây (6000 bản tin/giây) ack p95 139 ms. Chưa tìm thấy mức vượt 200 ms |
 | R3 | Nối lại hàng loạt: xoá pod realtime-api trong lúc L2 chạy | Thời gian tới khi ≥ 99% tài xế gửi GPS lại; chuyến bị trễ trong khoảng đó | Đã đo 2026-11-18: 5000 tài xế rớt, gửi GPS lại sau 30–45 giây; gán chuyến p95 18,8 s, 90 lượt bị bỏ trong lần đó |
-| R4 | Nối lại do JWT hết hạn: 5000 tài xế đăng nhập cùng lúc nên hết hạn cùng lúc (xảy ra tự nhiên trong K2) | Gợn p95 quanh các mốc 15 phút | Đã thấy trong K3: 11 đợt 5000 tài xế nối lại, p95 lên 1–3,3 s ở các phút đó |
+| R4 | Nối lại do JWT hết hạn: 5000 tài xế đăng nhập cùng lúc nên hết hạn cùng lúc (xảy ra tự nhiên trong K2) | Gợn p95 quanh các mốc 15 phút | Đã thấy trong K3: 11 đợt 5000 tài xế nối lại; p95 ở các phút đó lên tới 3,3 s ở lần 1, 1,25 s ở lần 2 |
 | R5 | Độ trễ giao offer: publish → tài xế nhận | p95 ≤ 500 ms | Đo sẵn trong mọi lần chạy (`publishToAccept`) |
 | R6 | Độ trễ sự kiện `/ws` tới khách sau khi chuyến đổi trạng thái | p95 ≤ 1 giây | Đạt (2026-11-18): đo trong mọi lần chạy có `--events ws` (`ws_event_lag`); p95 250–575 ms tới 32 chuyến/giây |
 | R7 | GPS cũ hơn 30 giây không được dùng để mời | Không offer nào gửi cho tài xế mất GPS | Có trong test tích hợp Matching; chưa kiểm dưới tải |
