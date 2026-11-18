@@ -28,14 +28,15 @@ export class RedisLocationRepository implements LocationStore {
       return { accepted: true, disposition, recordedAt: location.recordedAt, receivedAt: new Date(Number(reply[1])).toISOString() };
     });
   }
-  nearest(query: { latitude: number; longitude: number; radiusMeters: number; limit: number }): Promise<NearbyLocation[]> {
+  nearest(query: { latitude: number; longitude: number; radiusMeters: number; limit: number; offset: number }): Promise<{ items: NearbyLocation[]; more: boolean }> {
     return this.command(async () => {
-      const values = await this.redis.eval(FIND_NEAREST, 3, ...KEYS.slice(0, 3),
-        query.latitude, query.longitude, query.radiusMeters, query.limit) as string[];
-      return values.map(value => {
+      const [more, ...values] = await this.redis.eval(FIND_NEAREST, 3, ...KEYS.slice(0, 3),
+        query.latitude, query.longitude, query.radiusMeters, query.limit, query.offset) as string[];
+      const items = values.map(value => {
         const item = JSON.parse(value) as Metadata;
         return { ...item, receivedAt: new Date(item.receivedAtMs).toISOString() };
       });
+      return { items, more: more === '1' };
     });
   }
   cleanup() {

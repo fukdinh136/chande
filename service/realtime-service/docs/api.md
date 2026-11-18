@@ -106,7 +106,7 @@ ACK timeout 5 giây trong app/CLI là lỗi client ACK_TIMEOUT, không phải er
 
 Cho Matching tìm ứng viên ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)). X-Service-Token = `MATCHING_LOCATION_TOKEN`; thiếu cấu hình thì mọi caller nhận 401 `INVALID_SERVICE_CREDENTIAL`.
 
-Query: `latitude`, `longitude` bắt buộc; `radiusMeters` 1–2000 (mặc định 2000); `limit` 1–200 (mặc định 50). Data `{radiusMeters, drivers:[{driverId, latitude, longitude, distanceMeters, recordedAt}]}`, gần nhất trước, chỉ vị trí còn mới. Không lọc loại xe hay trạng thái tài xế. Redis dùng `GEOSEARCH ... COUNT limit` nên chi phí mỗi lần tìm có trần. Lỗi: 400 INVALID_REQUEST, 401 INVALID_SERVICE_CREDENTIAL, 503 DEPENDENCY_UNAVAILABLE khi Redis lỗi (có Retry-After: 1). Thay cho R01 `/nearby-drivers` đã gỡ ngày 2026-11-05.
+Query: `latitude`, `longitude` bắt buộc; `radiusMeters` 1–2000 (mặc định 2000); `limit` 1–200 (mặc định 50); `offset` 0–4800 (mặc định 0), vị trí bắt đầu trong thứ hạng theo khoảng cách. Data `{radiusMeters, drivers:[{driverId, latitude, longitude, distanceMeters, recordedAt}], nextOffset}`, gần nhất trước, chỉ vị trí còn mới. `nextOffset` là `offset` của trang sau, `null` khi bán kính không còn tài xế hoặc trang sau sẽ bắt đầu quá 4800. Thứ hạng tính cả vị trí đã cũ, nên một trang có thể ít hơn `limit` người mà vẫn còn trang sau. Không lọc loại xe hay trạng thái tài xế; Matching đọc trang sau khi cả trang đều bận. Redis dùng `GEOSEARCH ... COUNT offset+limit+1` nên chi phí mỗi lần tìm có trần (tối đa 5001 dòng). Lỗi: 400 INVALID_REQUEST, 401 INVALID_SERVICE_CREDENTIAL, 503 DEPENDENCY_UNAVAILABLE khi Redis lỗi (có Retry-After: 1). Thay cho R01 `/nearby-drivers` đã gỡ ngày 2026-11-05.
 
 ## 5. H01/H02 — health đã có
 

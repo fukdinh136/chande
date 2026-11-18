@@ -1,6 +1,6 @@
 import { Transform } from 'class-transformer';
 import { IsInt, IsNumber, IsOptional, Max, Min } from 'class-validator';
-import { LocationQuery, MAX_LOCATIONS } from '../../../application/use-cases/list-driver-locations';
+import { LocationQuery, MAX_LOCATIONS, MAX_OFFSET } from '../../../application/use-cases/list-driver-locations';
 // Query-string only, same number rules as NearbyDto.
 const queryNumber = ({ value }: { value: unknown }) =>
   typeof value === 'string' && /^-?(?:\d+\.?\d*|\.\d+)$/.test(value) ? Number(value) : value;
@@ -13,4 +13,6 @@ export class DriverLocationsDto implements LocationQuery {
   radiusMeters?: number;
   @IsOptional() @Transform(queryNumber) @IsInt() @Min(1) @Max(MAX_LOCATIONS)
   limit?: number;
+  @IsOptional() @Transform(queryNumber) @IsInt() @Min(0) @Max(MAX_OFFSET)
+  offset?: number;
 }

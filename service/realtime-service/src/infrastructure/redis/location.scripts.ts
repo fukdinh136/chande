@@ -46,14 +46,17 @@ end
 return #expired
 `;
 
-// Nearest fresh locations, closest first. COUNT caps the work per search, so a dense area costs the
-// same as a sparse one. No business filtering here.
+// Nearest fresh locations ranked ARGV[5] (offset) to offset + ARGV[4] (limit) - 1, closest first. COUNT caps the
+// work per search, so a dense area costs the same as a sparse one; a later page costs offset + limit rows.
+// The first element is "1" when the radius holds more drivers past this page, else "0". No business filtering.
 export const FIND_NEAREST = `
 local time = redis.call('TIME')
 local now = tonumber(time[1])*1000 + math.floor(tonumber(time[2])/1000)
-local rows = redis.call('GEOSEARCH', KEYS[1], 'FROMLONLAT', ARGV[2], ARGV[1], 'BYRADIUS', ARGV[3], 'm', 'ASC', 'COUNT', ARGV[4], 'WITHDIST')
-local result = {}
-for _, row in ipairs(rows) do
+local offset, limit = tonumber(ARGV[5]), tonumber(ARGV[4])
+local rows = redis.call('GEOSEARCH', KEYS[1], 'FROMLONLAT', ARGV[2], ARGV[1], 'BYRADIUS', ARGV[3], 'm', 'ASC', 'COUNT', offset + limit + 1, 'WITHDIST')
+local result = {#rows > offset + limit and '1' or '0'}
+for i = offset + 1, math.min(#rows, offset + limit) do
+  local row = rows[i]
   local expires = tonumber(redis.call('ZSCORE', KEYS[2], row[1]))
   local raw = redis.call('HGET', KEYS[3], row[1])
   if raw and expires and expires > now then
