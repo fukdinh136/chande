@@ -5,7 +5,7 @@
 const fs = require('node:fs'), path = require('node:path'), {spawn} = require('node:child_process');
 const {base, pause, args} = require('./lib.cjs');
 
-const o = args({drivers: 50, radius: 2000, ramp: 0, gpsMs: 10000, rate: 1, duration: '5m', warmup: 20, trips: 0, login: 0, events: 'poll', hold: 0, ridersOnline: 0, out: ''});
+const o = args({drivers: 50, radius: 2000, ramp: 0, gpsMs: 10000, rate: 1, duration: '5m', warmup: 20, trips: 0, login: 0, events: 'poll', hold: 0, ridersOnline: 0, reads: 0, out: ''});
 if (!o.out) throw new Error('--out is required');
 fs.mkdirSync(o.out, {recursive: true});
 const exited = child => new Promise(resolve => child.once('exit', code => resolve(code)));
@@ -29,7 +29,12 @@ const exited = child => new Promise(resolve => child.once('exit', code => resolv
   await pause(o.warmup * 1000);
   console.info('K6_START ' + new Date().toISOString());
   const k6 = spawn('k6', ['run', '-q', '-e', 'BACKEND_URL=' + base, '-e', 'RATE=' + o.rate, '-e', 'DURATION=' + o.duration, '-e', 'TRIPS=' + o.trips, '-e', 'SKIP_SETUP=1', '-e', 'LOGIN=' + o.login, '-e', 'EVENTS=' + o.events, '-e', 'SUMMARY_OUT=' + path.join(o.out, 'k6.json'), path.join(__dirname, 'booking.js')], {stdio: 'inherit'});
+  // C2: riders reading their trips at --reads app starts per second, in the same window as the bookings.
+  const reads = o.reads ? spawn('k6', ['run', '-q', '-e', 'BACKEND_URL=' + base, '-e', 'READS=' + o.reads, '-e', 'DURATION=' + o.duration, '-e', 'SUMMARY_OUT=' + path.join(o.out, 'reads.json'), path.join(__dirname, 'reads.js')], {stdio: 'inherit'}) : null;
+  // Listen now: reads.js may finish before booking.js, and an exit listener added afterwards would never fire.
+  const readsDone = reads ? exited(reads) : null;
   const code = await exited(k6);
+  if (readsDone) await readsDone;
   console.info('K6_END ' + new Date().toISOString() + ' ' + code);
   if (o.hold) while (!fs.existsSync(path.join(o.out, 'release'))) await pause(1000);
   if (riders) { riders.kill('SIGTERM'); await exited(riders); }

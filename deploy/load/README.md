@@ -22,6 +22,12 @@ Bộ công cụ đo baseline cho mục P2.6 trong [kiến trúc mục tiêu](../
 | `Dockerfile` | Image `chande-load:local` (Node 24 + k6 2.3.0) để chạy `traffic.cjs` trong cụm |
 | `assignments.cjs` | Đọc `trip_db`: số chuyến bắt đầu SEARCHING sau `--since`, số đã gán, thời gian chờ và số chuyến gán mỗi phút; `--wait N` chờ tới khi hết chuyến SEARCHING |
 | `segments.cjs` | Tách `SEARCHING` → `ASSIGNED` theo đoạn (tạo offer, publish, accept, Trip ghi `ASSIGNED`) từ mốc thời gian trong `trip_db` và `matching_db`, cho chuyến bắt đầu trong khoảng `--since` … `--until`. Lấy hai mốc này từ `started`, `finished` trong `summary.json` |
+| `checks.cjs` | Cuối mỗi lần `run.cjs`: toàn vẹn dữ liệu (tài xế có hai chuyến mở, chuyến có hai offer đang giữ), số chuyến và p95 theo từng phút, kích thước Redis và outbox; ghi `checks.json` và mục `checks` trong `summary.json` |
+| `reads.js` | k6: khách mở app đọc chuyến đang chạy và lịch sử (`--reads N` lần mở app mỗi giây), chạy song song với `booking.js` |
+| `k6-pod.cjs` | Chạy một script k6 bất kỳ trong pod `load-k6` và lấy mẫu CPU pod, ví dụ `node deploy/load/k6-pod.cjs login.js -e STAGES=5,10,15 -e STAGE=1m` |
+| `otp.js` | k6: tài xế đăng nhập OTP gọi thẳng driver-api trong cụm, mỗi tài xế một IP qua proxy token; chạy bằng `k6-pod.cjs otp.js` |
+| `bigtables.cjs` | Bảng outbox lớn: `load --rows N` nạp dòng đã giao quá hạn giữ, `explain` chạy EXPLAIN ANALYZE câu claim và câu dọn (rollback), `counts` đếm dòng |
+| `ratelimit.cjs` | Kiểm tra giới hạn đăng nhập của Gateway với cấu hình mặc định (`AUTH_MAX_ATTEMPTS=5`): T4–T9 trong kế hoạch kiểm thử |
 
 Dữ liệu test nằm trong `deploy/.local/load/` (đã gitignore): `drivers.json`, `riders.json` chứa refresh token, `rider-tokens.json` chứa access token cho k6. Tài xế test có ID tiền tố `30000000-`, số điện thoại `8496xxxxxxx`, biển số `LOAD-xxxxxx`, xe `CAR_4`. Rider có tên `Load Rider N`.
 
@@ -53,6 +59,7 @@ Refresh token xoay vòng sau mỗi lần dùng. Nếu một lần chạy bị d�
 | `--in-cluster` | 0 | 1: chạy tài xế giả lập và k6 trong pod `load-runner`, gọi thẳng Service `edge`, không qua `kubectl port-forward` |
 | `--drain` | 900 | Chế độ đợt: số giây tối đa chờ mọi chuyến được gán trước khi huỷ hết |
 | `--riders-online` | 0 | Số khách giữ phiên `/ws` của Gateway suốt lần đo như app đang mở (`riders.cjs`); cần đủ khách đã seed và edge đủ kết nối (`EDGE_PEAK_DRIVERS`). Kết quả ở `riders-online.json` |
+| `--reads` | 0 | Số lần khách mở app mỗi giây (`reads.js`) song song với đặt chuyến; kết quả trong `summary.reads` |
 
 Số rider giới hạn số chuyến đang chờ cùng lúc: mỗi VU k6 dùng một rider. Với `--rate 1` và thời gian tới `ASSIGNED` khoảng vài giây, 40 rider là đủ. Tăng rate thì seed thêm rider.
 

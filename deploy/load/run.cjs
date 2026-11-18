@@ -8,7 +8,7 @@
 const fs = require('node:fs'), path = require('node:path'), {spawn, spawnSync} = require('node:child_process');
 const {dir, base, args, kubectl} = require('./lib.cjs');
 
-const options = args({drivers: 50, radius: 2000, ramp: 0, rate: 1, duration: '5m', warmup: 20, interval: 10, trips: 0, drain: 900, gpsMs: 10000, login: 0, events: 'poll', inCluster: 0, ridersOnline: 0});
+const options = args({drivers: 50, radius: 2000, ramp: 0, rate: 1, duration: '5m', warmup: 20, interval: 10, trips: 0, drain: 900, gpsMs: 10000, login: 0, events: 'poll', inCluster: 0, ridersOnline: 0, reads: 0});
 const script = (name, extra) => { const r = spawnSync(process.execPath, [path.join(__dirname, name), ...extra], {stdio: 'inherit'}); if (r.status !== 0) throw new Error(`${name} ${extra[0] ?? ''} failed`); };
 const stamp = new Date().toISOString().replace(/[:.]/g, '-'), out = path.join(dir, 'results', stamp);
 fs.mkdirSync(out, {recursive: true});
@@ -36,7 +36,7 @@ function startRunner() {
   script('accounts.cjs', ['cleanup']);
 
   const traffic = ['--drivers', options.drivers, '--radius', options.radius, '--ramp', options.ramp, '--gps-ms', options.gpsMs, '--rate', options.rate, '--duration', options.duration,
-    '--warmup', options.warmup, '--trips', options.trips, '--login', options.login, '--events', options.events, '--hold', options.trips ? 1 : 0, '--riders-online', options.ridersOnline].map(String);
+    '--warmup', options.warmup, '--trips', options.trips, '--login', options.login, '--events', options.events, '--hold', options.trips ? 1 : 0, '--riders-online', options.ridersOnline, '--reads', options.reads].map(String);
   if (options.inCluster) startRunner();
   const child = options.inCluster
     ? spawn('kubectl', ['--context', 'docker-desktop', '-n', 'chande-local', 'exec', RUNNER, '--', 'node', 'deploy/load/traffic.cjs', ...traffic, '--out', REMOTE], {stdio: ['ignore', 'pipe', 'inherit']})
@@ -68,16 +68,23 @@ function startRunner() {
   const code = await exited(child);
   if (pods) { pods.kill('SIGTERM'); await exited(pods); }
   if (code !== 0 || !started) throw new Error('Traffic run failed with code ' + code);
-  if (options.inCluster) { for (const name of ['k6.json', 'drivers.json', ...(options.ridersOnline ? ['riders-online.json'] : [])]) kubectl(['cp', `${RUNNER}:${REMOTE}/${name}`, path.join(out, name)]); kubectl(['delete', 'pod', RUNNER, '--wait=false']); }
+  if (options.inCluster) { for (const name of ['k6.json', 'drivers.json', ...(options.ridersOnline ? ['riders-online.json'] : []), ...(options.reads ? ['reads.json'] : [])]) kubectl(['cp', `${RUNNER}:${REMOTE}/${name}`, path.join(out, name)]); kubectl(['delete', 'pod', RUNNER, '--wait=false']); }
   script('segments.cjs', ['--since', started, '--until', finished, '--out', path.join(out, 'segments.json')]);
+  // D6 integrity, per-minute assignment (soak) and Redis/outbox size, after the drain so open trips are settled.
+  script('checks.cjs', ['--since', started, '--until', finished, '--out', path.join(out, 'checks.json')]);
 
   const k6Summary = JSON.parse(fs.readFileSync(path.join(out, 'k6.json'), 'utf8')).metrics;
   const pick = name => { const v = k6Summary[name]?.values; return v ? {p50: Math.round(v.med), p95: Math.round(v['p(95)']), p99: Math.round(v['p(99)']), max: Math.round(v.max)} : null; };
   const summary = {started, finished, base: options.inCluster ? 'http://edge:8088 (in-cluster)' : base, options, k6ExitCode: Number(k6ExitCode),
     trips: {assigned: k6Summary.trips_assigned?.values.count ?? 0, notAssigned: k6Summary.trips_not_assigned?.values.count ?? 0, failed: k6Summary.trips_failed?.values.count ?? 0, droppedIterations: k6Summary.dropped_iterations?.values.count ?? 0},
     httpFailedRate: k6Summary.http_req_failed.values.rate, httpRequests: k6Summary.http_reqs.values.count, wsFailed: k6Summary.ws_failed?.values.count ?? 0,
-    latencyMs: {timeToAssigned: pick('time_to_assigned'), quote: pick('http_req_duration{name:quote}'), create: pick('http_req_duration{name:create}'), poll: pick('http_req_duration{name:poll}'), read: pick('http_req_duration{name:read}'), cancel: pick('http_req_duration{name:cancel}')},
-    created: k6Summary.trips_created?.values.count ?? null, assignments: readOptional('assignments.json'), segments: readOptional('segments.json'), sql: readOptional('sql.json'), drivers: readOptional('drivers.json'), ridersOnline: readOptional('riders-online.json'), pods: readOptional('pods.json')};
+    latencyMs: {timeToAssigned: pick('time_to_assigned'), wsEventLag: pick('ws_event_lag'), quote: pick('http_req_duration{name:quote}'), create: pick('http_req_duration{name:create}'), poll: pick('http_req_duration{name:poll}'), read: pick('http_req_duration{name:read}'), cancel: pick('http_req_duration{name:cancel}')},
+    created: k6Summary.trips_created?.values.count ?? null, assignments: readOptional('assignments.json'), segments: readOptional('segments.json'), checks: readOptional('checks.json'), sql: readOptional('sql.json'), drivers: readOptional('drivers.json'), ridersOnline: readOptional('riders-online.json'), pods: readOptional('pods.json')};
+  const reads = readOptional('reads.json')?.metrics;
+  if (reads) {
+    const r = name => { const v = reads[name]?.values; return v ? {p50: Math.round(v.med), p95: Math.round(v['p(95)']), p99: Math.round(v['p(99)']), max: Math.round(v.max)} : null; };
+    summary.reads = {iterations: reads.iterations?.values.count ?? 0, failed: reads.reads_failed?.values.count ?? 0, dropped: reads.dropped_iterations?.values.count ?? 0, activeMs: r('http_req_duration{name:active}'), historyMs: r('http_req_duration{name:history}')};
+  }
   fs.writeFileSync(path.join(out, 'summary.json'), JSON.stringify(summary, null, 2));
   console.info('Results: ' + path.relative(process.cwd(), out));
 })().catch(e => { console.error(e.message); process.exitCode = 1; });

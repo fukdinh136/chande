@@ -50,6 +50,8 @@ const timeToAssigned = new Trend('time_to_assigned', true);
 const createdTrips = new Counter('trips_created');
 const assigned = new Counter('trips_assigned'), notAssigned = new Counter('trips_not_assigned'), failed = new Counter('trips_failed');
 const wsFailed = new Counter('ws_failed');
+// R6: from the event's occurredAt (Trip wrote ASSIGNED) to the rider receiving trip.assigned on /ws. Same host clock.
+const wsEventLag = new Trend('ws_event_lag', true);
 
 function around(origin, meters, min = 0) {
   const d = min + Math.sqrt(Math.random()) * (meters - min), a = Math.random() * 2 * Math.PI;
@@ -108,6 +110,7 @@ function viaEvents(token) {
         socket.setTimeout(() => socket.close(), ASSIGN_TIMEOUT_MS);
       } else if (message.type === 'trip.event' && trip && message.event && message.event.tripId === trip.tripId && message.event.type === 'trip.assigned') {
         assignedAt = Date.now();
+        if (message.event.occurredAt) wsEventLag.add(assignedAt - Date.parse(message.event.occurredAt));
         const body = data(call('GET', '/trips/' + trip.tripId, token, undefined, 'read'));
         if (body && body.trip) trip = body.trip; else trip.status = 'ASSIGNED';
         socket.close();
@@ -158,7 +161,7 @@ export function handleSummary(summary) {
   const lines = ['', 'BOOKING SUMMARY',
     `trips created=${m.trips_created ? m.trips_created.values.count : 0} assigned=${m.trips_assigned ? m.trips_assigned.values.count : 0} notAssigned=${m.trips_not_assigned ? m.trips_not_assigned.values.count : 0} failed=${m.trips_failed ? m.trips_failed.values.count : 0}`,
     `http_req_failed=${m.http_req_failed ? (m.http_req_failed.values.rate * 100).toFixed(2) : '0.00'}% requests=${m.http_reqs ? m.http_reqs.values.count : 0} ws_failed=${m.ws_failed ? m.ws_failed.values.count : 0} dropped_iterations=${m.dropped_iterations ? m.dropped_iterations.values.count : 0}`];
-  for (const name of ['time_to_assigned', 'http_req_duration{name:quote}', 'http_req_duration{name:create}', 'http_req_duration{name:poll}', 'http_req_duration{name:read}', 'http_req_duration{name:cancel}']) {
+  for (const name of ['time_to_assigned', 'ws_event_lag', 'http_req_duration{name:quote}', 'http_req_duration{name:create}', 'http_req_duration{name:poll}', 'http_req_duration{name:read}', 'http_req_duration{name:cancel}']) {
     const v = ms(name);
     if (v) lines.push(`${name.padEnd(32)} p50=${v.med.toFixed(0)}ms p95=${v['p(95)'].toFixed(0)}ms p99=${v['p(99)'].toFixed(0)}ms max=${v.max.toFixed(0)}ms`);
   }
