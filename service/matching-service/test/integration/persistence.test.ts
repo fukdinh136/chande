@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { source, Repository } from '../../src/infrastructure/persistence';
+import { source, Repository, PURGE_PUBLISHED } from '../../src/infrastructure/persistence';
 import { Commands } from '../../src/application/commands';
 import type { Command } from '../../src/domain/models';
 test('PostgreSQL receipt replay/conflict, terminal marker and lease survive reconnect', { skip: !process.env.MATCHING_TEST_DATABASE_URL }, async () => {
@@ -41,5 +41,8 @@ test('purgePublished removes only messages published before the retention window
     assert.equal(await repo.purgePublished(86400000, 1), 1);
     while (await repo.purgePublished(86400000, 1000) > 0) { /* drain everything past retention */ }
     assert.deepEqual(await mine(), [recent, pending].sort());
+    // The cutoff bounds the index scan instead of filtering every published row (D5).
+    const plan: { 'QUERY PLAN': string }[] = await db.transaction(async m => { await m.query('SET LOCAL enable_seqscan = off'); return m.query('EXPLAIN ' + PURGE_PUBLISHED.replace('$1', '86400000').replace('$2', '1000')); });
+    assert.match(plan.map(r => r['QUERY PLAN']).join('\n'), /Index Cond: \(published_at < /);
   } finally { await db.destroy(); }
 });

@@ -50,12 +50,16 @@ export class Tx {
     const result = await work(); await this.db.query('INSERT INTO matching_receipts(scope,hash,result) VALUES($1,$2,$3)', [scope, digest, result]); return result;
   }
 }
+// The cutoff uses now(), not clock_timestamp(): a volatile function cannot bound an index scan, so PostgreSQL walked
+// the whole matching_outbox_published index and filtered every row (254 ms and 37k page reads on 645k rows with
+// nothing to delete, D5 2026-11-18). now() is fixed for the statement, so the cutoff becomes an Index Cond.
+export const PURGE_PUBLISHED = `DELETE FROM matching_outbox WHERE id IN (SELECT id FROM matching_outbox WHERE published_at < now() - $1*interval '1 millisecond' ORDER BY published_at LIMIT $2)`;
 export class Repository {
   constructor(readonly db: DataSource) {}
   /** Deletes up to `limit` messages published more than `retentionMs` ago; unpublished messages are never touched. */
   async purgePublished(retentionMs: number, limit: number): Promise<number> {
     // TypeORM returns [rows, affectedCount] for DELETE statements.
-    const [, count]: [unknown[], number] = await this.db.query(`DELETE FROM matching_outbox WHERE id IN (SELECT id FROM matching_outbox WHERE published_at < clock_timestamp() - $1*interval '1 millisecond' ORDER BY published_at LIMIT $2)`, [retentionMs, limit]);
+    const [, count]: [unknown[], number] = await this.db.query(PURGE_PUBLISHED, [retentionMs, limit]);
     return count;
   }
   transaction<T>(work: (tx: Tx) => Promise<T>) { return this.db.transaction(db => work(new Tx(db))); }
