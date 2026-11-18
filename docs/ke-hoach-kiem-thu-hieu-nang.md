@@ -95,7 +95,7 @@ Mục tiêu: biết mức gãy, **thành phần gãy đầu tiên**, và hệ th
 | --- | --- | --- |
 | S1 | 1000 tài xế, tăng 48 → 56 → 64 → 72 → 80 chuyến/giây, 2 phút mỗi bậc, dừng ở bậc đầu không đạt | Đo lại 2026-11-18: 64 đạt (p95 2,4 s), 72 không (617 lượt bị bỏ, PostgreSQL 1,43 core); mỗi bậc một lần, chưa đo 66–70 ([báo cáo 16.4](bao-cao-kiem-thu-tai.md#164-stress-testing)) |
 | S2 | 5000 tài xế, tăng 32 → 40 → 48 → … tới bậc không đạt | Đã đo 2026-11-18: 40, 48, 56 đạt; 64 không đạt (146 lượt bị bỏ) ([báo cáo 16.4](bao-cao-kiem-thu-tai.md#164-stress-testing)) |
-| S3 | Đột biến (spike): 3000 khách đặt trong 2 phút trên nền 3500 tài xế | Đã đo 2026-11-18 (tài xế trong 2,5 km): 2079/3000 được gán, **không đạt** vì lỗi chọn ứng viên của Matching ([báo cáo 16.7](bao-cao-kiem-thu-tai.md#167-nhiều-người-cùng-lúc)) |
+| S3 | Đột biến (spike): 3000 khách đặt trong 2 phút trên nền 3500 tài xế | Sau khi sửa Matching (2026-11-18): 2754/3000 được gán (91,8%, trước đó 69%), chưa đạt 95% ([báo cáo 16.7](bao-cao-kiem-thu-tai.md#167-nhiều-người-cùng-lúc)) |
 | S4 | Hồi phục: ngay sau bậc không đạt của S1, chạy L1; phải đạt lại trong 5 phút | Đạt (2026-11-18): L1 ngay sau bậc 80 gán chuyến p95 0,78 s |
 
 ```bash
@@ -182,7 +182,7 @@ Mục tiêu: nhiều người dùng thao tác cùng lúc không làm sai dữ li
 
 | ID | Kịch bản | Đạt khi | Trạng thái |
 | --- | --- | --- | --- |
-| C1 | 5000 tài xế online, 3000 khách mỗi người đặt một chuyến trong 2 phút (chế độ đợt), giữ chuyến | ≥ 95% chuyến được gán trong 3 phút; mọi chuyến được gán trước `--drain`; D6 rỗng | **Không đạt (2026-11-18)**: 2476/3000 được gán (82,5%) vì Matching chỉ xét 200 tài xế gần nhất rồi mới loại người bận ([báo cáo 16.7](bao-cao-kiem-thu-tai.md#167-nhiều-người-cùng-lúc)) |
+| C1 | 5000 tài xế online, 3000 khách mỗi người đặt một chuyến trong 2 phút (chế độ đợt), giữ chuyến | ≥ 95% chuyến được gán trong 3 phút; mọi chuyến được gán trước `--drain`; D6 rỗng | **Đạt sau khi sửa Matching (2026-11-18)**: 2860/2999 được gán, 95,2% trong 3 phút; trước khi sửa 82,5% vì Matching chỉ xét 200 tài xế gần nhất ([báo cáo 16.7](bao-cao-kiem-thu-tai.md#167-nhiều-người-cùng-lúc)) |
 | C2 | 3000 khách cùng mở app: đọc chuyến và lịch sử song song với L3 | p95 đọc ≤ 300 ms; L3 vẫn đạt | Đạt (2026-11-18): đọc chuyến đang chạy p95 110 ms, lịch sử p95 82 ms; L3 vẫn đạt (gán chuyến p95 2,1 s) |
 | C3 | Tranh chấp: nhiều chuyến cùng nhắm một tài xế; tài xế nhận và khách huỷ cùng lúc | 0 tài xế bị gán hai chuyến; chuyến huỷ không bị gán | Đã có test tích hợp (`match.test.ts`, `decisions.test.ts`); dưới tải kiểm bằng D6 |
 | C4 | **5000 tài xế và 5000 khách cùng online** (mỗi khách giữ một phiên `/ws`), đặt 32 chuyến/giây trong 5 phút | Mọi khách giữ được kết nối; các ngưỡng ở mục 4 đạt | **Đã chạy 2026-11-18 (2 lần): giữ được kết nối, ngưỡng mục 4 chưa đạt.** Sau khi Gateway tắt nén `permessage-deflate`: 5000/5000 khách online suốt bài, khoảng 8750 chuyến được gán, lỗi HTTP dưới 0,2%, Gateway không khởi động lại (1 GiB: cao nhất 875 MB, dư 19%). Trượt vì cả cụm bão hoà CPU: gán chuyến p95 33 giây, báo giá p95 0,9–1,4 giây, ack GPS p95 0,9–1,2 giây, khoảng 800 lượt bị bỏ ([báo cáo, mục 15.6–15.7](bao-cao-kiem-thu-tai.md#156-nguyên-nhân-thật-nén-permessage-deflate-2026-11-18)) |

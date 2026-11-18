@@ -859,7 +859,23 @@ Kết quả ở `2026-11-17T18-45-54-491Z`, `18-53-36-537Z`, `19-43-42-037Z` và
   | 200 người gần nhất | **bận cả 200** |
   | Tài xế rảnh đầu tiên ở hạng | 553–1399 |
 
-  `DirectCandidates` lấy `NEARBY_LIMIT` (200) tài xế gần nhất từ Realtime rồi mới loại người đang bận. Khi 200 người gần nhất đều bận, chuyến rơi vào `no_open` và thử lại mãi, dù trong bán kính còn hàng trăm tài xế rảnh. Lúc nhu cầu tăng vọt ở một khu, khách ở trung tâm khu đó sẽ không được gán, trong khi khách ở rìa vẫn được gán. **Chưa sửa:** cần chọn cách, ví dụ Realtime bỏ qua tài xế đang có offer hay chuyến, hoặc Matching lấy trang tiếp theo khi cả trang đầu đều bận.
+  `DirectCandidates` lấy `NEARBY_LIMIT` (200) tài xế gần nhất từ Realtime rồi mới loại người đang bận. Khi 200 người gần nhất đều bận, chuyến rơi vào `no_open` và thử lại mãi, dù trong bán kính còn hàng trăm tài xế rảnh. Lúc nhu cầu tăng vọt ở một khu, khách ở trung tâm khu đó sẽ không được gán, trong khi khách ở rìa vẫn được gán.
+- **Đã sửa (2026-11-18): Matching lấy trang tiếp theo khi cả trang đều bận hoặc không hợp lệ.**
+  - Realtime `driver-locations` nhận `offset` (0–4800) và trả `nextOffset`.
+  - Matching đọc tối đa `NEARBY_PAGES` (mặc định 5) trang 200 người và dừng ở trang đầu tiên có người hợp lệ. Tài xế xuất hiện ở hai trang (đã di chuyển) chỉ được xét một lần.
+  - Đo lại cùng cấu hình (tài xế trong 2,5 km):
+
+    | Kịch bản | Trước | Sau |
+    | --- | --- | --- |
+    | C1, được gán | 2476/3000 (82,5%) | **2860/2999 (95,4%)** |
+    | C1, được gán trong 3 phút | | 2854/2999 (95,2%), **đạt ngưỡng 95%** |
+    | C1, gán chuyến p50 / p95 | 0,37 / 0,71 s | 0,54 / 4,7 s (thêm các chuyến trước đây không bao giờ được gán) |
+    | S3, được gán | 2079/3000 (69%) | **2754/3000 (91,8%)**, chưa đạt 95% |
+    | L3, gán chuyến p95 | 1,06–1,39 s | 0,83 s; báo giá p95 22 ms, không chậm đi |
+
+    Toàn vẹn dữ liệu sạch. Kết quả ở `2026-11-18T09-23-30-309Z` (C1), `09-47-50-*` (S3), `10-12-40-*` (L3).
+  - Đổi lại, các lần tìm bị kẹt đọc thêm trang: tổng thời gian SQL của Matching trong C1 tăng từ 11 lên 29 giây (số câu gần như không đổi, 160 nghìn so với 162 nghìn).
+  - Còn 139 chuyến C1 và 246 chuyến S3 kẹt. Nhiều khả năng ở giữa vùng đông, cả 1000 người gần nhất (5 trang) đều bận. Chưa kiểm trực tiếp. Có thể tăng `NEARBY_PAGES`, đổi lại tốn thêm công cho mỗi lần tìm.
 - **C2 (L3 kèm 25 lần mở app/giây, đọc chuyến đang chạy và lịch sử):** đạt.
   - 7500 lần mở app, 0 lỗi.
   - Đọc chuyến đang chạy p95 110 ms (p99 274), lịch sử p95 82 ms (p99 229).
@@ -957,7 +973,7 @@ Khoảng 1,1 KB mỗi chuyến. Với hạn sống 1 giờ cho offer và 24 gi�
 
 **Lỗi tìm ra, theo mức ảnh hưởng:**
 
-1. **Matching không gán được chuyến khi 200 tài xế gần nhất đều bận** (C1, S3; mục 16.7). Khi nhu cầu tăng vọt ở một khu, 17–31% chuyến kẹt dù trong bán kính còn hàng trăm tài xế rảnh. Chưa sửa.
+1. **Matching không gán được chuyến khi 200 tài xế gần nhất đều bận** (C1, S3; mục 16.7). Khi nhu cầu tăng vọt ở một khu, 17–31% chuyến kẹt dù trong bán kính còn hàng trăm tài xế rảnh. **Đã sửa** bằng cách đọc trang tiếp theo: C1 lên 95,4% (đạt), S3 lên 91,8%.
 2. **Redis và Docker VM thiếu bộ nhớ dưới tải dài** (K3, mục 16.9). Realtime bị khởi động lại một lần, kéo 5000 tài xế nối lại. Chưa sửa. Có hai hướng:
    - Hạ `maxmemory` của Redis tới mức mà RSS và bộ nhớ fork nằm dưới 256 MiB, ví dụ 128 MB.
    - Hoặc tăng giới hạn pod Redis và bộ nhớ của Docker VM.
