@@ -1,5 +1,6 @@
 import type { DataSource, EntityManager } from 'typeorm';
 import { DomainError } from '../../domain/error';
+import { ACTIVE_STATUSES } from '../../domain/state-machine';
 import type { HistoryEntry, Principal, Quote, TripData } from '../../domain/models';
 import type { Destination, OutboxMessage, PageKey, Receipt, Store, Transaction } from '../../application/ports/store';
 
@@ -29,8 +30,18 @@ class PgTransaction implements Transaction {
     if (!rows.length) throw new DomainError('QUOTE_ALREADY_USED');
   }
   async active(principal: Principal): Promise<TripData | null> {
-    const field = principal.role === 'RIDER' ? 'rider_id' : 'driver_id';
-    const rows: DataRow<TripData>[] = await this.db.query(`SELECT data FROM trips WHERE ${field}=$1 AND status IN ('CREATED','SEARCHING','ASSIGNED','DRIVER_ARRIVED','IN_PROGRESS')`, [principal.sub]);
+    if (principal.role === 'RIDER') {
+      // uq_trips_active_rider allows one open Trip per rider and a rider cannot book while one is open, so an open Trip
+      // is the rider's newest. Reading the two newest by trips_rider_history touches two index entries whatever the
+      // table statistics say (two, in case API clocks put the newest one second). The status filter used to leave the
+      // index choice to the planner: with stale statistics it walked the rider's whole history, 152 ms mean under load
+      // for a rider with ~580 Trips (load test 2026-11-17, report 16.6).
+      const latest: DataRow<TripData>[] = await this.db.query('SELECT data FROM trips WHERE rider_id=$1 ORDER BY requested_at DESC, id DESC LIMIT 2', [principal.sub]);
+      return latest.map(row => row.data).find(trip => ACTIVE_STATUSES.includes(trip.status)) ?? null;
+    }
+    // A driver can take a Trip requested before one they finished, so the newest is not always the open one;
+    // uq_trips_active_driver serves this filter.
+    const rows: DataRow<TripData>[] = await this.db.query(`SELECT data FROM trips WHERE driver_id=$1 AND status IN ('CREATED','SEARCHING','ASSIGNED','DRIVER_ARRIVED','IN_PROGRESS')`, [principal.sub]);
     return rows[0]?.data ?? null;
   }
   async activeTripsByDriver(driverIds: readonly string[]): Promise<Map<string, string>> {
