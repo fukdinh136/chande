@@ -744,3 +744,235 @@ Toàn vẹn dữ liệu vẫn sạch. Thêm bộ nhớ cho Gateway chỉ mua th�
 
 Kết quả ở `deploy/.local/load/results/2026-11-17T16-36-53-662Z` (lần 8), `2026-11-17T16-49-39-436Z` (lần 9) và `2026-11-17T17-05-10-762Z` (lần 10).
 
+## 16. Loạt đo theo kế hoạch (2026-11-17 đến 2026-11-18)
+
+Chạy các kịch bản còn lại của [kế hoạch kiểm thử](ke-hoach-kiem-thu-hieu-nang.md) theo thứ tự ở mục 6 của kế hoạch. Cấu hình chung:
+
+- Commit `7c797cd` cộng các sửa ở mục 16.1.
+- Gateway 1 GiB, tắt observability, edge cấu hình cho 10000 kết nối.
+- Tạo tải trong cụm (`--in-cluster 1`), khách chờ sự kiện qua `/ws` (`--events ws`).
+- Cuối mỗi lần chạy, `checks.cjs` tự kiểm tra toàn vẹn (D6), thống kê từng phút, và kích thước Redis và outbox.
+- **Toàn vẹn dữ liệu sạch ở mọi lần chạy:** không tài xế nào có hai chuyến đang mở, không chuyến nào có hai offer đang giữ.
+
+### 16.1 Sửa trước và trong loạt đo
+
+1. **Hạn sống key Redis và giới hạn bộ nhớ** (mục 15.2 ghi là chưa sửa).
+   - Cache offer của Realtime cấu hình được qua `OFFER_CACHE_TTL_SECONDS`, mặc định 1 giờ thay vì 7 ngày. Retry của offer kết thúc trong khoảng 5 phút.
+   - Receipt chống trùng và version chuyến của Gateway giữ 24 giờ thay vì 7 ngày, khớp với thời gian Trip giữ outbox. Gateway sập lâu hơn 24 giờ thì event Trip gửi lại muộn có thể bị đẩy tới khách lần hai.
+   - Redis có `maxmemory 160mb` và `volatile-lru`: đầy thì chỉ xoá key có hạn sống, cũ nhất trước. Key vị trí GPS không có hạn sống nên không bao giờ bị xoá.
+   - Lần đầu đặt 200 MB, pod Redis lên tới 247 MiB trên giới hạn 256 MiB. Khi viết lại AOF, Redis fork và chép các trang đang ghi, nên giới hạn được hạ xuống để chừa khoảng 40% cho lúc đó. Trong loạt đo Redis đã xoá hơn 200 nghìn key và không lần nào bị giết.
+2. **Câu dọn outbox của Matching** (phát hiện ở D5, mục 16.6). Ngưỡng thời gian `published_at < clock_timestamp() - ...` dùng hàm VOLATILE nên không giới hạn được lần quét index. Đổi sang `now()` như Trip; có test kiểm plan dùng `Index Cond`.
+3. **Bộ đo:**
+   - `checks.cjs` (D6, thống kê từng phút, kích thước Redis và outbox).
+   - `reads.js` (C2) và `otp.js` (T2).
+   - `k6-pod.cjs`: chạy một script k6 bất kỳ trong cụm.
+   - `bigtables.cjs` (D5) và `ratelimit.cjs` (T4–T9).
+   - Đo độ trễ sự kiện `/ws` (R6) trong mọi lần chạy có `--events ws`.
+   - Bộ chạy loạt ghi lại các tiến trình ngốn CPU của máy trước mỗi lần chạy.
+
+### 16.2 Những lần đo bỏ đi
+
+- **Ba lần L1 đầu tiên:** Zalo dùng 209% CPU trên máy và Chrome thêm khoảng 60%. Mọi pod tốn CPU gấp khoảng 3,5 lần cho cùng một việc, và gán chuyến p95 lên 7,5–19,7 giây. Tắt các ứng dụng đó rồi đo lại thì p95 về khoảng 0,8 giây.
+- **Một lần C2:** máy ngủ khi gập nắp, và lần chạy treo 6 giờ. Các lần sau chạy dưới `caffeinate -s`.
+- **Lần C2 kế tiếp:** lỗi trong `traffic.cjs` (lắng nghe sự kiện `exit` của `reads.js` sau khi nó đã kết thúc) làm lần chạy treo, chỉ còn số liệu k6. Đã sửa.
+- **L3a bị nhiễu nhưng vẫn giữ trong bảng:** trong lúc chạy, macOS tự quét nền (`mediaanalysisd` 150%, `XProtect` 98%).
+
+### 16.3 Load testing
+
+| Kịch bản | Gán chuyến p95 (ba lần) | Báo giá p95 / p99 | Tạo chuyến p95 | Ack GPS p95 | Sự kiện `/ws` p95 | PostgreSQL |
+| --- | --- | --- | --- | --- | --- | --- |
+| L1: 1000 tài xế, 16/s | 0,78 / 0,89 / 0,79 s | 12–34 / 33–174 ms | 13–38 ms | 2–4 ms | 254–262 ms | 0,23–0,30 core |
+| L2: 5000 tài xế, 16/s | 0,82 / 0,75 / 0,76 s | 14–26 / 39–79 ms | 15–27 ms | 4–7 ms | 252–263 ms | 0,25–0,30 core |
+| L3: 5000 tài xế, 32/s | 6,2 (nhiễu) / 1,06 / 1,39 s | 45–114 / 105–619 ms | 45–114 ms | 29–73 ms | 345–573 ms | 0,65–0,72 core |
+
+- L1, L2, L3 đạt mọi ngưỡng độ trễ, 0 lỗi HTTP, 0 lượt bị bỏ. L3, mục tiêu chính của kế hoạch, lần đầu được đo: trung vị gán chuyến p95 là 1,39 giây.
+- **Một ngưỡng không đạt ở mọi lần: cache hit PostgreSQL 92–98%, ngưỡng là 99%.** Các bảng outbox và lịch sử đã lớn hơn bộ đệm (outbox của Trip khoảng 1,1 triệu dòng, 1 GB; outbox của Matching 0,9 triệu dòng, 0,5 GB). Chưa đổi `shared_buffers` để thử.
+
+Kết quả ở `2026-11-17T17-45-57-087Z`, `17-49-21-096Z`, `17-52-54-403Z` (L1); `17-58-35-637Z`, `18-06-14-396Z`, `18-13-51-321Z` (L2); `18-21-24-975Z`, `18-29-46-664Z`, `18-38-00-310Z` (L3).
+
+### 16.4 Stress testing
+
+| Bậc | Gán chuyến p95 | Báo giá p95 | Tạo chuyến p95 | Lượt bị bỏ | PostgreSQL trung bình | Kết quả |
+| --- | --- | --- | --- | --- | --- | --- |
+| S1: 1000 tài xế, 48/s | 0,92 s | 44 ms | 38 ms | 0 | 0,74 core | Đạt |
+| 56/s | 2,0 s | 171 ms | 127 ms | 0 | 1,06 | Đạt |
+| 64/s | 2,4 s | 162 ms | 121 ms | 0 | 1,22 | Đạt |
+| 72/s | 14,3 s | 229 ms | 341 ms | 617 | 1,43 | **Không đạt** |
+| 80/s | 23,3 s | 254 ms | 355 ms | 1324 | 1,73 | Không đạt |
+| S4: L1 ngay sau bậc 80 | 0,78 s | 11 ms | 12 ms | 0 | 0,26 | **Hồi phục ngay** |
+| S2: 5000 tài xế, 40/s | 0,99 s | 33 ms | 35 ms | 0 | 0,65 | Đạt |
+| 48/s | 1,27 s | 65 ms | 58 ms | 0 | 0,74 | Đạt |
+| 56/s | 2,72 s | 77 ms | 86 ms | 0 | 0,93 | Đạt |
+| 64/s | 8,0 s | 127 ms | 117 ms | 146 | 1,16 | **Không đạt** (lượt bị bỏ) |
+
+- **Mức gãy với 1000 tài xế nằm giữa 64 và 72 chuyến/giây**, khớp với mục 14.7. Thành phần chạm giới hạn đầu tiên vẫn là PostgreSQL, vượt 70% của 2 core ở bậc 72. Ack GPS vẫn dưới 25 ms ở mọi bậc.
+- **Với 5000 tài xế, mức gãy nằm giữa 56 và 64.**
+- Sau bậc quá tải, hệ thống trở lại ngưỡng ngay ở lần chạy kế tiếp.
+- Mỗi bậc chạy một lần; chưa lặp ba lần và chưa đo 66–70.
+
+### 16.5 Realtime và GPS
+
+| Kịch bản | Bản tin GPS/giây | Ack p95 | Ack tối đa | realtime-api | Redis |
+| --- | --- | --- | --- | --- | --- |
+| R1: 5000 tài xế, mỗi 10 giây | khoảng 620 | 2 ms | 76 ms | 0,13 core | 0,05 core |
+| R2: mỗi 3 giây | khoảng 2000 | 4 ms | 206 ms | 0,22 | 0,09 |
+| R2: mỗi 1 giây (mức tối thiểu Realtime cho phép) | khoảng 6000 | 139 ms | 787 ms | 0,50 | 0,17 |
+
+- Ack vẫn dưới 200 ms ở 6000 bản tin/giây; mức này không thể tăng thêm bằng 5000 tài xế, vì Realtime bỏ bản tin dày hơn 1 giây.
+- **R3: xoá pod realtime-api 90 giây sau khi k6 bắt đầu, giữa L2.**
+  - Cả 5000 tài xế rớt kết nối.
+  - Lỗi GPS ngừng tăng sau khoảng 30–45 giây (4268 lỗi), tức tài xế đã nối lại và gửi GPS bình thường.
+  - Các chuyến rơi vào lúc sập kéo gán chuyến p95 lên 18,8 giây, báo giá p99 lên 825 ms, 90 lượt bị bỏ. Toàn vẹn dữ liệu sạch.
+- **R6, sự kiện `/ws` tới khách** (từ `occurredAt` của `trip.assigned` tới lúc khách nhận): p95 250–260 ms ở 16 chuyến/giây, 345–575 ms ở 32 chuyến/giây, khoảng 800 ms ở bậc 80. Mọi mức đều đạt ngưỡng 1 giây.
+
+Kết quả ở `2026-11-17T18-45-54-491Z`, `18-53-36-537Z`, `19-43-42-037Z` và `2026-11-18T06-04-56-879Z` (R3).
+
+### 16.6 Database
+
+- **D5, bảng lớn:** nạp thêm 1 triệu dòng outbox đã giao, tạo lúc 25 giờ trước, vào mỗi bảng (Trip lên 2,05 triệu dòng, Matching 1,85 triệu), rồi chạy L1.
+
+  | Câu lệnh | Thời gian |
+  | --- | --- |
+  | Claim của Trip / Matching | dưới 0,5 ms |
+  | Dọn 1000 dòng của Trip | 330–390 ms |
+  | Dọn 1000 dòng của Matching (đã sửa) | 27–70 ms |
+
+  Vòng dọn của hai service xoá sạch 1 triệu dòng cũ trong lúc L1 chạy. L1 vẫn đạt (gán chuyến p95 0,81 giây) nhưng cache hit giảm còn 91,9%.
+- **Lỗi câu dọn của Matching, đã sửa:** trước khi sửa, câu dọn mất 254 ms và đọc 37 nghìn trang dù không có gì để xoá (645 nghìn dòng). PostgreSQL phải lọc từng dòng của index `matching_outbox_published`, vì `clock_timestamp()` không thể làm điều kiện index.
+- **Câu tìm chuyến đang mở của khách, chưa sửa:** khi tạo chuyến, câu `SELECT data FROM trips WHERE rider_id=$1 AND status IN (...)` từng mất trung bình 152 ms trong lần L1 bị nhiễu.
+  - Nguyên nhân là thống kê của `trips` đã cũ, nên planner ước tính mỗi khách 1 dòng và chọn index lịch sử `trips_rider_history`. Khi đó phải lọc toàn bộ chuyến cũ của khách: 579 dòng, 443 trang đọc từ đĩa.
+  - Sau `ANALYZE`, planner chọn đúng partial index `uq_trips_active_rider`: 0,03 ms. Autoanalyze cũng đã tự chạy giữa lần đo, và các lần sau câu này còn khoảng 5 ms trung bình.
+  - Khách đi nhiều chuyến sẽ gặp lại hiện tượng này mỗi khi thống kê cũ. Hướng sửa: viết câu sao cho chỉ partial index dùng được, hoặc đặt `autovacuum_analyze_scale_factor` thấp hơn cho `trips`. Cần đo lại trước khi chọn.
+- **D6, toàn vẹn dữ liệu:** đã tự động hoá trong `run.cjs` và sạch ở mọi lần chạy.
+
+### 16.7 Nhiều người cùng lúc
+
+- **C1 (5000 tài xế, 3000 khách đặt trong 2 phút và giữ chuyến): không đạt.** Ngưỡng là 95% chuyến được gán trong 3 phút.
+  - **Với tài xế rải trong 6 km như lệnh mẫu:** chỉ 985/3000 chuyến có offer. Mọi tài xế trong bán kính tìm kiếm 2 km quanh điểm đón đều đã bận (ví dụ 555/555), nên không phải lỗi hệ thống mà do kịch bản không đủ cung. Lệnh mẫu trong kế hoạch đã đổi sang bán kính 2,5 km.
+  - **Với tài xế rải trong 2,5 km:** 2476/3000 chuyến được gán (82,5%), p95 0,71 giây, còn khoảng 2500 tài xế rảnh. S3 (3500 tài xế, cùng cách đặt): 2079/3000 (69%).
+- **Nguyên nhân là lỗi của Matching** (kiểm tra 5 chuyến đang kẹt khi tài xế còn giữ chuyến, lần `2026-11-18T05-29-16-646Z`):
+
+  | | Kết quả |
+  | --- | --- |
+  | Tài xế trong 2 km | 3010–3220 |
+  | Tài xế rảnh trong 2 km | **806–984** |
+  | 200 người gần nhất | **bận cả 200** |
+  | Tài xế rảnh đầu tiên ở hạng | 553–1399 |
+
+  `DirectCandidates` lấy `NEARBY_LIMIT` (200) tài xế gần nhất từ Realtime rồi mới loại người đang bận. Khi 200 người gần nhất đều bận, chuyến rơi vào `no_open` và thử lại mãi, dù trong bán kính còn hàng trăm tài xế rảnh. Lúc nhu cầu tăng vọt ở một khu, khách ở trung tâm khu đó sẽ không được gán, trong khi khách ở rìa vẫn được gán. **Chưa sửa:** cần chọn cách, ví dụ Realtime bỏ qua tài xế đang có offer hay chuyến, hoặc Matching lấy trang tiếp theo khi cả trang đầu đều bận.
+- **C2 (L3 kèm 25 lần mở app/giây, đọc chuyến đang chạy và lịch sử):** đạt.
+  - 7500 lần mở app, 0 lỗi.
+  - Đọc chuyến đang chạy p95 110 ms (p99 274), lịch sử p95 82 ms (p99 229).
+  - Đặt chuyến song song vẫn đạt: gán chuyến p95 2,1 giây, báo giá p95 150 ms.
+  - Một lần chạy khác chỉ còn số k6 cho đọc p95 11/10 ms và gán chuyến p95 0,84 giây, nên giữa các lần chênh nhau đáng kể.
+- C4 ở mục 15.6–15.7.
+
+### 16.8 Đăng nhập và giới hạn số lần thử
+
+- **T2, OTP tài xế:** tăng tới 40 lượt/giây, gọi thẳng driver-api trong cụm, mỗi tài xế một IP. 3587 lượt, 0 lỗi. Yêu cầu OTP p95 2 ms, xác nhận p95 10 ms. OTP vẫn là mock, chưa gồm thời gian gửi SMS thật.
+- **T3:** 10 lượt khách đăng nhập/giây trong 7 phút song song với L2. Đạt: L2 vẫn gán chuyến p95 0,86 giây; đăng nhập p95 173 ms (p99 299 ms); user-api tốn 0,78 core cho BCrypt.
+- **T1, khách đăng nhập tăng 5 → 40 lượt/giây:**
+  - Lần đầu, Gateway chặn 1551 lượt từ bậc 20 trở lên. Đó là giới hạn 1000 lượt/phút mỗi IP của cấu hình đo tải, vì mọi request đi từ một pod.
+  - Chạy lại với giới hạn tạm gỡ (`2026-11-18T06-38-07-369Z-login`):
+    - user-api chạm trần 2 core (cao nhất 1,99, trung bình 1,15).
+    - Tính chung cả bài: trung vị 59 ms nhưng p95 6,8 giây, 2,6% lỗi, 209 lượt bị bỏ.
+  - BCrypt tốn khoảng 60 ms CPU mỗi lượt, nên một replica user-api tối đa khoảng 30 lượt/giây. Bậc 10 (T3) vẫn đạt p95 173 ms.
+  - k6 chỉ báo số gộp cả bài, nên **chưa xác định được bậc gãy**: chỉ biết nằm giữa 15 (đo trước đây, p95 77 ms) và 40. Muốn biết chính xác thì chạy mỗi bậc một lần riêng.
+- **T4–T9, giới hạn đúng, cấu hình mặc định 5 lượt/phút:** đạt hết.
+
+  | Kiểm tra | Kết quả |
+  | --- | --- |
+  | T4 | 5 lần đăng nhập đầu nhận 401, lần 6 nhận 429 với `Retry-After: 60` |
+  | T7 | `X-Forwarded-For` giả vẫn bị chặn |
+  | T6 | Một IP khác (pod trong cụm) vẫn qua |
+  | T8 | Hết quota `login` thì `register`, `otp/request`, `otp/verify` vẫn có quota riêng |
+  | T9 | Ba endpoint đó đều chặn đúng ở lần 6 |
+  | T5 | Hết `Retry-After` thì qua lại |
+
+  Kết quả ở `deploy/.local/load/results/2026-11-17T17-57-ratelimit`.
+
+### 16.9 Soak K3: 2 giờ
+
+5000 tài xế, 16 chuyến/giây, 120 phút, khách tự đăng nhập lại (`--login 1`). `OUTBOX_RETENTION_MS=1800000` (30 phút) cho trip-worker và matching-worker, để vòng dọn chạy thật trong lúc tải. Lần chạy `2026-11-18T06-46-40-*`.
+
+| Chỉ số | Kết quả | Ngưỡng |
+| --- | --- | --- |
+| Chuyến được gán | 114.616; 8 lỗi | |
+| Gán chuyến p95 cả bài | 1,17 s | ≤ 10 s, đạt |
+| Báo giá p95 / p99 | 35 / 219 ms | đạt |
+| Lượt bị bỏ | 342 | 0, **không đạt** |
+| Cache hit | 94,6% | ≥ 99%, không đạt |
+| Toàn vẹn dữ liệu | sạch | |
+| Outbox | Trip 966 nghìn → 138 nghìn dòng; Matching ổn định khoảng 125 nghìn | **ngừng tăng sau khi vòng dọn chạy, đạt** |
+| Redis | 155 / 160 MB suốt bài, đã xoá 882 nghìn key | |
+
+- **Sự cố lúc 07:39:**
+  - realtime-api trượt liveness probe và bị kubelet khởi động lại. Cùng lúc đó Redis không trả lời `ping` trong 1 giây.
+  - Liveness của Realtime không gọi Redis, nên cả hai tiến trình cùng bị đứng. Docker VM 8 GB lúc đó đã đẩy khoảng 520 MB ra swap, và `/proc/pressure/memory` ghi tổng cộng khoảng 50 giây toàn bộ tiến trình bị đứng vì thiếu bộ nhớ.
+  - Riêng pod Redis cũng đã chạm đúng giới hạn 256 MiB (`memory.peak`), dù dữ liệu chỉ 160 MB: RSS 217 MB do phân mảnh vì xoá key liên tục, cộng 81 lần viết lại AOF.
+  - Các phút 07:39–07:42 có p95 20–59 giây và 216 chuyến chậm; 5000 tài xế nối lại.
+- **Gợn theo chu kỳ 15 phút (R4):** tài xế rớt kết nối tổng cộng 55.000 lần, tức 11 đợt × 5000. Gần như tất cả là do JWT hết hạn cùng lúc, cộng một đợt do Realtime khởi động lại. Ở các phút có đợt nối lại, p95 lên 1–3,3 giây (07:24, 07:37, 07:53, 08:12…), còn lại 0,5–0,9 giây.
+- **p95 nền trôi dần lên:** khoảng 0,55–0,65 giây ở 35 phút đầu, khoảng 0,7–1,0 giây ở giờ thứ hai. Vẫn trong ngưỡng, nhưng chưa rõ do bảng lớn dần hay do áp lực bộ nhớ của VM.
+- **RAM từng pod, đầu → cuối bài:**
+
+  | Pod | MiB |
+  | --- | --- |
+  | Gateway | 333 → 435 |
+  | matching-api | 87 → 118 |
+  | matching-worker | 69 → 102 |
+  | realtime-api | 285 → 335 (đã khởi động lại một lần) |
+  | trip-worker | 66 → 81 |
+
+  `pods.json` chỉ lưu giá trị đầu, cuối và cao nhất, nên chưa kiểm được ngưỡng "không tăng quá 10% sau 10 phút đầu". Cần lưu từng mẫu theo thời gian trước khi kết luận có rò bộ nhớ hay không.
+
+### 16.10 Redis mỗi chuyến
+
+Đo khi Redis đầy (khoảng 200 MB):
+
+| Nhóm key | Số key | Mỗi key |
+| --- | --- | --- |
+| `realtime:offer:*` (chống trùng offer) | 121 nghìn | 528 byte |
+| `gw:trip-event:*` (receipt) | 399 nghìn | 159 byte |
+| `gw:trip-version:*` | 134 nghìn | 81 byte |
+| Stream `gw:trip-events` (giới hạn 100 nghìn sự kiện) | 1 | 40 MB |
+
+Khoảng 1,1 KB mỗi chuyến. Với hạn sống 1 giờ cho offer và 24 giờ cho receipt, 32 chuyến/giây cần khoảng 60 MB cho offer và khoảng 1,5 GB cho receipt. Redis local 256 MiB chỉ chạy được nhờ xoá key khi đầy. Môi trường thật cần chọn giữa thêm bộ nhớ cho Redis và rút ngắn hạn sống của receipt, cùng với một giới hạn cho thời gian Trip gửi lại event.
+
+### 16.11 Kết luận
+
+**Đạt:**
+- L1, L2, L3, mục tiêu chính của kế hoạch: 5000 tài xế, 32 chuyến/giây, gán chuyến p95 khoảng 1,4 giây.
+- Hồi phục sau quá tải (S4).
+- GPS tới 6000 bản tin/giây (R1, R2).
+- Sự kiện `/ws` tới khách dưới 1 giây (R6).
+- Khách đọc chuyến (C2).
+- OTP tài xế (T2), đợt đăng nhập buổi sáng (T3), giới hạn số lần thử (T4–T9).
+- Vòng dọn outbox trên bảng 1–2 triệu dòng (D5) và trong soak (K3).
+- Toàn vẹn dữ liệu ở mọi lần chạy.
+
+**Mức gãy:**
+- Khoảng 64–72 chuyến/giây với 1000 tài xế, 56–64 với 5000 tài xế.
+- PostgreSQL chạm giới hạn đầu tiên.
+- Đăng nhập khách đạt trần CPU của một replica user-api ở khoảng 30 lượt/giây.
+
+**Lỗi tìm ra, theo mức ảnh hưởng:**
+
+1. **Matching không gán được chuyến khi 200 tài xế gần nhất đều bận** (C1, S3; mục 16.7). Khi nhu cầu tăng vọt ở một khu, 17–31% chuyến kẹt dù trong bán kính còn hàng trăm tài xế rảnh. Chưa sửa.
+2. **Redis và Docker VM thiếu bộ nhớ dưới tải dài** (K3, mục 16.9). Realtime bị khởi động lại một lần, kéo 5000 tài xế nối lại. Chưa sửa. Có hai hướng:
+   - Hạ `maxmemory` của Redis tới mức mà RSS và bộ nhớ fork nằm dưới 256 MiB, ví dụ 128 MB.
+   - Hoặc tăng giới hạn pod Redis và bộ nhớ của Docker VM.
+3. **Câu dọn outbox của Matching quét toàn bộ index** (D5). Đã sửa.
+4. **Câu tìm chuyến đang mở của khách phụ thuộc vào thống kê của bảng** (mục 16.6). Chậm hơn 5000 lần khi thống kê cũ. Chưa sửa.
+5. **Hạn sống key Redis 7 ngày và Redis không có giới hạn bộ nhớ** (mục 15.2). Đã sửa. Riêng receipt của Gateway vẫn cần khoảng 1,5 GB ở 32 chuyến/giây (mục 16.10).
+
+**Chưa đạt ở mọi bài:**
+- Cache hit PostgreSQL 92–98%, ngưỡng là 99%.
+- Lượt bị bỏ khác 0 ở soak, do sự cố và các đợt nối lại khi JWT hết hạn.
+- 5000 tài xế có JWT hết hạn cùng lúc, nên cứ 15 phút lại có một đợt nối lại làm p95 lên tới 3 giây (R4).
+
+**Giới hạn của loạt đo:**
+- Mỗi bậc stress mới chạy một lần.
+- Chưa có số đo RAM theo thời gian trong soak.
+- T1 chưa có số theo từng bậc.
+- Máy đo dùng chung với các ứng dụng khác; ba lần đo đã bị bỏ vì lý do này (mục 16.2).
+

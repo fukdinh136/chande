@@ -77,9 +77,9 @@ Mục tiêu: chứng minh hệ thống đạt ngưỡng ở quy mô mục tiêu 
 
 | ID | Tài xế | Chuyến/giây | Thời gian | Trạng thái |
 | --- | --- | --- | --- | --- |
-| L1 | 1000 | 16 | 2 phút × 3 | Đã đo nhiều lần, đạt; dùng làm **kiểm tra hồi quy** sau mỗi thay đổi |
-| L2 | 5000 | 16 | 5 phút × 3 | Chưa đo (5000 tài xế mới đo tới 8 chuyến/giây) |
-| L3 | 5000 | 32 | 5 phút × 3 | **Chưa đo: mục tiêu chính** |
+| L1 | 1000 | 16 | 2 phút × 3 | Đạt (2026-11-18, 3 lần): gán chuyến p95 0,78–0,89 s, báo giá p95 12–34 ms; cache hit 95–98% chưa đạt 99% ([báo cáo 16.3](bao-cao-kiem-thu-tai.md#163-load-testing)). Dùng làm **kiểm tra hồi quy** sau mỗi thay đổi |
+| L2 | 5000 | 16 | 5 phút × 3 | Đạt (2026-11-18, 3 lần): gán chuyến p95 0,75–0,82 s, ack GPS p95 4–7 ms; cache hit 95–96% ([báo cáo 16.3](bao-cao-kiem-thu-tai.md#163-load-testing)) |
+| L3 | 5000 | 32 | 5 phút × 3 | **Đạt (2026-11-18, 3 lần)**: gán chuyến p95 1,06 / 1,39 s và 6,2 s ở lần bị nhiễu, báo giá p95 45–114 ms; cache hit 92–97% ([báo cáo 16.3](bao-cao-kiem-thu-tai.md#163-load-testing)) |
 
 ```bash
 node deploy/load/run.cjs --drivers 5000 --radius 6000 --rate 32 --duration 5m --warmup 60 --in-cluster 1 --events ws
@@ -93,17 +93,17 @@ Mục tiêu: biết mức gãy, **thành phần gãy đầu tiên**, và hệ th
 
 | ID | Kịch bản | Trạng thái |
 | --- | --- | --- |
-| S1 | 1000 tài xế, tăng 48 → 56 → 64 → 72 → 80 chuyến/giây, 2 phút mỗi bậc, dừng ở bậc đầu không đạt | Đã đo một lần: 64 đạt, 72 không; còn lặp 3 lần và đo 66–70 |
-| S2 | 5000 tài xế, tăng 32 → 40 → 48 → … tới bậc không đạt | Chưa đo |
-| S3 | Đột biến (spike): 3000 khách đặt trong 2 phút trên nền 3500 tài xế | Chưa đo; dùng chế độ đợt `--trips` |
-| S4 | Hồi phục: ngay sau bậc không đạt của S1, chạy L1; phải đạt lại trong 5 phút | Chưa đo |
+| S1 | 1000 tài xế, tăng 48 → 56 → 64 → 72 → 80 chuyến/giây, 2 phút mỗi bậc, dừng ở bậc đầu không đạt | Đo lại 2026-11-18: 64 đạt (p95 2,4 s), 72 không (617 lượt bị bỏ, PostgreSQL 1,43 core); mỗi bậc một lần, chưa đo 66–70 ([báo cáo 16.4](bao-cao-kiem-thu-tai.md#164-stress-testing)) |
+| S2 | 5000 tài xế, tăng 32 → 40 → 48 → … tới bậc không đạt | Đã đo 2026-11-18: 40, 48, 56 đạt; 64 không đạt (146 lượt bị bỏ) ([báo cáo 16.4](bao-cao-kiem-thu-tai.md#164-stress-testing)) |
+| S3 | Đột biến (spike): 3000 khách đặt trong 2 phút trên nền 3500 tài xế | Đã đo 2026-11-18 (tài xế trong 2,5 km): 2079/3000 được gán, **không đạt** vì lỗi chọn ứng viên của Matching ([báo cáo 16.7](bao-cao-kiem-thu-tai.md#167-nhiều-người-cùng-lúc)) |
+| S4 | Hồi phục: ngay sau bậc không đạt của S1, chạy L1; phải đạt lại trong 5 phút | Đạt (2026-11-18): L1 ngay sau bậc 80 gán chuyến p95 0,78 s |
 
 ```bash
 node deploy/load/run.cjs --drivers 1000 --radius 6000 --rate 72 --duration 2m --warmup 30 --in-cluster 1 --events ws
 ```
 
 ```bash
-node deploy/load/run.cjs --drivers 3500 --radius 6000 --ramp 25 --trips 3000 --rate 25 --drain 900 --in-cluster 1
+node deploy/load/run.cjs --drivers 3500 --radius 2500 --ramp 25 --trips 3000 --rate 25 --drain 900 --in-cluster 1
 ```
 
 Ở mỗi bậc không đạt, ghi: đoạn nào dồn (`SEARCHING` → offer, offer → publish…), pod nào chạm giới hạn CPU, commit/giây, các phiên PostgreSQL đang chờ gì (lấy mẫu `pg_stat_activity`, mục 5.5), lần thử lại trong log `matching_job_retry`. Lần gần nhất, ở 72 chuyến/giây ack GPS lên 3 giây: toàn cụm quá tải chứ không riêng một service.
@@ -115,8 +115,8 @@ Mục tiêu: phát hiện rò RAM, bảng phình, vòng dọn dữ liệu không
 | ID | Kịch bản | Trạng thái |
 | --- | --- | --- |
 | K1 | 1000 tài xế, 16 chuyến/giây, 30 phút | Đã đo 2026-11-17: 28800/28800, p95 0,93 giây; có hai gợn dưới một phút |
-| K2 | 5000 tài xế, 16 chuyến/giây, 2 giờ | Chưa đo |
-| K3 | Như K2 nhưng `OUTBOX_RETENTION_MS=1800000` (30 phút) cho Trip và Matching | Chưa đo; để vòng dọn outbox thật sự xoá dữ liệu trong lúc chạy |
+| K2 | 5000 tài xế, 16 chuyến/giây, 2 giờ | Chưa đo riêng; K3 chạy cùng tải đó |
+| K3 | Như K2 nhưng `OUTBOX_RETENTION_MS=1800000` (30 phút) cho Trip và Matching | Đã đo 2026-11-18 (2 giờ): 114.616 chuyến, p95 1,17 s; outbox ngừng tăng sau khi vòng dọn chạy; **không đạt**: 342 lượt bị bỏ, Realtime bị khởi động lại một lần vì Docker VM và Redis thiếu bộ nhớ ([báo cáo 16.9](bao-cao-kiem-thu-tai.md#169-soak-k3-2-giờ)) |
 
 ```bash
 node deploy/load/run.cjs --drivers 5000 --radius 6000 --rate 16 --duration 120m --warmup 60 --in-cluster 1 --events ws --login 1
@@ -132,12 +132,12 @@ Mục tiêu: kênh GPS và Socket.IO của tài xế, kênh `/ws` của khách g
 
 | ID | Kịch bản | Chỉ số | Trạng thái |
 | --- | --- | --- | --- |
-| R1 | 5000 tài xế, GPS mỗi 10 giây (500 bản tin/giây), 5 phút, gần như không đặt chuyến | Ack GPS p95/p99, CPU realtime-api, Redis | Đã có số ở 5000 tài xế khi có đặt chuyến (8 chuyến/giây) |
-| R2 | 5000 tài xế, GPS mỗi 3 giây (khoảng 1670 bản tin/giây) | Như R1; tìm mức ack vượt 200 ms | Chưa đo |
-| R3 | Nối lại hàng loạt: xoá pod realtime-api trong lúc L2 chạy | Thời gian tới khi ≥ 99% tài xế gửi GPS lại; chuyến bị trễ trong khoảng đó | Chưa đo |
-| R4 | Nối lại do JWT hết hạn: 5000 tài xế đăng nhập cùng lúc nên hết hạn cùng lúc (xảy ra tự nhiên trong K2) | Gợn p95 quanh các mốc 15 phút | Đã thấy gợn ở K1, chưa đo riêng |
+| R1 | 5000 tài xế, GPS mỗi 10 giây (500 bản tin/giây), 5 phút, gần như không đặt chuyến | Ack GPS p95/p99, CPU realtime-api, Redis | Đạt (2026-11-18): khoảng 620 bản tin/giây, ack p95 2 ms, realtime-api 0,13 core ([báo cáo 16.5](bao-cao-kiem-thu-tai.md#165-realtime-và-gps)) |
+| R2 | 5000 tài xế, GPS mỗi 3 giây (khoảng 1670 bản tin/giây) | Như R1; tìm mức ack vượt 200 ms | Đạt (2026-11-18): 2000 bản tin/giây ack p95 4 ms; mỗi 1 giây (6000 bản tin/giây) ack p95 139 ms. Chưa tìm thấy mức vượt 200 ms |
+| R3 | Nối lại hàng loạt: xoá pod realtime-api trong lúc L2 chạy | Thời gian tới khi ≥ 99% tài xế gửi GPS lại; chuyến bị trễ trong khoảng đó | Đã đo 2026-11-18: 5000 tài xế rớt, gửi GPS lại sau 30–45 giây; gán chuyến p95 18,8 s, 90 lượt bị bỏ trong lần đó |
+| R4 | Nối lại do JWT hết hạn: 5000 tài xế đăng nhập cùng lúc nên hết hạn cùng lúc (xảy ra tự nhiên trong K2) | Gợn p95 quanh các mốc 15 phút | Đã thấy trong K3: 11 đợt 5000 tài xế nối lại, p95 lên 1–3,3 s ở các phút đó |
 | R5 | Độ trễ giao offer: publish → tài xế nhận | p95 ≤ 500 ms | Đo sẵn trong mọi lần chạy (`publishToAccept`) |
-| R6 | Độ trễ sự kiện `/ws` tới khách sau khi chuyến đổi trạng thái | p95 ≤ 1 giây | **Chưa đo được**: cần thêm mốc thời gian (mục 9) |
+| R6 | Độ trễ sự kiện `/ws` tới khách sau khi chuyến đổi trạng thái | p95 ≤ 1 giây | Đạt (2026-11-18): đo trong mọi lần chạy có `--events ws` (`ws_event_lag`); p95 250–575 ms tới 32 chuyến/giây |
 | R7 | GPS cũ hơn 30 giây không được dùng để mời | Không offer nào gửi cho tài xế mất GPS | Có trong test tích hợp Matching; chưa kiểm dưới tải |
 
 ```bash
@@ -145,7 +145,7 @@ node deploy/load/run.cjs --drivers 5000 --radius 6000 --rate 1 --duration 5m --w
 ```
 
 ```bash
-kubectl --context docker-desktop -n chande-local delete pod -l app=realtime-api
+kubectl --context docker-desktop -n chande-local delete pod -l app.kubernetes.io/name=realtime-api
 ```
 
 Bật observability cho R1–R3 để xem `realtime_location_update_duration` và độ trễ event loop của realtime-api trên Grafana.
@@ -160,8 +160,8 @@ Mục tiêu: biết mỗi chuyến tốn bao nhiêu việc ở PostgreSQL, câu 
 | D2 | Câu tốn nhất | `sql.json` sắp theo tổng thời gian | Có sẵn |
 | D3 | Commit/giây, cache hit, kết nối mỗi database, deadlock | `database` trong `pods.json` | Có sẵn; trần quan sát khoảng 2900 commit/giây |
 | D4 | Phiên đang chờ gì ở bậc gãy | Lấy mẫu `pg_stat_activity` mỗi giây trong lúc chạy (lệnh dưới) | Đã làm một lần ([mục 14.5](bao-cao-kiem-thu-tai.md#145-thử-nghiệm-tìm-điểm-nghẽn-ở-64-chuyếngiây)) |
-| D5 | Bảng lớn: index và vòng dọn khi `outbox_deliveries`, `matching_outbox` có 1 triệu dòng | Nạp dữ liệu cũ rồi chạy L1; `EXPLAIN (ANALYZE, BUFFERS)` câu claim và câu dọn | Chưa làm; cần script nạp (mục 9) |
-| D6 | Toàn vẹn dữ liệu sau mỗi lần chạy | Hai truy vấn dưới | Chưa tự động hoá |
+| D5 | Bảng lớn: index và vòng dọn khi `outbox_deliveries`, `matching_outbox` có 1 triệu dòng | Nạp dữ liệu cũ rồi chạy L1; `EXPLAIN (ANALYZE, BUFFERS)` câu claim và câu dọn | Đã làm 2026-11-18: claim dưới 0,5 ms với 2 triệu dòng; vòng dọn xoá hết 1 triệu dòng cũ trong lúc L1 đạt; tìm ra và sửa lỗi câu dọn của Matching ([báo cáo 16.6](bao-cao-kiem-thu-tai.md#166-database)) |
+| D6 | Toàn vẹn dữ liệu sau mỗi lần chạy | Hai truy vấn dưới | Tự động trong `run.cjs` (`checks.cjs`) từ 2026-11-18; sạch ở mọi lần chạy |
 
 ```bash
 for i in $(seq 1 60); do kubectl --context docker-desktop -n chande-local exec deploy/postgres -- psql -U backend_root -d postgres -At -F'|' -c "select datname, state, coalesce(wait_event_type,'cpu')||':'||coalesce(wait_event,'running') from pg_stat_activity where backend_type='client backend' and state<>'idle' and pid<>pg_backend_pid()"; sleep 1; done | sort | uniq -c | sort -rn
@@ -182,13 +182,13 @@ Mục tiêu: nhiều người dùng thao tác cùng lúc không làm sai dữ li
 
 | ID | Kịch bản | Đạt khi | Trạng thái |
 | --- | --- | --- | --- |
-| C1 | 5000 tài xế online, 3000 khách mỗi người đặt một chuyến trong 2 phút (chế độ đợt), giữ chuyến | ≥ 95% chuyến được gán trong 3 phút; mọi chuyến được gán trước `--drain`; D6 rỗng | Chưa đo (kịch bản E6 trong đề xuất) |
-| C2 | 3000 khách cùng mở app: đọc chuyến và lịch sử song song với L3 | p95 đọc ≤ 300 ms; L3 vẫn đạt | Chưa có script đọc riêng (mục 9) |
+| C1 | 5000 tài xế online, 3000 khách mỗi người đặt một chuyến trong 2 phút (chế độ đợt), giữ chuyến | ≥ 95% chuyến được gán trong 3 phút; mọi chuyến được gán trước `--drain`; D6 rỗng | **Không đạt (2026-11-18)**: 2476/3000 được gán (82,5%) vì Matching chỉ xét 200 tài xế gần nhất rồi mới loại người bận ([báo cáo 16.7](bao-cao-kiem-thu-tai.md#167-nhiều-người-cùng-lúc)) |
+| C2 | 3000 khách cùng mở app: đọc chuyến và lịch sử song song với L3 | p95 đọc ≤ 300 ms; L3 vẫn đạt | Đạt (2026-11-18): đọc chuyến đang chạy p95 110 ms, lịch sử p95 82 ms; L3 vẫn đạt (gán chuyến p95 2,1 s) |
 | C3 | Tranh chấp: nhiều chuyến cùng nhắm một tài xế; tài xế nhận và khách huỷ cùng lúc | 0 tài xế bị gán hai chuyến; chuyến huỷ không bị gán | Đã có test tích hợp (`match.test.ts`, `decisions.test.ts`); dưới tải kiểm bằng D6 |
 | C4 | **5000 tài xế và 5000 khách cùng online** (mỗi khách giữ một phiên `/ws`), đặt 32 chuyến/giây trong 5 phút | Mọi khách giữ được kết nối; các ngưỡng ở mục 4 đạt | **Đã chạy 2026-11-18 (2 lần): giữ được kết nối, ngưỡng mục 4 chưa đạt.** Sau khi Gateway tắt nén `permessage-deflate`: 5000/5000 khách online suốt bài, khoảng 8750 chuyến được gán, lỗi HTTP dưới 0,2%, Gateway không khởi động lại (1 GiB: cao nhất 875 MB, dư 19%). Trượt vì cả cụm bão hoà CPU: gán chuyến p95 33 giây, báo giá p95 0,9–1,4 giây, ack GPS p95 0,9–1,2 giây, khoảng 800 lượt bị bỏ ([báo cáo, mục 15.6–15.7](bao-cao-kiem-thu-tai.md#156-nguyên-nhân-thật-nén-permessage-deflate-2026-11-18)) |
 
 ```bash
-node deploy/load/run.cjs --drivers 5000 --radius 6000 --ramp 25 --trips 3000 --rate 25 --drain 900 --in-cluster 1
+node deploy/load/run.cjs --drivers 5000 --radius 2500 --ramp 25 --trips 3000 --rate 25 --drain 900 --in-cluster 1
 ```
 
 C4 cần edge đủ chỗ cho cả kết nối của khách, nên deploy với `EDGE_PEAK_DRIVERS=10000`:
@@ -211,9 +211,9 @@ Cấu hình liên quan: Gateway giới hạn **5 request/phút cho mỗi cặp (
 
 | ID | Kịch bản | Chỉ số | Trạng thái |
 | --- | --- | --- | --- |
-| T1 | Khách đăng nhập tăng 5 → 10 → 15 → 20 → 25 → 30 lượt/giây, 1 phút mỗi bậc | p95 ≤ 500 ms; CPU user-api; bậc đầu không đạt | Đã đo tới 15 (p95 77 ms); BCrypt khoảng 60 ms mỗi lượt nên ước tính một replica gãy ở 15–20 |
-| T2 | Tài xế yêu cầu và xác nhận OTP | Như T1, ở driver-api | Chưa có script (mục 9) |
-| T3 | Đợt đăng nhập buổi sáng: 3000 khách trong 5 phút (10 lượt/giây) đồng thời với L2 | T1 đạt; L2 vẫn đạt | Chưa đo |
+| T1 | Khách đăng nhập tăng 5 → 10 → 15 → 20 → 25 → 30 lượt/giây, 1 phút mỗi bậc | p95 ≤ 500 ms; CPU user-api; bậc đầu không đạt | Đo lại 2026-11-18 tới 40 lượt/giây (gỡ giới hạn Gateway): user-api chạm 2 core, p95 gộp 6,8 s, 2,6% lỗi; chưa có số theo từng bậc, bậc gãy nằm giữa 15 và 40 ([báo cáo 16.8](bao-cao-kiem-thu-tai.md#168-đăng-nhập-và-giới-hạn-số-lần-thử)) |
+| T2 | Tài xế yêu cầu và xác nhận OTP | Như T1, ở driver-api | Đạt (2026-11-18, gọi thẳng driver-api): tới 40 lượt/giây, p95 2 / 10 ms, 0 lỗi |
+| T3 | Đợt đăng nhập buổi sáng: 3000 khách trong 5 phút (10 lượt/giây) đồng thời với L2 | T1 đạt; L2 vẫn đạt | Đạt (2026-11-18): đăng nhập p95 173 ms; L2 vẫn đạt (p95 0,86 s); user-api 0,78 core |
 
 ```bash
 k6 run -e STAGES=5,10,15,20,25,30 -e STAGE=1m deploy/load/login.js
@@ -276,11 +276,13 @@ Không chạy hai bài đo cùng lúc trên một cụm. Sau mỗi thay đổi c
 
 ## 9. Công cụ còn thiếu
 
-| Thiếu | Cần cho | Ước lượng |
+Đã viết xong ngày 2026-11-18; bảng giữ lại để biết công cụ nào dùng cho bài nào.
+
+| Công cụ | Cho | Cách dùng |
 | --- | --- | --- |
-| Script OTP tài xế qua Gateway, mỗi tài xế giả một IP qua `X-Driver-Client-IP` và proxy token trong cụm | T2 | Nửa ngày |
-| Script đọc chuyến và lịch sử của khách song song với đặt chuyến | C2 | 2 giờ |
-| Mốc thời gian sự kiện `/ws` trong k6 so với `trip_status_history` | R6 | 2 giờ |
-| Script nạp 1 triệu dòng outbox đã gửi | D5 | 1 giờ |
-| Chạy D6 tự động cuối mỗi lần `run.cjs` | Mọi bài | 1 giờ |
-| Thống kê theo từng phút tự động trong `summary.json` | Soak | 1 giờ |
+| `otp.js` qua `k6-pod.cjs`: gọi thẳng driver-api trong cụm, mỗi tài xế một IP qua proxy token | T2 | `node deploy/load/k6-pod.cjs otp.js -e STAGES=5,10,20,30,40 -e STAGE=30s` |
+| `reads.js`: khách đọc chuyến đang chạy và lịch sử | C2 | `run.cjs ... --reads 25` |
+| `ws_event_lag` trong `booking.js`: từ `occurredAt` của `trip.assigned` tới lúc khách nhận | R6 | Mọi lần chạy có `--events ws` |
+| `bigtables.cjs`: nạp dòng outbox cũ, EXPLAIN claim và câu dọn, đếm dòng | D5 | `load --rows 1000000`, `explain`, `counts` |
+| `checks.cjs`: D6, thống kê từng phút, kích thước Redis và outbox | Mọi bài, soak | Tự chạy cuối mỗi lần `run.cjs` (`checks.json`) |
+| `ratelimit.cjs` | T4–T9 | Xem mục 5.7 |
