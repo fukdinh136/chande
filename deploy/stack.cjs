@@ -9,9 +9,10 @@ const images = {
 };
 // Redis is capped well below its 256Mi pod limit and evicts only keys that already expire (offer guards, event
 // receipts, GPS), least recently used first. Without a cap, 7-day keys filled it and it was OOM-killed under load
-// (report 15.2). At 200mb the pod reached 247 of 256 MiB; an AOF rewrite forks and copies pages it writes, so
-// ~40% is left for that.
-const redisArgs = ['redis-server', '--appendonly', 'yes', '--maxmemory', '160mb', '--maxmemory-policy', 'volatile-lru'];
+// (report 15.2). Constant eviction fragments memory: in the 2 h soak, 160mb of data took 217 MB RSS (x1.36) and
+// with AOF rewrite forks the pod reached its 256 MiB limit, stalled, and took Realtime's probes down with it
+// (report 16.9). At 128mb that is ~175 MB RSS plus ~16 MB per fork.
+const redisArgs = ['redis-server', '--appendonly', 'yes', '--maxmemory', '128mb', '--maxmemory-policy', 'volatile-lru'];
 // Routing limits (A8). Empty means the service default. A value set in the environment of `run.cjs generate`
 // overrides it for one experiment; a value proven by a load run belongs in `routingLimits`.
 const routingLimits = {};

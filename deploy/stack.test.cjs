@@ -22,7 +22,7 @@ test('real issuer and callback topology keeps credentials scoped and public port
 });
 test('Redis is capped under its pod limit and evicts only expiring keys',()=>{
   const {redisArgs}=require('./stack.cjs');
-  assert.deepEqual(redisArgs.slice(-4),['--maxmemory','160mb','--maxmemory-policy','volatile-lru']);
+  assert.deepEqual(redisArgs.slice(-4),['--maxmemory','128mb','--maxmemory-policy','volatile-lru']);
   const generate=require('node:fs').readFileSync(require('node:path').join(__dirname,'generate.cjs'),'utf8');
   assert.equal((generate.match(/redisArgs/g)||[]).length,3,'compose and Kubernetes both use redisArgs');
 });
