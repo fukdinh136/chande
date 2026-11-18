@@ -13,7 +13,8 @@ export interface CandidateEligibility { driverId: string; eligible: boolean; rea
 export interface EtaCell { id: string; status: 'OK' | 'NO_ROUTE'; distanceMeters: number | null; durationSeconds: number | null }
 /** The three calls of the direct candidate search, one per service. */
 export interface CandidateClients {
-  locations(pickup: { lat: number; lng: number }, limit: number): Promise<DriverLocation[]>;
+  /** One page of the nearest fresh drivers from `offset`; `nextOffset` is null when the radius has no more. */
+  locations(pickup: { lat: number; lng: number }, limit: number, offset: number): Promise<{ drivers: DriverLocation[]; nextOffset: number | null }>;
   candidates(driverIds: string[], vehicleType: string): Promise<CandidateEligibility[]>;
   eta(destination: { lat: number; lng: number }, vehicleType: string, origins: { id: string; lat: number; lng: number }[]): Promise<EtaCell[]>;
 }

@@ -33,14 +33,14 @@ test('direct search: offer uses the batch snapshot and skips drivers held by ano
   const busy = randomUUID(), free = randomUUID(), vehicleId = randomUUID(); let asked: string[][] = [];
   const located = (driverId: string, distanceMeters: number) => ({ driverId, latitude: 21.0285, longitude: 105.8542, distanceMeters, recordedAt: new Date().toISOString() });
   const direct: CandidateClients = {
-    locations: async () => [located(busy, 10), located(free, 20)],
+    locations: async () => ({ drivers: [located(busy, 10), located(free, 20)], nextOffset: null }),
     candidates: async ids => { asked.push(ids); return ids.map(driverId => ({ driverId, eligible: true, reasons: [], vehicleId, driverSnapshot: { fullName: 'Batch', avatarUrl: null }, vehicleSnapshot: { vehicleType: 'CAR_4', licensePlate: 'BATCH', brand: null, color: null } })); },
     eta: async (_d, _t, origins) => origins.map(o => ({ id: o.id, status: 'OK' as const, distanceMeters: 100, durationSeconds: o.id === busy ? 10 : 20 })),
   };
   const first = command(), second = command();
   try {
     await commands.search(first); await commands.search(second);
-    const match = new MatchDriver(repo, new DirectCandidates(direct, { nearbyLimit: 200, matrixCandidates: 25 }));
+    const match = new MatchDriver(repo, new DirectCandidates(direct, { nearbyLimit: 200, nearbyPages: 5, matrixCandidates: 25 }));
     await match.execute(first.tripId);
     const held = (await repo.reservations([busy, free])).find(r => r.tripId === first.tripId)!;
     assert.equal(held.driverId, busy); // shortest ETA

@@ -22,7 +22,7 @@ async function failure(r: Response, dependency: string): Promise<UpstreamError> 
 }
 const eligibility = z.object({ driverId: uuid, profileEligible: z.boolean(), desiredStatus: z.string(), vehicleId: uuid.nullable(), driverSnapshot: z.object({ fullName: z.string().min(1).max(100), avatarUrl: z.string().nullable() }).nullable(), vehicleSnapshot: z.object({ vehicleType: z.string(), licensePlate: z.string().min(1).max(15), brand: z.string().nullable(), color: z.string().nullable() }).nullable() });
 const snapshotsOf = { driverSnapshot: eligibility.shape.driverSnapshot, vehicleSnapshot: eligibility.shape.vehicleSnapshot };
-const locations = z.object({ radiusMeters: z.number().int().positive(), drivers: z.array(z.object({ driverId: uuid, latitude: z.number().min(-85.0511).max(85.0511), longitude: z.number().min(-180).max(180), distanceMeters: z.number().nonnegative(), recordedAt: z.iso.datetime() })).max(200) });
+const locations = z.object({ radiusMeters: z.number().int().positive(), drivers: z.array(z.object({ driverId: uuid, latitude: z.number().min(-85.0511).max(85.0511), longitude: z.number().min(-180).max(180), distanceMeters: z.number().nonnegative(), recordedAt: z.iso.datetime() })).max(200), nextOffset: z.number().int().nonnegative().nullable().optional() });
 const candidates = z.object({ items: z.array(z.object({ driverId: uuid, eligible: z.boolean(), reasons: z.array(z.string()), vehicleId: uuid.nullable(), ...snapshotsOf })).max(100) });
 const eta = z.object({ entries: z.array(z.object({ id: z.string(), status: z.enum(['OK', 'NO_ROUTE']), distanceMeters: z.number().int().nonnegative().nullable(), durationSeconds: z.number().int().nonnegative().nullable() })).max(50), calculatedAt: z.iso.datetime() });
 /** True when `got` holds exactly the ids in `want`, once each. */
@@ -45,11 +45,14 @@ export class HttpClients implements Clients, CandidateClients {
     const result = z.object({ data: schema }).safeParse(JSON.parse(Buffer.concat(chunks).toString('utf8'))); if (!result.success) throw new UpstreamError(503, 'INVALID_RESPONSE', dependency); return result.data.data;
   }
   async driver(id: string, type: string) { const data = await this.request(this.c.driverUrl, `/internal/drivers/${id}/eligibility?vehicleType=${encodeURIComponent(type)}`, this.c.driverToken, eligibility); if (data.driverId !== id) throw new UpstreamError(503, 'INVALID_RESPONSE', 'driver'); return data; }
-  async locations(pickup: { lat: number; lng: number }, limit: number) {
-    const query = new URLSearchParams({ latitude: String(pickup.lat), longitude: String(pickup.lng), radiusMeters: '2000', limit: String(limit) });
+  async locations(pickup: { lat: number; lng: number }, limit: number, offset: number) {
+    const query = new URLSearchParams({ latitude: String(pickup.lat), longitude: String(pickup.lng), radiusMeters: '2000', limit: String(limit), offset: String(offset) });
     const data = await this.request(this.c.realtimeUrl, '/internal/realtime/driver-locations?' + query.toString(), this.c.realtimeToken, locations);
     if (data.drivers.length > limit || new Set(data.drivers.map(d => d.driverId)).size !== data.drivers.length) throw new UpstreamError(503, 'INVALID_RESPONSE', 'realtime');
-    return data.drivers;
+    // A Realtime without paging leaves nextOffset out: treat it as the last page. A next page must move forward.
+    const nextOffset = data.nextOffset ?? null;
+    if (nextOffset !== null && nextOffset <= offset) throw new UpstreamError(503, 'INVALID_RESPONSE', 'realtime');
+    return { drivers: data.drivers, nextOffset };
   }
   async candidates(driverIds: string[], vehicleType: string) {
     const data = await this.request(this.c.driverUrl, '/internal/drivers/eligibility/candidates', this.c.driverToken, candidates, { driverIds, vehicleType });

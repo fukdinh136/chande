@@ -19,7 +19,8 @@ Readiness kiểm tra schema/database. Worker và consumer reconnect có backoff;
 | Biến | Mặc định | Ý nghĩa |
 | --- | --- | --- |
 | `REALTIME_BASE_URL` / `REALTIME_MATCHING_TOKEN` | bắt buộc | Worker tìm ứng viên ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)): gọi `GET /internal/realtime/driver-locations`; token khớp `MATCHING_LOCATION_TOKEN` của Realtime |
-| `NEARBY_LIMIT` | 200 (tối đa 200) | Số vị trí gần nhất lấy từ Realtime mỗi lần tìm |
+| `NEARBY_LIMIT` | 200 (tối đa 200) | Số vị trí gần nhất lấy từ Realtime mỗi trang |
+| `NEARBY_PAGES` | 5 (tối đa 25) | Số trang tối đa một lần tìm được đọc khi cả trang đều bận hoặc không hợp lệ; mỗi trang thêm một lượt gọi Realtime, Matching DB và Driver |
 | `MATRIX_CANDIDATES` | 25 (tối đa 50) | Số tài xế hợp lệ gần nhất (đường chim bay) được tính ETA |
 | `WORKER_CONCURRENCY` | 16 (tối đa 64) | Số job tìm xe chạy cùng lúc; job xong là claim job mới ngay. Khi nhiều job đến hạn hơn số chỗ trống, worker lấy theo thứ tự ưu tiên (Priority Queue): job gán chuyến (tài xế đã nhận) trước, rồi chuyến đặt sớm nhất, cuối cùng theo `due_at` |
 | `DB_POOL_SIZE` | 10 (tối đa 50) | Số kết nối PostgreSQL của mỗi process. Đo ngày 2026-11-17: nâng lên 32 job / 20 kết nối làm thông lượng ở 64 chuyến/giây giảm, vì điểm nghẽn là PostgreSQL ghi commit ([báo cáo kiểm thử tải, mục 14.5](../../../docs/bao-cao-kiem-thu-tai.md#145-thử-nghiệm-tìm-điểm-nghẽn-ở-64-chuyếngiây)); giữ mặc định |

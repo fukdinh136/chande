@@ -10,9 +10,10 @@ test('candidate search needs Realtime; limits are bounded', () => {
   assert.throws(() => loadConfig(env()), /REALTIME_BASE_URL required/);
   const realtime = { REALTIME_BASE_URL: 'http://realtime', REALTIME_MATCHING_TOKEN: 'l'.repeat(32) };
   const config = loadConfig(env(realtime));
-  assert.equal(config.nearbyLimit, 200); assert.equal(config.matrixCandidates, 25);
+  assert.equal(config.nearbyLimit, 200); assert.equal(config.nearbyPages, 5); assert.equal(config.matrixCandidates, 25);
   assert.throws(() => loadConfig(env({ ...realtime, MATRIX_CANDIDATES: '51' })), /MATRIX_CANDIDATES/);
   assert.throws(() => loadConfig(env({ ...realtime, NEARBY_LIMIT: '201' })), /NEARBY_LIMIT/);
+  assert.throws(() => loadConfig(env({ ...realtime, NEARBY_PAGES: '26' })), /NEARBY_PAGES/);
 });
 test('worker capacity: 16 jobs and 10 connections by default, both bounded', () => {
   const realtime = { REALTIME_BASE_URL: 'http://realtime', REALTIME_MATCHING_TOKEN: 'l'.repeat(32) };

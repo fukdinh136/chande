@@ -89,3 +89,21 @@ test('the retry budget allows soon retries up to the floor or the ratio of jobs,
   assert.equal(retryDelay(4, busy, () => 1, true), 2000);
   assert.equal(retryDelay(4, busy, () => 1, false), 8000, 'a busy failure past the budget backs off');
 });
+
+test('Realtime locations: offset goes out, nextOffset comes back; a missing one ends paging, a backwards one is refused', async () => {
+  const seen: string[] = [];
+  let reply: Record<string, unknown> = {};
+  const s = createServer((req, res) => { seen.push(req.url ?? ''); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ data: { radiusMeters: 2000, drivers: [], ...reply } })); });
+  await new Promise<void>(resolve => s.listen(0, '127.0.0.1', resolve));
+  const url = 'http://127.0.0.1:' + (s.address() as AddressInfo).port;
+  try {
+    const http = new HttpClients({ routingUrl: 'http://routing', routingToken: 't', driverUrl: 'http://driver', tripUrl: 'http://trip', realtimeUrl: url, realtimeToken: 't', httpTimeout: 2000 } as Config, { onChange: () => {} });
+    reply = { nextOffset: 400 };
+    assert.deepEqual(await http.locations(pickup, 200, 200), { drivers: [], nextOffset: 400 });
+    assert.match(seen[0]!, /limit=200&offset=200$/);
+    reply = {};
+    assert.deepEqual(await http.locations(pickup, 200, 0), { drivers: [], nextOffset: null });
+    reply = { nextOffset: 200 };
+    assert.equal(describeFailure(await http.locations(pickup, 200, 200).catch((e: unknown) => e)).code, 'INVALID_RESPONSE');
+  } finally { s.close(); }
+});
