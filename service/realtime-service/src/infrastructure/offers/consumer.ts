@@ -8,10 +8,14 @@ export const eventSchema = z.object({ eventId: z.uuid(), type: z.enum(['DRIVER_T
 const offerSchema = z.object({ offerId: z.uuid(), tripId: z.uuid(), driverId: z.uuid(), version: z.number().int().positive(), status, expiresAt: z.iso.datetime(), pickup: z.object({ lat: z.number(), lng: z.number(), address: z.string().optional() }), destination: z.object({ lat: z.number(), lng: z.number(), address: z.string().optional() }), vehicleType: z.enum(['BIKE','CAR_4','CAR_7']), fare: z.object({ currency: z.literal('VND'), amount: z.string().regex(/^\d+$/) }) });
 export type DriverOffer = z.infer<typeof offerSchema>;
 export function canDeliver(o: DriverOffer, now: number) { return o.status !== 'PENDING' || now < Date.parse(o.expiresAt); }
-const CACHE = `local old=redis.call('GET',KEYS[1]);if old then local data=cjson.decode(old);if tonumber(data.version)>=tonumber(ARGV[1]) then return 0 end end;redis.call('SET',KEYS[1],ARGV[2],'EX',604800);return 1`;
+// ARGV[3] is the key lifetime in seconds. Offer retries end within about five minutes (10 retries, at most 30 s
+// apart), so an hour is plenty. It was 7 days and filled Redis during load tests; each key is ~530 bytes, the
+// largest share of Redis per trip (docs/bao-cao-kiem-thu-tai.md section 16).
+const CACHE = `local old=redis.call('GET',KEYS[1]);if old then local data=cjson.decode(old);if tonumber(data.version)>=tonumber(ARGV[1]) then return 0 end end;redis.call('SET',KEYS[1],ARGV[2],'EX',tonumber(ARGV[3]));return 1`;
+export const DEFAULT_OFFER_CACHE_TTL_SECONDS = 3600;
 export class OfferConsumer {
   private server?: Namespace; private model?: ChannelModel; private channel?: ConfirmChannel; private timer?: NodeJS.Timeout; private connecting = false; private stopped = false;
-  constructor(private readonly redis: Redis, private readonly config: { rabbitUrl: string; matchingUrl: string; matchingToken: string }, readonly breaker = new CircuitBreaker('matching')) {}
+  constructor(private readonly redis: Redis, private readonly config: { rabbitUrl: string; matchingUrl: string; matchingToken: string; offerCacheTtlSeconds?: number }, readonly breaker = new CircuitBreaker('matching')) {}
   attach(server: Namespace) { this.server = server; }
   /** Reads the current offer from Matching. While the breaker for Matching is open (D1) it fails at once with MATCHING_UNAVAILABLE. */
   async lookup(path: string): Promise<DriverOffer | null> {
@@ -39,7 +43,7 @@ export class OfferConsumer {
       if (!current || current.driverId !== event.driverId || current.tripId !== event.tripId) { channel.ack(message); return; }
       if (current.version < event.version) throw new Error('VERSION_NOT_VISIBLE');
       // Authoritative newer terminal supersedes late older messages. Duplicate never resets expiry.
-      const changed = await this.redis.eval(CACHE, 1, 'realtime:offer:' + current.offerId, current.version, JSON.stringify(current));
+      const changed = await this.redis.eval(CACHE, 1, 'realtime:offer:' + current.offerId, current.version, JSON.stringify(current), this.config.offerCacheTtlSeconds ?? DEFAULT_OFFER_CACHE_TTL_SECONDS);
       if (changed === 1 && canDeliver(current, Date.now())) this.server.to('driver:' + current.driverId).emit(current.status === 'PENDING' ? 'driver.trip.offer' : 'driver.trip.offer.updated', { data: current });
       channel.ack(message);
     } catch {

@@ -30,6 +30,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   }
   return {
     rabbitUrl: value('RABBITMQ_URL'), matchingUrl: value('MATCHING_BASE_URL'), matchingToken: value('MATCHING_REALTIME_TOKEN'),
+    // Lifetime of the realtime:offer:* version guard in Redis; 1 hour by default, at most 7 days.
+    offerCacheTtlSeconds: integer('OFFER_CACHE_TTL_SECONDS', 3600, 604800),
     port: integer('PORT', 3004, 65535), redisUrl,
     redisTimeoutMs: integer('REDIS_TIMEOUT_MS', 3000, 60000),
     jwksUrl: url('AUTH_JWKS_URL'), issuer: required('AUTH_JWT_ISSUER'), audience: value('AUTH_JWT_AUDIENCE') || 'realtime-service',

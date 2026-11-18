@@ -58,6 +58,7 @@ Chưa có test suite/script test, migration, Swagger generation hoặc worker ri
 | LOCATION_ORDER_RETENTION_MS | Default 86.400.000 | Integer <=604.800.000, phải >freshness; watermark dọn theo scheduler |
 | CLEANUP_INTERVAL_MS | Default 10.000 | Integer 1–60.000 |
 | CLEANUP_BATCH_SIZE | Default 500 | Integer 1–5.000; giới hạn GPS và watermark mỗi tick |
+| OFFER_CACHE_TTL_SECONDS | Default 3.600 | Integer 1–604.800; hạn sống của key `realtime:offer:*` (chặn offer cũ đến muộn). Retry offer kết thúc trong khoảng 5 phút; trước đây cố định 7 ngày làm Redis đầy khi đo tải |
 | MATCHING_LOCATION_TOKEN | Bắt buộc | Matching → Realtime `driver-locations`; >=32 ký tự, khác MATCHING_REALTIME_TOKEN |
 | SOCKET_CORS_ORIGINS | Default/sample http://localhost:8081,http://127.0.0.1:8081 | Origin exact, dấu phẩy; client không Origin vẫn phải auth |
 

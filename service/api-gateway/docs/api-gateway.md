@@ -465,7 +465,7 @@ Request bị chặn ở bước 2–3 **không bị đọc body** và không ch�
 | `gateway.realtime.max-sessions-per-user` / `location-min-interval` | `5` / `1s` | |
 | `gateway.realtime.max-message-size` | `4KB` | |
 | `gateway.realtime.max-sessions` | `6000` | Số phiên `/ws` tối đa trên một instance; vượt thì đóng `4503`. Khoảng 5800 phiên kèm 32 chuyến/giây dùng tối đa 763 MB ở giới hạn 768 MiB, 875 MB ở 1 GiB (cụm local cấp 1 GiB) |
-| `gateway.realtime.event-retention` / `stream-max-length` | `7d` / `100000` | |
+| `gateway.realtime.event-retention` / `stream-max-length` | `24h` / `100000` | Hạn sống của receipt chống trùng và version chuyến trong Redis; khớp thời gian Trip giữ outbox |
 | `jwt.clock-skew` | `30s` | |
 | `jwt.issuers[].issuer` / `jwk-set-uri` / `roles` / `audiences` | — | `audiences` để trống thì không kiểm `aud` |
 | `cors.allowed-origins` | `http://localhost:5500`, `http://127.0.0.1:5500` | Không cho phép `*` |

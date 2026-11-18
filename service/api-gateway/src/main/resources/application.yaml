@@ -92,7 +92,8 @@ gateway:
     idle-timeout: 60s
     max-sessions-per-user: 5
     location-min-interval: 1s
-    event-retention: 7d
+    # Khớp OUTBOX_RETENTION_MS mặc định của Trip (24 giờ). 7 ngày làm Redis (không có maxmemory) đầy khi đo tải
+    event-retention: 24h
 
 jwt:
   clock-skew: 30s

@@ -1,5 +1,5 @@
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
-const { root, images, stack, edgeSizing, osrmThreads } = require('./stack.cjs');
+const { root, images, redisArgs, stack, edgeSizing, osrmThreads } = require('./stack.cjs');
 const observability = require('./observability.cjs');
 const out = path.join(__dirname, '.local', 'backend');
 fs.mkdirSync(out, { recursive: true });
@@ -43,7 +43,7 @@ const absolute = file => path.resolve(file).replaceAll('\\', '/');
 const compose = { name: 'chande-backend', services: {}, volumes: { postgres: {}, redis: {}, rabbit: {} } };
 const health = test => ({ test, interval: '5s', timeout: '3s', retries: 40, start_period: '15s' });
 compose.services.postgres = { image: images.postgres, command: postgresArgs, environment: postgresEnv, volumes: ['postgres:/var/lib/postgresql', `${absolute(path.join(out,'init.sh'))}:/docker-entrypoint-initdb.d/init.sh:ro`,`${absolute(path.join(out,'driver.sql'))}:/bootstrap/driver.sql:ro`], healthcheck: health(['CMD-SHELL','pg_isready -U backend_root -d postgres']) };
-compose.services.redis = { image: images.redis, command: ['redis-server','--appendonly','yes'], volumes:['redis:/data'], healthcheck:health(['CMD','redis-cli','ping']) };
+compose.services.redis = { image: images.redis, command: redisArgs, volumes:['redis:/data'], healthcheck:health(['CMD','redis-cli','ping']) };
 compose.services.rabbitmq = { image: images.rabbit, user:'rabbitmq', hostname:'rabbitmq', environment: rabbitEnv, volumes:['rabbit:/var/lib/rabbitmq'], healthcheck:health(['CMD','rabbitmq-diagnostics','-q','ping']) };
 const route = '/route/v1/driving/105.8542,21.0285;105.8355,21.0272?overview=false';
 compose.services.osrm = { image: images.osrm, command:['osrm-routed','--algorithm','mld','--threads',osrmThreads(),'--max-table-size','100','/data/hanoi.osrm'], volumes:[`${absolute(graph)}:/data:ro`], healthcheck:health(['CMD','curl','--fail','--silent','--max-time','2','http://127.0.0.1:5000'+route]) };
@@ -82,7 +82,7 @@ function deployment(name, container, volumes = [], memory = '256Mi') {
 }
 for (const name of ['postgres','redis','rabbitmq']) infra.push({apiVersion:'v1',kind:'PersistentVolumeClaim',metadata:metadata(name+'-data'),spec:{accessModes:['ReadWriteOnce'],resources:{requests:{storage:name==='postgres'?'2Gi':'1Gi'}}}});
 infra.push(deployment('postgres',{image:images.postgres,args:postgresArgs,envFrom:[{secretRef:{name:'postgres-env'}}],ports:[{containerPort:5432}],readinessProbe:{exec:{command:['pg_isready','-U','backend_root','-d','postgres']},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/var/lib/postgresql'},{name:'init',mountPath:'/docker-entrypoint-initdb.d'},{name:'bootstrap',mountPath:'/bootstrap'}]},[{name:'data',persistentVolumeClaim:{claimName:'postgres-data'}},{name:'init',configMap:{name:'postgres-bootstrap',items:[{key:'init.sh',path:'init.sh'}]}},{name:'bootstrap',configMap:{name:'postgres-bootstrap'}}],'512Mi'),service('postgres',[5432]));
-infra.push(deployment('redis',{image:images.redis,args:['redis-server','--appendonly','yes'],readinessProbe:{exec:{command:['redis-cli','ping']},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/data'}]},[{name:'data',persistentVolumeClaim:{claimName:'redis-data'}}],'256Mi'),service('redis',[6379]));
+infra.push(deployment('redis',{image:images.redis,args:redisArgs,readinessProbe:{exec:{command:['redis-cli','ping']},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/data'}]},[{name:'data',persistentVolumeClaim:{claimName:'redis-data'}}],'256Mi'),service('redis',[6379]));
 infra.push(deployment('rabbitmq',{image:images.rabbit,envFrom:[{secretRef:{name:'rabbitmq-env'}}],readinessProbe:{tcpSocket:{port:5672},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/var/lib/rabbitmq'}]},[{name:'data',persistentVolumeClaim:{claimName:'rabbitmq-data'}}],'512Mi'),service('rabbitmq',[5672]));
 const rabbitPod = infra.find(r=>r.kind==='Deployment' && r.metadata.name==='rabbitmq').spec.template.spec;
 rabbitPod.hostname='rabbitmq'; rabbitPod.securityContext={fsGroup:999};

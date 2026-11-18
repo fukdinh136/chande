@@ -20,6 +20,12 @@ test('real issuer and callback topology keeps credentials scoped and public port
   assert.ok(!Object.keys(apps['routing-api'].env).some(k=>k.startsWith('REALTIME_')));
   assert.ok(!Object.keys(apps['realtime-api'].env).some(k=>k.startsWith('DRIVER_')));
 });
+test('Redis is capped under its pod limit and evicts only expiring keys',()=>{
+  const {redisArgs}=require('./stack.cjs');
+  assert.deepEqual(redisArgs.slice(-4),['--maxmemory','160mb','--maxmemory-policy','volatile-lru']);
+  const generate=require('node:fs').readFileSync(require('node:path').join(__dirname,'generate.cjs'),'utf8');
+  assert.equal((generate.match(/redisArgs/g)||[]).length,3,'compose and Kubernetes both use redisArgs');
+});
 test('the Gateway gets 1 GiB: 5000 /ws sessions plus 32 trips/s peaked at 763 MB of 805 on 768 MiB',()=>{
   const apps=stack(secrets);
   assert.equal(apps['gateway-api'].memory,'1Gi');

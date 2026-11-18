@@ -7,6 +7,11 @@ const images = {
   rabbit: 'rabbitmq:4-management@sha256:8dd6e3570ddaa2ef82a6c3a8950e79c1f73893adfbdddbc374fc1f1ac8a0f5dd',
   osrm: 'chande-osrm:local', nginx: 'nginx:stable-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94',
 };
+// Redis is capped well below its 256Mi pod limit and evicts only keys that already expire (offer guards, event
+// receipts, GPS), least recently used first. Without a cap, 7-day keys filled it and it was OOM-killed under load
+// (report 15.2). At 200mb the pod reached 247 of 256 MiB; an AOF rewrite forks and copies pages it writes, so
+// ~40% is left for that.
+const redisArgs = ['redis-server', '--appendonly', 'yes', '--maxmemory', '160mb', '--maxmemory-policy', 'volatile-lru'];
 // Routing limits (A8). Empty means the service default. A value set in the environment of `run.cjs generate`
 // overrides it for one experiment; a value proven by a load run belongs in `routingLimits`.
 const routingLimits = {};
@@ -57,4 +62,4 @@ const edgeSizing = (peakDrivers = Number(process.env.EDGE_PEAK_DRIVERS || 5000))
   const memoryMi = Math.ceil((64 + peakDrivers * 72 / 1024) / 64) * 64;
   return { peakDrivers, workerConnections, rlimitNofile: workerConnections * 2, memory: memoryMi + 'Mi' };
 };
-module.exports = { root, images, stack, edgeSizing, routingTuning, osrmThreads };
+module.exports = { root, images, redisArgs, stack, edgeSizing, routingTuning, osrmThreads };

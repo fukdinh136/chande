@@ -16,6 +16,22 @@ test('consumer delivers only authoritative version to authenticated driver room;
   await consumer.consume({content:Buffer.from('broken'),properties:{}},channel); assert.equal(dead,1);
   await consumer.replay(driverId); assert.equal(emitted.length,1);
 });
+test('offer version guard expires after an hour by default, or the configured lifetime', async () => {
+  const offer = { driverId: randomUUID(), offerId: randomUUID(), tripId: randomUUID(), version: 1, status: 'ASSIGNED', expiresAt: new Date(Date.now()+20000).toISOString(), pickup: {lat:21,lng:105}, destination:{lat:21,lng:105}, vehicleType:'CAR_4', fare:{currency:'VND',amount:'12000'} };
+  const message = { content: Buffer.from(JSON.stringify({ eventId: randomUUID(), type: 'DRIVER_TRIP_OFFER_UPDATED', offerId: offer.offerId, tripId: offer.tripId, driverId: offer.driverId, version: 1, status: 'ASSIGNED', expiresAt: offer.expiresAt })), properties: {} };
+  const ttlFor = async config => {
+    let ttl; const consumer = new OfferConsumer({ eval: async (script, _count, _key, _version, _data, seconds) => { assert.match(script, /'EX',tonumber\(ARGV\[3\]\)/); ttl = seconds; return 1; } }, { rabbitUrl: '', matchingUrl: '', matchingToken: '', ...config });
+    consumer.lookup = async () => offer; consumer.attach({ to: () => ({ emit: () => {} }) });
+    await consumer.consume(message, { ack: () => {}, nack: () => assert.fail('must not nack') });
+    return ttl;
+  };
+  assert.equal(await ttlFor({}), 3600);
+  assert.equal(await ttlFor({ offerCacheTtlSeconds: 86400 }), 86400);
+  const { loadConfig } = require('../dist/bootstrap/config/configuration');
+  const base = { REDIS_URL: 'redis://redis:6379', MATCHING_LOCATION_TOKEN: 'x'.repeat(32), AUTH_JWKS_URL: 'http://user:3011/jwks', AUTH_JWT_ISSUER: 'issuer' };
+  assert.equal(loadConfig(base).offerCacheTtlSeconds, 3600);
+  assert.throws(() => loadConfig({ ...base, OFFER_CACHE_TTL_SECONDS: '604801' }), /OFFER_CACHE_TTL_SECONDS/);
+});
 test('Redis/dependency error retries with same deadline; exhausted retry goes to DLQ', async () => {
   const event={eventId:randomUUID(),offerId:randomUUID(),tripId:randomUUID(),driverId:randomUUID(),version:1,status:'PENDING',type:'DRIVER_TRIP_OFFER',expiresAt:new Date(Date.now()+20000).toISOString()};
   let ack=0,dead=0,queued;
