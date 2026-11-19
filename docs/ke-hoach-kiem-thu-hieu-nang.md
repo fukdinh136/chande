@@ -79,7 +79,7 @@ Mục tiêu: chứng minh hệ thống đạt ngưỡng ở quy mô mục tiêu 
 | --- | --- | --- | --- | --- |
 | L1 | 1000 | 16 | 2 phút × 3 | Đạt (2026-11-18, 3 lần): gán chuyến p95 0,78–0,89 s, báo giá p95 12–34 ms; cache hit 95–98% chưa đạt 99% ([báo cáo 16.3](bao-cao-kiem-thu-tai.md#163-load-testing)). Dùng làm **kiểm tra hồi quy** sau mỗi thay đổi |
 | L2 | 5000 | 16 | 5 phút × 3 | Đạt (2026-11-18, 3 lần): gán chuyến p95 0,75–0,82 s, ack GPS p95 4–7 ms; cache hit 95–96% ([báo cáo 16.3](bao-cao-kiem-thu-tai.md#163-load-testing)) |
-| L3 | 5000 | 32 | 5 phút × 3 | **Đạt (2026-11-18, 3 lần)**: gán chuyến p95 1,06 / 1,39 s và 6,2 s ở lần bị nhiễu, báo giá p95 45–114 ms; cache hit 92–97% ([báo cáo 16.3](bao-cao-kiem-thu-tai.md#163-load-testing)) |
+| L3 | 5000 | 32 | 5 phút × 3 | **Đạt (2026-11-18, 3 lần)**: gán chuyến p95 1,06 / 1,39 s và 6,2 s ở lần bị nhiễu, báo giá p95 45–114 ms. Sau khi thêm bộ nhớ PostgreSQL và dọn dữ liệu test: gán chuyến p95 1,25–1,33 s ở hai lần hợp lệ, cache hit 98,1–99,6% (đạt 99% một lần) ([báo cáo 16.11](bao-cao-kiem-thu-tai.md#1611-thêm-bộ-nhớ-cho-postgresql-và-dọn-dữ-liệu-test-2026-11-18-đến-2026-11-19)) |
 
 ```bash
 node deploy/load/run.cjs --drivers 5000 --radius 6000 --rate 32 --duration 5m --warmup 60 --in-cluster 1 --events ws

@@ -990,7 +990,37 @@ Kết quả ở `2026-11-17T18-45-54-491Z`, `18-53-36-537Z`, `19-43-42-037Z` và
 
 Khoảng 1,1 KB mỗi chuyến. Với hạn sống 1 giờ cho offer và 24 giờ cho receipt, 32 chuyến/giây cần khoảng 60 MB cho offer và khoảng 1,5 GB cho receipt. Redis local 256 MiB chỉ chạy được nhờ xoá key khi đầy. Môi trường thật cần chọn giữa thêm bộ nhớ cho Redis và rút ngắn hạn sống của receipt, cùng với một giới hạn cho thời gian Trip gửi lại event.
 
-### 16.11 Kết luận
+### 16.11 Thêm bộ nhớ cho PostgreSQL và dọn dữ liệu test (2026-11-18 đến 2026-11-19)
+
+Hai thay đổi:
+- **PostgreSQL:** pod từ 512 MiB lên 1,5 GiB, `shared_buffers` từ 128 MB lên 384 MB, `effective_cache_size` 1 GB.
+- **Dọn dữ liệu test** (`accounts.cjs purge`):
+  - Xoá 603.830 chuyến đã kết thúc của khách test cùng lịch sử, quote, outbox, receipt và search/offer ở Matching, rồi `VACUUM FULL`.
+  - `trip_db` từ 4,9 GB còn 194 MB, `matching_db` từ 2,5 GB còn 364 MB.
+  - Mỗi chuyến của bộ đo để lại khoảng 12 KB.
+
+L3 (5000 tài xế, 32 chuyến/giây), các lần chạy sau thay đổi:
+
+| Lần | Gán chuyến p95 | Báo giá p95 / p99 | Lỗi / lượt bị bỏ | Cache hit | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| `2026-11-18T15-42-06` | 1,25 s | 89 / 302 ms | 0 / 0 | **99,6%** | Hợp lệ |
+| `2026-11-19T04-04-40` | 1,33 s | 65 / 151 ms | 0 / 0 | 98,6% | Hợp lệ |
+| `2026-11-19T04-12-03` | 19,0 s | 1365 / 8877 ms | 390 / 361 | 98,5% | Cả cụm đứng khoảng 04:17 |
+| `2026-11-19T04-21-04` | 4,3 s | 220 / 598 ms | 0 / 0 | 98,1% | Zalo chạy, hơn 150% CPU |
+| Hai lần trước khi máy ngủ (`2026-11-18T15-49-24` và lần kế) | | | | 99,4% | Bỏ: máy chạy pin và ngủ giữa chừng |
+
+- **Cache hit tăng từ 92–97% lên 98,1–99,6%, nhưng chỉ đạt ngưỡng 99% ở một lần.** Database vừa được dọn còn khoảng 600 MB, nhỏ hơn nhiều so với trước. Khi dữ liệu tích luỹ trở lại (khoảng 115 MB mỗi lần L3), cache hit có thể lại giảm.
+- Chưa tách riêng được phần nào do thêm bộ nhớ, phần nào do dọn dữ liệu.
+- Phần đọc đĩa còn lại có thể đến từ autovacuum trên các bảng không được dọn: `inbox_messages` 185 MB, `matching_receipts` 163 MB, `matching_outbox` 192 MB. Chưa kiểm.
+- **Không thấy cải thiện độ trễ:** hai lần hợp lệ có gán chuyến p95 1,25–1,33 giây, ngang các lần L3 trước (0,83–1,39 giây).
+- **Lần đứng lúc 04:17:**
+  - Probe của Gateway, Trip, PostgreSQL và Realtime cùng timeout. Swap và áp lực bộ nhớ của VM không tăng, còn áp lực CPU trung bình 5 phút là 21%.
+  - Ở 32 chuyến/giây, PostgreSQL sinh đủ 1 GB WAL (`max_wal_size`) trong khoảng 4 phút, nên checkpoint chạy gần như liên tục. Mỗi checkpoint ghi 12–33 nghìn buffer, tới 66% `shared_buffers`.
+  - Một checkpoint bắt đầu đúng 04:17:03. Đây mới là trùng thời điểm, chưa chứng minh là nguyên nhân.
+  - Hướng thử tiếp, chưa làm: `max_wal_size` 4 GB để checkpoint thưa hơn.
+- Hai bảng receipt chống trùng (`request_receipts`, `matching_receipts`) không có cột thời gian và không có vòng dọn, nên phình theo số request (trước khi dọn: 1,2 và 1,8 triệu dòng). Chưa sửa.
+
+### 16.12 Kết luận
 
 **Đạt:**
 - L1, L2, L3, mục tiêu chính của kế hoạch: 5000 tài xế, 32 chuyến/giây, gán chuyến p95 khoảng 1,4 giây.
@@ -1016,7 +1046,7 @@ Khoảng 1,1 KB mỗi chuyến. Với hạn sống 1 giờ cho offer và 24 gi�
 5. **Hạn sống key Redis 7 ngày và Redis không có giới hạn bộ nhớ** (mục 15.2). Đã sửa. Riêng receipt của Gateway vẫn cần khoảng 1,5 GB ở 32 chuyến/giây (mục 16.10).
 
 **Chưa đạt ở mọi bài:**
-- Cache hit PostgreSQL 92–98%, ngưỡng là 99%.
+- Cache hit PostgreSQL 92–98%, ngưỡng là 99%. Sau khi thêm bộ nhớ và dọn dữ liệu: 98,1–99,6%, chỉ đạt ngưỡng ở một trong bốn lần (mục 16.11).
 - 5000 tài xế có JWT hết hạn cùng lúc, nên cứ 15 phút lại có một đợt nối lại (R4). Ở lần soak đầu, p95 lên tới 3 giây trong các phút đó; sau hai bản sửa, cao nhất 1,25 giây.
 
 **Giới hạn của loạt đo:**
