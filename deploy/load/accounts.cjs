@@ -3,6 +3,7 @@
 //   node deploy/load/accounts.cjs tokens   (fresh rider access tokens for k6)
 //   node deploy/load/accounts.cjs cleanup  (cancel active rider trips)
 //   node deploy/load/accounts.cjs sessions --drivers N  (new OTP sessions for drivers 1..N)
+//   node deploy/load/accounts.cjs purge    (delete finished load trips and what goes with them, then VACUUM FULL)
 // Drivers are inserted with SQL (Driver has no sign-up API) and tagged with id prefix 30000000-/plate LOAD-.
 // Rider sessions go through the Gateway (rate limited); driver OTP runs inside driver-api with per-driver client IPs. Resumable.
 const {request, withRateLimit, readJson, writeJson, kubectl, pool, args, randomUUID} = require('./lib.cjs');
@@ -103,11 +104,53 @@ async function cleanup() {
   console.info(`Cancelled ${cancelled.reduce((a, b) => a + b, 0)} active rider trips`);
 }
 
+// Deletes what load runs leave behind: finished trips of the load riders ('Load Rider N') with their status history,
+// quotes, outbox rows and request receipts in trip_db; their Matching searches, offers and search-command receipts;
+// and the offer-decision receipts of the load drivers (id prefix 30000000-). Open trips, other accounts' data,
+// cancel-command receipts and inbox messages (no link to a trip) are kept. Run it with no load running: receipts
+// guard against redelivery, and none is pending once the outboxes are drained. Ends with VACUUM FULL ANALYZE.
+async function purge() {
+  const sql = (db, text) => kubectl(['exec', '-i', 'deploy/postgres', '--', 'sh', '-c', `psql -U "$POSTGRES_USER" -d ${db} -v ON_ERROR_STOP=1 -tA`], text).trim();
+  const pending = Number(sql('trip_db', "SELECT count(*) FROM outbox_deliveries WHERE status IN ('pending','processing');")) + Number(sql('matching_db', 'SELECT count(*) FROM matching_outbox WHERE published_at IS NULL;'));
+  if (pending) throw new Error(`${pending} outbox messages still pending; wait until no load runs`);
+  const riders = sql('user_db', "SELECT id FROM users WHERE full_name LIKE 'Load Rider %';").split('\n').filter(Boolean);
+  if (!riders.length) { console.info('No load riders'); return; }
+  const values = riders.map(id => `('${id}')`).join(',');
+  const trips = sql('trip_db', `BEGIN;
+    SET LOCAL session_replication_role = replica;
+    CREATE TEMP TABLE lr(id uuid PRIMARY KEY) ON COMMIT DROP; INSERT INTO lr VALUES ${values};
+    CREATE TEMP TABLE dt ON COMMIT DROP AS SELECT id FROM trips WHERE rider_id IN (SELECT id FROM lr) AND status IN ('COMPLETED','CANCELLED');
+    DELETE FROM outbox_deliveries d USING outbox o, dt WHERE d.outbox_id=o.id AND o.trip_id=dt.id;
+    DELETE FROM outbox o USING dt WHERE o.trip_id=dt.id;
+    DELETE FROM trip_status_history h USING dt WHERE h.trip_id=dt.id;
+    DELETE FROM trip_quotes q WHERE q.rider_id IN (SELECT id FROM lr) AND (q.consumed_trip_id IS NULL OR q.consumed_trip_id IN (SELECT id FROM dt));
+    DELETE FROM request_receipts WHERE split_part(scope, ':', 1) = 'RIDER' AND split_part(scope, ':', 2) IN (SELECT id::text FROM lr);
+    DELETE FROM request_receipts WHERE scope LIKE 'DRIVER:30000000-0000-4000-8000-%';
+    SELECT count(*) FROM dt;
+    DELETE FROM trips t USING dt WHERE t.id=dt.id;
+    COMMIT;`).split('\n').find(line => /^\d+$/.test(line));
+  const searches = sql('matching_db', `BEGIN;
+    CREATE TEMP TABLE lr(id text PRIMARY KEY) ON COMMIT DROP; INSERT INTO lr VALUES ${values};
+    CREATE TEMP TABLE ds ON COMMIT DROP AS SELECT trip_id, data->'command'->>'commandId' AS command_id FROM matching_searches
+      WHERE status IN ('CANCELLED','COMPLETED') AND data->'command'->>'riderId' IN (SELECT id FROM lr);
+    DELETE FROM matching_receipts r USING ds WHERE r.scope = 'command:' || ds.command_id;
+    DELETE FROM matching_receipts WHERE scope LIKE 'decision:30000000-0000-4000-8000-%';
+    DELETE FROM matching_offers o USING ds WHERE o.trip_id=ds.trip_id;
+    SELECT count(*) FROM ds;
+    DELETE FROM matching_searches s USING ds WHERE s.trip_id=ds.trip_id;
+    COMMIT;`).split('\n').find(line => /^\d+$/.test(line));
+  console.info(`Deleted ${trips} finished load trips in trip_db and ${searches} searches in matching_db; vacuuming`);
+  sql('trip_db', 'VACUUM (FULL, ANALYZE) trips, trip_status_history, trip_quotes, request_receipts, outbox, outbox_deliveries;');
+  sql('matching_db', 'VACUUM (FULL, ANALYZE) matching_searches, matching_offers, matching_receipts;');
+  console.info(sql('postgres', "SELECT string_agg(datname || '=' || pg_size_pretty(pg_database_size(datname)), ' ') FROM pg_database WHERE datname LIKE '%_db';"));
+}
+
 const command = process.argv[2];
 (async () => {
   if (command === 'seed') { await seedRiders(options.riders); await seedDrivers(options.drivers); }
   else if (command === 'tokens') await riderTokens();
   else if (command === 'cleanup') await cleanup();
   else if (command === 'sessions') await seedDrivers(options.drivers, true);
-  else throw new Error('Usage: node deploy/load/accounts.cjs seed [--drivers N] [--riders N] | tokens | cleanup | sessions [--drivers N]');
+  else if (command === 'purge') await purge();
+  else throw new Error('Usage: node deploy/load/accounts.cjs seed [--drivers N] [--riders N] | tokens | cleanup | sessions [--drivers N] | purge');
 })().catch(e => { console.error(e.message); process.exitCode = 1; });

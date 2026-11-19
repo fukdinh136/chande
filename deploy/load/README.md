@@ -12,7 +12,7 @@ Bộ công cụ đo baseline cho mục P2.6 trong [kiến trúc mục tiêu](../
 
 | File | Vai trò |
 | --- | --- |
-| `accounts.cjs` | `seed`: chèn tài xế test bằng SQL vào `driver_db` (Driver không có API đăng ký), lấy phiên OTP ngay trong pod driver-api, đăng ký rider qua User API. `tokens`: refresh token rider cho k6 |
+| `accounts.cjs` | `seed`: chèn tài xế test bằng SQL vào `driver_db` (Driver không có API đăng ký), lấy phiên OTP ngay trong pod driver-api, đăng ký rider qua User API. `tokens`: refresh token rider cho k6. `purge`: xoá chuyến đã kết thúc của khách test cùng lịch sử, quote, outbox, receipt và search/offer ở Matching, rồi `VACUUM FULL`; chạy khi không có tải (mỗi lần đo để lại khoảng 12 KB mỗi chuyến) |
 | `drivers.cjs` | Giả lập tài xế: ONLINE, chọn xe, gửi GPS qua Socket.IO `/realtime`, tự nhận mọi offer; đo ack GPS và thời gian gọi accept |
 | `booking.js` | k6, executor `constant-arrival-rate`: báo giá → tạo chuyến → chờ tới `ASSIGNED` → huỷ để trả tài xế. `EVENTS=poll` (mặc định) poll `GET /trips/:id` mỗi 300 ms; `EVENTS=ws` chờ như app: phiên `/ws` của Gateway nhận `trip.assigned`, rồi đọc chuyến một lần (bước `read`) |
 | `pods.cjs` | Lấy mẫu CPU/RAM từng pod từ cgroup bằng `kubectl exec` (Docker Desktop không có metrics-server) |
