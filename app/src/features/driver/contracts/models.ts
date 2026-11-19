@@ -54,7 +54,8 @@ export interface Trip {
   pickup: TripLocation;
   destination: TripLocation;
   vehicleType: string;
-  fare: { currency: 'VND'; estimatedAmount: string; finalAmount: string | null };
+  route?: {distanceMeters: number; durationSeconds: number};
+  fare: { currency: 'VND'; estimatedAmount: string; finalAmount: string | null; breakdown?: {code: string; amount: string}[] };
   driver?: {fullName:string;avatarUrl:string|null}|null;
   vehicle?: {licensePlate:string;brand:string|null;color:string|null}|null;
   timestamps?: { requestedAt: string; assignedAt: string | null; driverArrivedAt: string | null; startedAt: string | null; completedAt: string | null; cancelledAt: string | null };
