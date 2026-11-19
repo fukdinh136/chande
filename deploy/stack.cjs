@@ -13,6 +13,14 @@ const images = {
 // with AOF rewrite forks the pod reached its 256 MiB limit, stalled, and took Realtime's probes down with it
 // (report 16.9). At 128mb that is ~175 MB RSS plus ~16 MB per fork.
 const redisArgs = ['redis-server', '--appendonly', 'yes', '--maxmemory', '128mb', '--maxmemory-policy', 'volatile-lru'];
+// PostgreSQL ran with the default 128MB shared_buffers in a 512Mi pod while the databases reached several GB, so the
+// cache hit stayed at 86-98% (plan threshold 99%, report 16.3). shared_buffers is a quarter of the pod; the rest is
+// backends, work_mem and the page cache that effective_cache_size tells the planner about.
+const postgres = {
+  args: ['postgres', '-c', 'shared_preload_libraries=pg_stat_statements', '-c', 'pg_stat_statements.track=top',
+    '-c', 'shared_buffers=384MB', '-c', 'effective_cache_size=1GB'],
+  memory: '1536Mi',
+};
 // Routing limits (A8). Empty means the service default. A value set in the environment of `run.cjs generate`
 // overrides it for one experiment; a value proven by a load run belongs in `routingLimits`.
 const routingLimits = {};
@@ -63,4 +71,4 @@ const edgeSizing = (peakDrivers = Number(process.env.EDGE_PEAK_DRIVERS || 5000))
   const memoryMi = Math.ceil((64 + peakDrivers * 72 / 1024) / 64) * 64;
   return { peakDrivers, workerConnections, rlimitNofile: workerConnections * 2, memory: memoryMi + 'Mi' };
 };
-module.exports = { root, images, redisArgs, stack, edgeSizing, routingTuning, osrmThreads };
+module.exports = { root, images, redisArgs, postgres, stack, edgeSizing, routingTuning, osrmThreads };

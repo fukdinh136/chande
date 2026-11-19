@@ -1,5 +1,5 @@
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
-const { root, images, redisArgs, stack, edgeSizing, osrmThreads } = require('./stack.cjs');
+const { root, images, redisArgs, postgres, stack, edgeSizing, osrmThreads } = require('./stack.cjs');
 const observability = require('./observability.cjs');
 const out = path.join(__dirname, '.local', 'backend');
 fs.mkdirSync(out, { recursive: true });
@@ -36,7 +36,7 @@ psql -v ON_ERROR_STOP=1 -U driver_service -d driver_db -f /bootstrap/driver.sql
 `;
 fs.writeFileSync(path.join(out, 'init.sh'), init, 'utf8'); fs.writeFileSync(path.join(out, 'driver.sql'), driverSQL, 'utf8');
 // pg_stat_statements (E3): per-query time for load tests; the extension lives in the postgres database and sees all databases.
-const postgresArgs = ['postgres','-c','shared_preload_libraries=pg_stat_statements','-c','pg_stat_statements.track=top'];
+const postgresArgs = postgres.args;
 const postgresEnv = { POSTGRES_USER: 'backend_root', POSTGRES_PASSWORD: secrets.rootPassword, POSTGRES_DB: 'postgres', USER_DB_PASSWORD: secrets.userPassword, DRIVER_DB_PASSWORD: secrets.driverPassword, TRIP_DB_PASSWORD: secrets.tripPassword, MATCHING_DB_PASSWORD: secrets.matchingPassword };
 const rabbitEnv = { RABBITMQ_DEFAULT_USER: 'backend', RABBITMQ_DEFAULT_PASS: secrets.rabbitPassword, RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '+S 2:2 +A 4' };
 const absolute = file => path.resolve(file).replaceAll('\\', '/');
@@ -81,7 +81,7 @@ function deployment(name, container, volumes = [], memory = '256Mi') {
   return {apiVersion:'apps/v1',kind:'Deployment',metadata:metadata(name),spec:{replicas:1,strategy:{type:'Recreate'},selector:{matchLabels:labels(name)},template:{metadata:{labels:labels(name)},spec:{automountServiceAccountToken:false,terminationGracePeriodSeconds:60,containers:[{name,imagePullPolicy:'IfNotPresent',resources:{requests:{cpu:'50m',memory:'64Mi'},limits:{cpu:'2',memory}},...container}],volumes}}}};
 }
 for (const name of ['postgres','redis','rabbitmq']) infra.push({apiVersion:'v1',kind:'PersistentVolumeClaim',metadata:metadata(name+'-data'),spec:{accessModes:['ReadWriteOnce'],resources:{requests:{storage:name==='postgres'?'2Gi':'1Gi'}}}});
-infra.push(deployment('postgres',{image:images.postgres,args:postgresArgs,envFrom:[{secretRef:{name:'postgres-env'}}],ports:[{containerPort:5432}],readinessProbe:{exec:{command:['pg_isready','-U','backend_root','-d','postgres']},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/var/lib/postgresql'},{name:'init',mountPath:'/docker-entrypoint-initdb.d'},{name:'bootstrap',mountPath:'/bootstrap'}]},[{name:'data',persistentVolumeClaim:{claimName:'postgres-data'}},{name:'init',configMap:{name:'postgres-bootstrap',items:[{key:'init.sh',path:'init.sh'}]}},{name:'bootstrap',configMap:{name:'postgres-bootstrap'}}],'512Mi'),service('postgres',[5432]));
+infra.push(deployment('postgres',{image:images.postgres,args:postgresArgs,envFrom:[{secretRef:{name:'postgres-env'}}],ports:[{containerPort:5432}],readinessProbe:{exec:{command:['pg_isready','-U','backend_root','-d','postgres']},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/var/lib/postgresql'},{name:'init',mountPath:'/docker-entrypoint-initdb.d'},{name:'bootstrap',mountPath:'/bootstrap'}]},[{name:'data',persistentVolumeClaim:{claimName:'postgres-data'}},{name:'init',configMap:{name:'postgres-bootstrap',items:[{key:'init.sh',path:'init.sh'}]}},{name:'bootstrap',configMap:{name:'postgres-bootstrap'}}],postgres.memory),service('postgres',[5432]));
 infra.push(deployment('redis',{image:images.redis,args:redisArgs,readinessProbe:{exec:{command:['redis-cli','ping']},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/data'}]},[{name:'data',persistentVolumeClaim:{claimName:'redis-data'}}],'256Mi'),service('redis',[6379]));
 infra.push(deployment('rabbitmq',{image:images.rabbit,envFrom:[{secretRef:{name:'rabbitmq-env'}}],readinessProbe:{tcpSocket:{port:5672},periodSeconds:5},volumeMounts:[{name:'data',mountPath:'/var/lib/rabbitmq'}]},[{name:'data',persistentVolumeClaim:{claimName:'rabbitmq-data'}}],'512Mi'),service('rabbitmq',[5672]));
 const rabbitPod = infra.find(r=>r.kind==='Deployment' && r.metadata.name==='rabbitmq').spec.template.spec;

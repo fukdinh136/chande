@@ -93,3 +93,12 @@ test('routing limits pass through only when set',()=>{
   assert.deepEqual(routingTuning({}),{}); assert.deepEqual(routingTuning({WORKER_POOL_SIZE:'4',UNRELATED:'1'}),{WORKER_POOL_SIZE:'4'});
   assert.equal(osrmThreads({}),'2'); assert.equal(osrmThreads({OSRM_THREADS:'4'}),'4'); assert.throws(()=>osrmThreads({OSRM_THREADS:'0'}),/OSRM_THREADS/);
 });
+test('PostgreSQL gets a quarter of a 1.5 GiB pod as shared_buffers, in compose and Kubernetes alike',()=>{
+  const {postgres}=require('./stack.cjs');
+  assert.equal(postgres.memory,'1536Mi');
+  assert.ok(postgres.args.includes('shared_buffers=384MB'));
+  assert.ok(postgres.args.includes('shared_preload_libraries=pg_stat_statements'),'load runs read pg_stat_statements');
+  const generate=require('node:fs').readFileSync(require('node:path').join(__dirname,'generate.cjs'),'utf8');
+  assert.match(generate,/const postgresArgs = postgres\.args;/);
+  assert.match(generate,/\],postgres\.memory\),service\('postgres'/);
+});
