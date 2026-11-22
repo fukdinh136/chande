@@ -3,12 +3,12 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Matching, Trip |
-| Rà soát | 2026-10-27 |
+| Rà soát | 2026-11-22 |
 | Quy ước | [Format và số liệu](../quy-uoc-tai-lieu.md) |
 
 ## Trạng thái
 
-Đề xuất — phase 1, cải tiến P1.2 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md).
+**Đã triển khai 2026-11-22 trên nhánh `perf/adr-0008-trip-outbox`, chờ nhóm duyệt.** Phase 1, cải tiến P1.2 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md). Kết quả kiểm chứng ở [mục Triển khai](#triển-khai-2026-11-22).
 
 ## Bối cảnh
 
@@ -44,3 +44,21 @@ State machine của Trip đã cho phép `SEARCHING → CANCELLED`, và actor `SY
 - Test tích hợp: không có tài xế → chuyến `CANCELLED` với `NO_DRIVER_FOUND` sau deadline.
 - Test tranh chấp: tài xế accept trong cửa sổ offer cuối thì chuyến được gán, không bị huỷ.
 - App khách hiển thị đúng thông báo.
+
+## Triển khai (2026-11-22)
+
+| Phần | Thay đổi |
+| --- | --- |
+| Matching | `Commands.search` lưu `deadlineAt` trong dữ liệu search (không cần migration). `SearchTimeout` ([timeout.ts](../../service/matching-service/src/application/timeout.ts)) chạy khi search quá hạn và không còn offer chờ: cố định `timeoutEventId` trong cùng transaction, gọi Trip, đọc lại trạng thái Trip rồi đóng search. Lỗi mạng thì job thử lại với cùng khoá; Trip trả 409 (khách đã huỷ trước) thì đóng theo trạng thái Trip. Search lưu trước ADR này tính hạn từ lúc đặt chuyến. Lần tìm lại đầu tiên không muộn hơn hạn chót. Metric `matching_search_timeouts{outcome}` |
+| Trip | `POST /internal/trips/:id/no-driver-found` (token callback của Matching), idempotent theo `eventId` qua inbox như assignment. Chỉ từ `SEARCHING`; chuyến đã gán trả 409 `TRIP_NOT_SEARCHING`. `cancellation = {actorType: SYSTEM, actorId: null, reason: NO_DRIVER_FOUND}`; ghi lệnh huỷ cho Matching và `trip.cancelled` như mọi lần huỷ |
+| App khách | Khi chuyến đang mở biến khỏi `/trips/active`, app đọc trạng thái cuối một lần; nếu là `NO_DRIVER_FOUND` thì hiện "Không tìm thấy tài xế gần bạn" và nút "Đặt lại chuyến" thay vì lặng lẽ quay về màn hình đặt xe |
+| Cấu hình | `SEARCH_TIMEOUT_MS` (mặc định 180000), đặt cùng giá trị cho matching-api và matching-worker |
+
+Khác với bản đề xuất: Matching không có trạng thái search mới; search vẫn `SEARCHING` cho tới khi Trip xác nhận, nên không bao giờ đóng một search mà Trip còn đang tìm.
+
+| Tiêu chí | Kết quả 2026-11-22 |
+| --- | --- |
+| Không có tài xế → `CANCELLED` với `NO_DRIVER_FOUND` sau deadline | Đạt. Test tích hợp Matching ([timeout.test.ts](../../service/matching-service/test/integration/timeout.test.ts)) và Trip ([assignment.test.ts](../../service/trip-service/test/integration/assignment.test.ts)). Trên stack Docker Compose với `SEARCH_TIMEOUT_MS=20000`: chuyến bị huỷ sau 20 giây, khách nhận `trip.cancelled` qua `/ws` |
+| Accept trong cửa sổ offer cuối thì chuyến vẫn được gán | Đạt (test tích hợp: offer tạo trước hạn, tới sau hạn vẫn nhận được, search chuyển `ASSIGNMENT_PENDING`, không có lệnh huỷ) |
+| App khách hiển thị đúng thông báo | Typecheck và lint đạt; chưa thử trên thiết bị |
+| Chuyến cũ treo | Khi triển khai, một chuyến `SEARCHING` từ ngày 2026-11-05 trong DB local được huỷ `NO_DRIVER_FOUND` vài giây sau khi Matching mới khởi động |

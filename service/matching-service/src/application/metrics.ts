@@ -18,6 +18,8 @@ export async function timed<T>(step: SearchStep, work: () => Promise<T>): Promis
 export function countDrivers(stage: FunnelStage, drivers: number): void { funnel.add(drivers, { stage }); }
 /** `pages` is how many pages of Realtime locations the search read (more than 1 when the nearest were all busy). */
 export function countSearch(result: 'found' | 'no_nearby' | 'no_open' | 'no_eligible' | 'no_route', pages = 1): void { searches.add(1, { result, pages }); }
+const timeouts = meter.createCounter('matching_search_timeouts', { description: 'Searches that reached their deadline, by outcome: cancelled (Trip cancelled the trip as NO_DRIVER_FOUND) or settled (the trip had already ended)' });
+export function countTimeout(outcome: 'cancelled' | 'settled'): void { timeouts.add(1, { outcome }); }
 export function recordJob(ms: number, kind: 'search' | 'assignment', outcome: 'done' | 'retry'): void { jobDuration.record(ms, { kind, outcome }); }
 export function recordOutboxLag(ms: number): void { outboxLag.record(Math.max(0, ms)); }
 /** Runs one polled job inside its own span, so its queries and calls show up as one trace. */

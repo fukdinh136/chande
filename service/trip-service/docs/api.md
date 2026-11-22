@@ -383,6 +383,7 @@ Payload v1 tối thiểu; client đọc chi tiết qua API được phân quyề
 | API | Caller / credential | Input | 200 data |
 | --- | --- | --- | --- |
 | GET /internal/trips/:id/matching-state | Matching; MATCHING_CALLBACK_TOKEN | UUID Trip | `{tripId,status,driverId,version}`; null nếu không tồn tại |
+| POST /internal/trips/:id/no-driver-found | Matching; MATCHING_CALLBACK_TOKEN | `{eventId}` | 202 `{eventId,tripId,accepted:true,cancelledVersion}`; huỷ chuyến `SEARCHING` với actor SYSTEM, `cancellation.reason=NO_DRIVER_FOUND` ([ADR-0004](../../../docs/adr/0004-gioi-han-thoi-gian-tim-xe.md)); idempotent theo eventId qua inbox; 409 `TRIP_NOT_SEARCHING` khi chuyến đã gán hoặc đã huỷ |
 | POST /internal/trips/active-drivers/batch | Driver; DRIVER_LOOKUP_TOKEN riêng | `{driverIds:[UUID]}`; 1–100 unique, body strict | `{items:[{driverId,tripId:UUID hoặc null}]}`, cùng thứ tự đầu vào; một câu SQL `driver_id = ANY` cho cả lô, dùng index `uq_trips_active_driver` |
 
 Không proxy lookup ra Gateway; không dùng JWT người dùng thay service credential. Thiếu/sai credential 401, body/path sai 400, database lỗi 503. Matching coi missing state là đối soát chưa thành công, không suy Trip SEARCHING hoặc driver rảnh từ null. Batch availability không thay constraints active Trip hoặc reservation lúc gán.

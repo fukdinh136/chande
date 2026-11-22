@@ -5,6 +5,8 @@ export interface Clients {
   driver(id: string, type: string): Promise<DriverEligibility>;
   assign(tripId: string, assignment: Assignment): Promise<void>;
   trip(tripId: string): Promise<TripState>;
+  /** Asks Trip to cancel a trip still SEARCHING because no driver was found (ADR-0004); `eventId` makes it idempotent. */
+  noDriver(tripId: string, eventId: string): Promise<void>;
 }
 /** A fresh raw location from Realtime (ADR-0001), closest first. */
 export interface DriverLocation { driverId: string; latitude: number; longitude: number; distanceMeters: number; recordedAt: string }

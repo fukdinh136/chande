@@ -94,6 +94,7 @@ export function trip(value: unknown): Trip {
     fare: { currency: oneOf(fare.currency, ['VND']), estimatedAmount: string(fare.estimatedAmount), finalAmount: nullableString(fare.finalAmount) },
     ...(data.driver===undefined?{}:{driver:data.driver===null?null:{fullName:string(object(data.driver).fullName),avatarUrl:nullableString(object(data.driver).avatarUrl)}}),
     ...(data.vehicle===undefined?{}:{vehicle:data.vehicle===null?null:{licensePlate:string(object(data.vehicle).licensePlate),brand:nullableString(object(data.vehicle).brand),color:nullableString(object(data.vehicle).color)}}),
+    ...(data.cancellation===undefined?{}:{cancellation:data.cancellation===null?null:{actorType:oneOf(object(data.cancellation).actorType,['RIDER','DRIVER','SYSTEM'] as const),reason:string(object(data.cancellation).reason)}}),
   };
 }
 export function activeTrip(value: unknown) { return value === null ? null : trip(value); }

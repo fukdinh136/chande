@@ -68,5 +68,9 @@ export class HttpClients implements Clients, CandidateClients {
     const ack = await this.request(this.c.tripUrl, `/internal/trips/${tripId}/assignment`, this.c.tripToken, z.object({ eventId: uuid, tripId: uuid, accepted: z.literal(true), assignedVersion: z.number().int().positive() }).strict(), assignment, 202);
     if (ack.eventId !== assignment.eventId || ack.tripId !== tripId) throw new UpstreamError(503, 'INVALID_RESPONSE', 'trip');
   }
+  async noDriver(tripId: string, eventId: string) {
+    const ack = await this.request(this.c.tripUrl, `/internal/trips/${tripId}/no-driver-found`, this.c.tripToken, z.object({ eventId: uuid, tripId: uuid, accepted: z.literal(true), cancelledVersion: z.number().int().positive() }).strict(), { eventId }, 202);
+    if (ack.eventId !== eventId || ack.tripId !== tripId) throw new UpstreamError(503, 'INVALID_RESPONSE', 'trip');
+  }
   async trip(id: string) { const data = await this.request(this.c.tripUrl, `/internal/trips/${id}/matching-state`, this.c.tripToken, z.object({ tripId: uuid, status: z.enum(['CREATED','SEARCHING','ASSIGNED','DRIVER_ARRIVED','IN_PROGRESS','CANCELLED','COMPLETED']), driverId: uuid.nullable(), version: z.number().int().positive() })); if (data.tripId !== id) throw new UpstreamError(503); return data; }
 }

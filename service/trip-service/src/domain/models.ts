@@ -19,5 +19,6 @@ export interface TripData {
   route: RouteSummary; fare: { currency: 'VND'; estimatedAmount: string; finalAmount: string | null; breakdown: FareLine[] };
   driver: (DriverSnapshot & { driverId: string }) | null; vehicle: (VehicleSnapshot & { vehicleId: string }) | null;
   timestamps: { requestedAt: string; assignedAt: string | null; driverArrivedAt: string | null; startedAt: string | null; completedAt: string | null; cancelledAt: string | null };
-  cancellation: { actorType: 'RIDER' | 'DRIVER'; actorId: string; reason: string; cancelledAt: string } | null;
+  // SYSTEM cancels with actorId null, for example a search that found no driver (reason NO_DRIVER_FOUND, ADR-0004).
+  cancellation: { actorType: 'RIDER' | 'DRIVER' | 'SYSTEM'; actorId: string | null; reason: string; cancelledAt: string } | null;
 }

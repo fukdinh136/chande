@@ -65,4 +65,4 @@ export async function createApi(c: Context) {
   if (c.config.swagger) { const document = SwaggerModule.createDocument(app, new DocumentBuilder().setTitle('Matching Service').setVersion('1.0').addBearerAuth().addApiKey({ type: 'apiKey', in: 'header', name: 'X-Service-Token' }, 'serviceToken').build()); SwaggerModule.setup('docs', app, document, { jsonDocumentUrl: 'openapi.json' }); }
   await app.init(); return app;
 }
-export function context(config: Config, repo: Repository): Context { return { config, repo, commands: new Commands(repo), decisions: new OfferDecisions(repo), identity: new Identity(config), onModuleDestroy: async () => { if (repo.db.isInitialized) await repo.db.destroy(); } }; }
+export function context(config: Config, repo: Repository): Context { return { config, repo, commands: new Commands(repo, config.searchTimeoutMs), decisions: new OfferDecisions(repo), identity: new Identity(config), onModuleDestroy: async () => { if (repo.db.isInitialized) await repo.db.destroy(); } }; }

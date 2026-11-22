@@ -55,7 +55,7 @@ Cùng một quy tắc cho mọi bước: **không bước nào sửa dữ liệu
 
 | Chỗ thiếu | Hậu quả | Kích thước | Hướng xử lý |
 | --- | --- | --- | --- |
-| Không có hạn chót tìm xe ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md) mới ở trạng thái đề xuất) | Chuyến không có tài xế ở `SEARCHING` mãi, khách phải tự huỷ; worker vẫn tìm | Lớn: lệnh mới Matching → Trip, actor `SYSTEM`, tranh chấp với lần nhận ở giây cuối, thay đổi app | Làm theo ADR-0004. Priority Queue đã ưu tiên chuyến đặt sớm nhất, nên khi có hạn chót thì chuyến gần hạn được xử lý trước |
+| ~~Không có hạn chót tìm xe~~ **Đã làm 2026-11-22** ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md)) | Trước đây chuyến không có tài xế ở `SEARCHING` mãi | — | Matching hết hạn (mặc định 3 phút) và không còn offer chờ thì gọi Trip `no-driver-found`; Trip huỷ với actor SYSTEM, lý do `NO_DRIVER_FOUND`, rồi bù trừ như mọi lần huỷ. Offer đang chờ lúc hết hạn vẫn chạy hết 20 giây |
 | Delivery outbox bị `blocked` (đích trả 4xx: sai token, sai contract) | Bước đó dừng hẳn; ví dụ lệnh huỷ không tới Matching thì tài xế vẫn bị giữ | Vừa | Đang xử lý tay: sửa nguyên nhân rồi `outbox:requeue`. Nên có cảnh báo trên số delivery `blocked` (metric đã có từ B6) |
 | Huỷ sau khi đã giữ tiền | Chưa có thanh toán thật | Lớn, thuộc Phase 2 | [ADR-0005](adr/0005-payment-so-cai-kep-tcc.md): Try-Confirm-Cancel, huỷ thì nhả tiền |
 | Tài xế huỷ chuyến đã nhận | Chuyến bị huỷ hẳn, khách phải đặt lại | Quyết định nghiệp vụ, không phải lỗi | Nếu muốn tự tìm tài xế khác: thêm cạnh `ASSIGNED → SEARCHING` ở Trip và lệnh tìm lại |

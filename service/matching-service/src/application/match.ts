@@ -2,14 +2,16 @@ import { randomUUID } from 'node:crypto';
 import type { CandidateSource } from './ports';
 import { Repository } from '../infrastructure/persistence';
 import { held, type Offer } from '../domain/models';
+import type { SearchTimeout } from './timeout';
 const OFFER_TTL_MS = 20000;
 // A search with a PENDING offer is not re-checked every second: accept/decline and OfferExpiry make it due
 // right away. Its own due time is only a safety net, set just after the offer expires (ADR-0008).
 const OFFER_RECHECK_SLACK_MS = 500;
 export class MatchDriver {
   /** `source` finds and ranks candidates (ADR-0001). `onEnqueued` runs after a transaction that queued an offer message
-   * commits, so the publisher can send it right away. */
-  constructor(private readonly repo: Repository, private readonly source: CandidateSource, private readonly pollMs = 5000, private readonly onEnqueued: () => void = () => {}) {}
+   * commits, so the publisher can send it right away. `timeout` ends a search past its deadline (ADR-0004); without it
+   * a search never times out. */
+  constructor(private readonly repo: Repository, private readonly source: CandidateSource, private readonly pollMs = 5000, private readonly onEnqueued: () => void = () => {}, private readonly timeout?: SearchTimeout) {}
   async execute(tripId: string) {
     const started = Date.now();
     const search = await this.repo.getSearch(tripId); if (!search || search.status !== 'SEARCHING' || !search.command) return;
@@ -23,6 +25,8 @@ export class MatchDriver {
       if (expired) this.onEnqueued();
       return;
     }
+    // Past the deadline with no offer pending: no new offer, end the search instead (ADR-0004).
+    if (this.timeout?.passed(search, Date.now())) { await this.timeout.execute(tripId); return; }
     const exclude = async (ids: string[]) => {
       const tried = await this.repo.tried(tripId), reservations = await this.repo.reservations(ids);
       return new Set([...tried, ...reservations.filter(r => r.tripId !== null).map(r => r.driverId)]);
@@ -33,6 +37,7 @@ export class MatchDriver {
       if (!eligible.profileEligible || eligible.desiredStatus !== 'ONLINE' || !eligible.vehicleId || !eligible.driverSnapshot || !eligible.vehicleSnapshot || eligible.vehicleSnapshot.vehicleType !== search.command.vehicleType) continue;
       const created = await this.repo.transaction(async tx => {
         const s = await tx.search(tripId); if (!s || s.status !== 'SEARCHING' || s.offerId) return false;
+        if (this.timeout?.passed(s, await tx.now())) return 'deadline' as const;
         await tx.lock('driver:' + c.driverId);
         // One statement after the driver lock: its snapshot is taken once the lock is held.
         const checks: { now: Date; reserved: boolean; previous: boolean }[] = await tx.db.query('SELECT clock_timestamp() AS now, EXISTS(SELECT 1 FROM matching_reservations WHERE driver_id=$1) AS reserved, EXISTS(SELECT 1 FROM matching_offers WHERE trip_id=$2 AND driver_id=$1) AS previous', [c.driverId, tripId]);
@@ -42,9 +47,15 @@ export class MatchDriver {
         await tx.saveOffer(o); if (!await tx.reserve(o)) throw new Error('RESERVATION_CONFLICT');
         s.offerId = o.offerId; s.attempts = 0; await tx.saveSearch(s, OFFER_TTL_MS + OFFER_RECHECK_SLACK_MS); await tx.enqueue(o); return true;
       });
+      if (created === 'deadline') break;
       if (created) { this.onEnqueued(); return; }
     }
-    await this.repo.transaction(async tx => { const s = await tx.search(tripId); if (s?.status === 'SEARCHING' && !s.offerId) await tx.saveSearch(s, this.pollMs); });
+    // Search again after pollMs, or at the deadline if that comes first, so the timeout is not late by a whole poll.
+    await this.repo.transaction(async tx => {
+      const s = await tx.search(tripId); if (s?.status !== 'SEARCHING' || s.offerId) return;
+      const deadline = this.timeout?.deadline(s) ?? null, untilDeadline = deadline === null ? Infinity : Math.max(0, deadline - await tx.now());
+      await tx.saveSearch(s, Math.min(this.pollMs, untilDeadline));
+    });
   }
 }
 export function publicOffer(o: Offer | null) {

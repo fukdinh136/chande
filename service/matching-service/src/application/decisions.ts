@@ -18,7 +18,7 @@ export class OfferDecisions {
   async get(offerId: string, driverId: string) { const o = await this.repo.getOffer(offerId); if (!o) throw new MatchingError('NOT_FOUND', 404); if (o.driverId !== driverId) throw new MatchingError('FORBIDDEN', 403); return publicOffer(o); }
 }
 export class AssignDriver {
-  constructor(private readonly repo: Repository, private readonly clients: Clients) {}
+  constructor(private readonly repo: Repository, private readonly clients: Omit<Clients, 'noDriver'>) {}
   async execute(tripId: string) {
     const s = await this.repo.getSearch(tripId); if (!s || s.status !== 'ASSIGNMENT_PENDING' || !s.offerId) return;
     const o = await this.repo.getOffer(s.offerId); if (!o || o.status !== 'ASSIGNMENT_PENDING') return;

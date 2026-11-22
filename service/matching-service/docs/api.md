@@ -37,6 +37,6 @@ Matching gọi ra khi tìm ứng viên ([ADR-0001](../../../docs/adr/0001-matchi
 | Realtime | GET /internal/realtime/driver-locations | `REALTIME_MATCHING_TOKEN` |
 | Driver | POST /internal/drivers/eligibility/candidates; GET /internal/drivers/:id/eligibility trước khi gán | `DRIVER_MATCHING_TOKEN` |
 | Routing | POST /internal/routes/eta-matrix | `ROUTING_MATCHING_TOKEN` |
-| Trip | POST /internal/trips/:id/assignment; GET /internal/trips/:id/matching-state | `TRIP_MATCHING_TOKEN` |
+| Trip | POST /internal/trips/:id/assignment; GET /internal/trips/:id/matching-state; POST /internal/trips/:id/no-driver-found (ADR-0004) | `TRIP_MATCHING_TOKEN` |
 
 Lỗi từ đích giữ mã lỗi và `Retry-After`; khi circuit breaker của đích đang mở, lời gọi thất bại ngay với `CIRCUIT_OPEN`.
