@@ -74,7 +74,8 @@ Nguồn: [policy Price](../service/price-service/config/fare-policy.example.json
 | Matching → Routing (ETA) | POST /internal/routes/eta-matrix; destination, vehicleType, origins ≤50 | Credential Matching; Routing không gọi Realtime |
 | Driver → Trip / Matching | POST /internal/trips/active-drivers/batch; POST /internal/matching/reservations/batch | Credential lookup Driver riêng; chỉ internal; mỗi phía 1 câu SQL cho cả lô; dùng khi tài xế đổi trạng thái hoặc xe, không dùng khi tìm xe |
 | Matching → Driver | GET /internal/drivers/:driverId/eligibility | Credential Matching; snapshot lấy server; chỉ còn dùng để kiểm lại trước khi gán |
-| Matching → Trip | POST /internal/trips/:id/assignment; GET /internal/trips/:id/matching-state | Matching callback token; assignment 202 sau commit |
+| Matching → Trip | POST /internal/trips/:id/assignment; GET /internal/trips/:id/matching-state; POST /internal/trips/:id/no-driver-found | Matching callback token; assignment và no-driver-found 202 sau commit (ADR-0004) |
+| Trip → RabbitMQ → Gateway | exchange `trip.events` (topic, routing key = loại sự kiện), queue `gateway.trip-events` | ADR-0002; publisher confirm; Gateway chống trùng theo eventId; `TRIP_EVENT_TRANSPORT=http` quay về POST /internal/events/trips |
 | Driver REST → Matching | GET active/detail offer; POST accept/decline | JWT DRIVER, issuer/JWKS Driver, audience matching-service; decision có Idempotency-Key |
 | Matching → Realtime | Rabbit DRIVER_TRIP_OFFER / UPDATED, đọc state Matching | Publisher confirms/manual ACK; WS driver.trip.offer / updated |
 

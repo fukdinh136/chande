@@ -3,12 +3,12 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Trip, API Gateway, Payment, Price, Driver |
-| Rà soát | 2026-10-27 |
+| Rà soát | 2026-11-22 |
 | Quy ước | [Format và số liệu](../quy-uoc-tai-lieu.md) |
 
 ## Trạng thái
 
-Đề xuất — phase 1, cải tiến P1.3 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md).
+**Đã triển khai bước expand + migrate 2026-11-22 trên nhánh `perf/adr-0008-trip-outbox`, chờ đo tải và nhóm duyệt.** Bước contract (xoá đường HTTP) để sau khi đo, giống [ADR-0001](0001-matching-so-huu-tim-ung-vien.md). Phase 1, cải tiến P1.3 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md). Chi tiết ở [mục Triển khai](#triển-khai-2026-11-22).
 
 ## Bối cảnh
 
@@ -47,3 +47,22 @@ Các ứng dụng đặt xe lớn dùng một trục event chung (thường là 
 - Trip không còn biến `GATEWAY_EVENTS_*`, `NOTIFICATION_*`; Gateway không còn endpoint nhận POST event từ Trip.
 - Tắt Gateway 1 phút trong lúc chạy chuyến; sau khi bật lại, khách nhận đủ event đúng thứ tự.
 - Replay cùng một message không tạo hiệu ứng lặp ở consumer (có test).
+
+## Triển khai (2026-11-22)
+
+| Phần | Thay đổi |
+| --- | --- |
+| Trip | Đích outbox mới `bus` (migration mở rộng `CHECK` của `outbox_deliveries`). `TripEventBus` ([bus.ts](../../service/trip-service/src/infrastructure/outbox/bus.ts)) publish lên exchange topic `trip.events`, routing key là loại sự kiện, `persistent`, `messageId = eventId`, trace context trong header. Publisher confirm: chỉ đánh dấu `delivered` khi broker xác nhận. `mandatory`: chưa có queue nào bind thì message bị trả về và ở lại outbox. Lệnh tới Matching vẫn HTTP |
+| Gateway | Consumer `TripEventBusListener` trên queue `gateway.trip-events` (bind `trip.#`), dùng chung parser và inbox Redis của đường HTTP nên chống trùng theo `eventId` và bỏ `version` cũ. Lỗi tạm thời (Redis) → hàng chờ `gateway.trip-events.retry` 5 giây, tối đa 60 lần; message hỏng, `eventId` dùng lại hoặc hết lượt → `gateway.trip-events.dlq`. Health của RabbitMQ không làm Gateway DOWN |
+| Công tắc | `TRIP_EVENT_TRANSPORT` lúc deploy (mặc định `bus`). `http` đưa Trip về POST `/internal/events/trips` và tắt consumer của Gateway; endpoint HTTP vẫn còn cho tới bước contract |
+
+Khác với bản đề xuất: inbox chống trùng của Gateway vẫn là Redis (đã có từ trước, cùng Lua với đường HTTP), không phải bảng database. Retry dùng hàng chờ TTL thay cho DLX nhiều tầng.
+
+| Tiêu chí | Kết quả 2026-11-22 |
+| --- | --- |
+| Gateway tắt vẫn không mất event | Đạt trên stack Docker Compose: tắt Gateway, chuyến bị huỷ `NO_DRIVER_FOUND` trong lúc đó; outbox của Trip ghi `delivered` (broker đã nhận) và `trip.cancelled` nằm trong `gateway.trip-events`; bật lại Gateway thì cả `trip.searching` và `trip.cancelled` được nhận `ACCEPTED` và có trong Redis stream |
+| Replay cùng message không tạo hiệu ứng lặp | Đạt: inbox trả `DUPLICATE`/`STALE` như đường HTTP; test đơn vị của consumer cho từng kết quả (ack, DLQ, retry, hết lượt) |
+| Thêm consumer không cần sửa Trip | Đạt về thiết kế: Trip không biết queue nào; consumer tự khai báo queue của mình |
+| Smoke qua Gateway thật | Đạt ở cả `bus` và `http` (8 sự kiện mỗi lần smoke, DLQ rỗng) |
+| Trip không còn `GATEWAY_EVENTS_*`, Gateway không còn endpoint POST | **Chưa**: bước contract, làm sau khi đo tải so sánh `bus` và `http` |
+| Đo tải | **Chưa đo** |

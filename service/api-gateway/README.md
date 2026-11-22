@@ -111,6 +111,7 @@ Production cần bật AOF cho Redis (`appendonly yes`) để "đã lưu" thật
 | `RIDER_JWT_ISSUER`, `RIDER_JWKS_URI` | `https://identity.example.invalid/rider`, `http://localhost:3011/.well-known/jwks.json` | Issuer token khách |
 | `DRIVER_JWT_ISSUER`, `DRIVER_JWKS_URI` | `https://identity.example.invalid/driver`, `http://localhost:3003/.well-known/jwks.json` | Issuer token tài xế |
 | `TRIP_SERVICE_TOKEN` | giá trị dev | Token Trip dùng gọi `/internal/events/trips` (≥ 32 ký tự, **đổi khi deploy**) |
+| `TRIP_EVENTS_BUS`, `RABBITMQ_URL` | false, `amqp://guest:guest@localhost:5672` | ADR-0002: `true` thì nhận sự kiện chuyến từ queue `gateway.trip-events` (exchange `trip.events`); lỗi Redis retry sau 5 giây, tối đa 60 lần; message hỏng, `eventId` dùng lại hoặc hết lượt vào `gateway.trip-events.dlq`. Endpoint HTTP vẫn giữ cho `TRIP_EVENT_TRANSPORT=http` |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | localhost, 6379 | Redis |
 | `AUTH_MAX_ATTEMPTS` | 5 | Số lần thử đăng nhập/OTP mỗi phút mỗi IP (IP thật từ `X-Forwarded-For` do edge đặt) |
 | `DRIVER_PROXY_TOKEN` | rỗng | Credential để Driver tin `X-Driver-Client-IP` do Gateway gửi; trùng `GATEWAY_PROXY_TOKEN` của Driver |

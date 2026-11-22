@@ -4,20 +4,23 @@ import type { Config } from '../../bootstrap/config';
 import { JsonHttpClient, TransportError } from '../clients/http';
 import { MatchingClient } from '../clients/matching';
 import { PgOutbox, type Delivery } from './repository';
+import type { TripEventBus } from './bus';
 import { recordDelivery, traced } from './metrics';
 /** `accepts` false: the destination is not configured here, so its pending deliveries are skipped instead of sent. */
 export interface DeliverySender { send(delivery: Delivery): Promise<void>; accepts?(destination: string): boolean }
 export class HttpDeliverySender implements DeliverySender {
   private readonly matching: MatchingClient;
   private readonly targets: Record<string, JsonHttpClient>;
-  constructor(config: Config) {
-    this.targets = { matching: new JsonHttpClient(config.matchingUrl, config.matchingToken, config.httpTimeout), gateway: new JsonHttpClient(config.gatewayUrl, config.gatewayToken, config.httpTimeout), ...(config.notificationUrl ? { notification: new JsonHttpClient(config.notificationUrl, config.notificationToken, config.httpTimeout) } : {}) };
+  /** `bus` publishes events to RabbitMQ (ADR-0002). Deliveries to a destination not configured here are skipped. */
+  constructor(config: Config, private readonly bus?: TripEventBus) {
+    this.targets = { matching: new JsonHttpClient(config.matchingUrl, config.matchingToken, config.httpTimeout), ...(config.gatewayUrl ? { gateway: new JsonHttpClient(config.gatewayUrl, config.gatewayToken, config.httpTimeout) } : {}), ...(config.notificationUrl ? { notification: new JsonHttpClient(config.notificationUrl, config.notificationToken, config.httpTimeout) } : {}) };
     this.matching = new MatchingClient(this.targets.matching!);
   }
-  accepts(destination: string) { return destination in this.targets; }
+  accepts(destination: string) { return destination === 'bus' ? !!this.bus : destination in this.targets; }
   async send(delivery: Delivery): Promise<void> {
     const requestId = randomUUID();
     if (delivery.kind !== 'event') { if (delivery.destination !== 'matching') throw new TransportError(false, 'INVALID_DESTINATION'); return this.matching.send(delivery.kind, delivery.payload, requestId); }
+    if (delivery.destination === 'bus') { if (!this.bus) throw new TransportError(false, 'INVALID_DESTINATION'); return this.bus.publish(delivery.payload); }
     const ack = await this.targets[delivery.destination]!.post('/internal/events/trips', delivery.payload, requestId, z.object({ eventId: z.uuid(), accepted: z.literal(true) }).strict(), 202);
     if (ack.eventId !== delivery.payload.eventId) throw new TransportError(false, 'INVALID_ACK');
   }

@@ -102,3 +102,14 @@ test('PostgreSQL gets a quarter of a 1.5 GiB pod as shared_buffers, in compose a
   assert.match(generate,/const postgresArgs = postgres\.args;/);
   assert.match(generate,/\],postgres\.memory\),service\('postgres'/);
 });
+test('ADR-0002: trip events go over RabbitMQ by default; TRIP_EVENT_TRANSPORT=http switches both sides back',()=>{
+  const previous=process.env.TRIP_EVENT_TRANSPORT;
+  try{
+    delete process.env.TRIP_EVENT_TRANSPORT;let apps=stack(secrets);
+    assert.equal(apps['trip-worker'].env.TRIP_EVENT_TRANSPORT,'bus');assert.match(apps['trip-worker'].env.RABBITMQ_URL,/^amqp:\/\/backend:.+@rabbitmq:5672$/);
+    assert.equal(apps['gateway-api'].env.TRIP_EVENTS_BUS,'true');assert.equal(apps['gateway-api'].env.RABBITMQ_URL,apps['trip-worker'].env.RABBITMQ_URL);
+    process.env.TRIP_EVENT_TRANSPORT='http';apps=stack(secrets);
+    assert.equal(apps['trip-worker'].env.TRIP_EVENT_TRANSPORT,'http');assert.equal(apps['gateway-api'].env.TRIP_EVENTS_BUS,'false');
+    process.env.TRIP_EVENT_TRANSPORT='kafka';assert.throws(()=>stack(secrets),/TRIP_EVENT_TRANSPORT/);
+  }finally{if(previous===undefined)delete process.env.TRIP_EVENT_TRANSPORT;else process.env.TRIP_EVENT_TRANSPORT=previous}
+});

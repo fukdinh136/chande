@@ -52,7 +52,7 @@ for (const [name, a] of Object.entries(apps)) {
   const envFile = path.join(out, name + '.env'); fs.writeFileSync(envFile, Object.entries(a.env).map(([k,v])=>k+'='+v).join('\n')+'\n', { mode:0o600 });
   const dependencies = { postgres: {condition:'service_healthy'}, redis: {condition:'service_healthy'} };
   if (a.migration) dependencies[name.replace('-api','-migrate')] = {condition:'service_completed_successfully'};
-  if (name==='realtime-api') dependencies.rabbitmq = {condition:'service_healthy'};
+  if (['realtime-api','trip-worker','gateway-api'].includes(name)) dependencies.rabbitmq = {condition:'service_healthy'};
   for (const dependency of a.dependencies ?? []) dependencies[dependency] = {condition:'service_healthy'};
   const keyName = a.service==='user' ? 'user.pem' : 'driver.pem';
   compose.services[name] = { image:a.image, init:true, env_file:[absolute(envFile)], depends_on:dependencies, healthcheck:health(probe), stop_grace_period:'60s', ...(a.command ? {command:a.command}:{}), ...(a.keys ? {volumes:[`${absolute(path.join(out,keyName))}:/run/keys/${keyName}:ro`]}:{}) };

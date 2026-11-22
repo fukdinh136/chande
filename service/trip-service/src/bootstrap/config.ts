@@ -7,6 +7,8 @@ export interface Config {
   jwksUrl: string; issuer: string; audience: string; cursorKey: string; callbackToken: string;
   driverLookupToken?: string; driverJwksUrl?: string; driverIssuer?: string;
   routingUrl: string; pricingUrl: string; matchingUrl: string; gatewayUrl: string; notificationUrl: string;
+  /** ADR-0002: `bus` publishes events to RABBITMQ_URL (exchange trip.events); `http` posts them to the Gateway as before. */
+  eventTransport: 'bus' | 'http'; rabbitUrl: string;
   routingToken: string; pricingToken: string; matchingToken: string; gatewayToken: string; notificationToken: string;
   httpTimeout: number; pollInterval: number; batchSize: number; concurrency: number;
   leaseMs: number; retryBase: number; retryMax: number; retentionMs: number; purgeInterval: number; heartbeatMaxAge: number; swagger: boolean;
@@ -37,6 +39,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, kind: ProcessKi
     if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) throw new Error(`Invalid URL: ${name}`);
     return value.replace(/\/$/, '');
   };
+  // ADR-0002: trip events go to the RabbitMQ exchange trip.events (bus) or, for rollback and comparison, over HTTP.
+  const eventTransport = env.TRIP_EVENT_TRANSPORT ?? 'bus';
+  if (!['bus', 'http'].includes(eventTransport)) throw new Error('Invalid TRIP_EVENT_TRANSPORT');
+  const bus = eventTransport === 'bus';
+  const amqp = (name: string, needed: boolean): string => {
+    if (!needed && !env[name]) return '';
+    const value = required(name); if (!['amqp:', 'amqps:'].includes(new URL(value).protocol)) throw new Error(`Invalid URL: ${name}`);
+    return value;
+  };
   const mode = env.INTEGRATION_MODE ?? 'real';
   if (!['mock', 'real'].includes(mode) || (production && mode === 'mock')) throw new Error('Invalid integration mode');
   const api = kind === 'api'; const worker = kind === 'worker';
@@ -57,9 +68,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, kind: ProcessKi
     cursorKey: secret('CURSOR_SIGNING_KEY', api), callbackToken: secret('MATCHING_CALLBACK_TOKEN', api),
     driverLookupToken: secret('DRIVER_LOOKUP_TOKEN', false), driverJwksUrl: url('DRIVER_AUTH_JWKS_URL', false), driverIssuer: env.DRIVER_AUTH_JWT_ISSUER,
     routingUrl: url('ROUTING_BASE_URL', api), pricingUrl: url('PRICING_BASE_URL', api),
-    matchingUrl: url('MATCHING_BASE_URL', worker), gatewayUrl: url('GATEWAY_EVENTS_BASE_URL', worker), notificationUrl: url('NOTIFICATION_BASE_URL', false),
+    matchingUrl: url('MATCHING_BASE_URL', worker), gatewayUrl: url('GATEWAY_EVENTS_BASE_URL', worker && !bus), eventTransport: eventTransport as 'bus' | 'http', rabbitUrl: amqp('RABBITMQ_URL', worker && bus), notificationUrl: url('NOTIFICATION_BASE_URL', false),
     routingToken: secret('ROUTING_TOKEN', api), pricingToken: secret('PRICING_TOKEN', api), matchingToken: secret('MATCHING_TOKEN', worker),
-    gatewayToken: secret('GATEWAY_EVENTS_TOKEN', worker), notificationToken: secret('NOTIFICATION_TOKEN', worker && Boolean(env.NOTIFICATION_BASE_URL?.trim())),
+    gatewayToken: secret('GATEWAY_EVENTS_TOKEN', worker && !bus), notificationToken: secret('NOTIFICATION_TOKEN', worker && Boolean(env.NOTIFICATION_BASE_URL?.trim())),
     httpTimeout, leaseMs, retryBase, retryMax,
     pollInterval: integer('OUTBOX_POLL_INTERVAL_MS', 250), batchSize: integer('OUTBOX_BATCH_SIZE', 100, 1000), concurrency: integer('OUTBOX_CONCURRENCY', 5, 100),
     retentionMs: integer('OUTBOX_RETENTION_MS', 86400000, 2592000000), purgeInterval: integer('OUTBOX_PURGE_INTERVAL_MS', 600000, 86400000),
