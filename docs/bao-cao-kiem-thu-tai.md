@@ -1055,3 +1055,48 @@ L3 (5000 tài xế, 32 chuyến/giây), các lần chạy sau thay đổi:
 - T1 chưa có số theo từng bậc.
 - Máy đo dùng chung với các ứng dụng khác; ba lần đo đã bị bỏ vì lý do này (mục 16.2).
 
+
+## 17. Mức gãy mới và các chỉnh sửa không tốn tiền (2026-11-21)
+
+Mục đích: xem có nâng được trần trên máy đo hiện tại (Apple M5 10 nhân gồm 4 nhân hiệu năng và 6 nhân tiết kiệm điện, 16 GB; VM Docker 10 CPU, 8 GB) trước khi tính chuyện thuê máy lớn hơn. Mã nguồn ở commit `8e4b962`, tắt observability, 1000 tài xế, mỗi bậc 2 phút, dữ liệu test đã dọn bằng `accounts.cjs purge` trước loạt đo. Lệnh chung: `node deploy/load/run.cjs --drivers 1000 --radius 6000 --rate <bậc> --duration 2m --warmup 30 --in-cluster 1 --events ws`.
+
+### 17.1 Mức gãy với cấu hình hiện tại
+
+| Đặt chuyến/giây | Được gán | Gán chuyến p95 | Lượt bị bỏ | Commit/giây | CPU PostgreSQL TB / max | CPU matching-worker TB | Đạt |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 72 | 8640/8640 | 1,41 s | 0 | 3240 | 1057 / 1226 m | 507 m | Đạt |
+| 88 | 10560/10560 | 1,27 s | 0 | 3974 | 1271 / 1410 m | 608 m | Đạt |
+| 104 | 11678/11678 (khoảng 90/s) | 11,1 s | 803 | 4060 | 1524 / 1654 m | 678 m | **Không đạt** |
+
+- **Mức gãy với 1000 tài xế nay nằm giữa 88 và 104 chuyến/giây**, trước đó (mục 16.4, 2026-11-18) là 64–72. Cũng ở 72, lần trước không đạt (p95 14,3 s, 617 lượt bị bỏ).
+- Từ lần đó đã có: Matching đọc trang tài xế tiếp theo (mục 16.7), câu tìm chuyến đang mở của khách (16.6), PostgreSQL 1,5 GiB (16.11) và dọn dữ liệu. Chưa tách được phần đóng góp của từng thay đổi.
+- Commit/giây lên tới khoảng 4000, vượt mức trần khoảng 2900 ở mục 14.5, nên việc ghi WAL không còn là giới hạn đầu tiên.
+- Ở 104, thời gian dồn vào đoạn `SEARCHING` → offer (p95 10,6 s); các đoạn sau vẫn dưới 0,25 s. Ack GPS p95 21 ms.
+- Bậc 80 và 120 không chạy được: `accounts.cjs tokens` nhận trang HTML từ edge ngay sau một lần đo nặng. Đây là lỗi của bộ đo, chưa điều tra.
+
+### 17.2 Thử nghiệm ở 104 chuyến/giây
+
+Mỗi dòng giữ thay đổi của dòng trên, trừ dòng cuối là thử riêng.
+
+| Cấu hình | Được gán | Gán chuyến p95 | Lượt bị bỏ | Commit/giây | CPU PostgreSQL TB / max |
+| --- | --- | --- | --- | --- | --- |
+| Hiện tại: 2 core, `max_wal_size` 1 GB | 11678 | 11,1 s | 803 | 4060 | 1524 / 1654 m |
+| `max_wal_size` 4 GB | 11549 | 11,0 s | 932 | 4090 | 1527 / 1624 m |
+| + giới hạn CPU PostgreSQL 4 core | 11786 | 8,9 s | 695 | 4203 | 1587 / 1765 m |
+| + 2 replica matching-worker | 10324 (46 không gán, 15 lỗi) | 35,5 s | 2142 | 3875 | 1652 / 1899 m |
+
+- **`max_wal_size` 4 GB không thay đổi kết quả.**
+- **Cho PostgreSQL tới 4 core, nó vẫn chỉ dùng khoảng 1,6 core.** p95 giảm từ 11 xuống 8,9 giây nhưng vẫn không đạt; với một lần đo mỗi cấu hình, mức chênh này nằm trong dao động giữa các lần.
+- **2 replica matching-worker làm kết quả tệ hơn rõ** (p95 35,5 s, lượt bị bỏ gấp 3).
+- **CPU của máy Mac trong lúc tải chỉ còn 4–16% rảnh** (lấy mẫu `top` mỗi 8 giây trong lần 2 replica). Tổng CPU các pod khoảng 6 core trên VM 10 CPU, trong đó 6 nhân của máy là nhân tiết kiệm điện.
+- Toàn vẹn dữ liệu sạch ở cả sáu lần đo.
+- Các thay đổi đã được trả lại sau loạt đo: `alter system reset max_wal_size`, giới hạn CPU PostgreSQL 2 core, 1 replica matching-worker.
+
+### 17.3 Kết luận
+
+1. Ở khoảng 90 chuyến/giây, **giới hạn là CPU của chính máy đo**, không phải cấu hình PostgreSQL. Nâng giới hạn cho một pod hay thêm replica chỉ làm các process tranh nhau cùng một lượng CPU.
+2. Mục tiêu của kế hoạch (32 chuyến/giây) còn dư khoảng 2,7 lần trên máy này.
+3. Muốn đo trên khoảng 90 chuyến/giây, hoặc muốn C4 đạt (mục 15.7, cũng trượt vì cả cụm hết CPU), cần máy có nhiều CPU hơn. Khi đó PostgreSQL cũng cần đĩa ghi nhanh để commit không thành giới hạn trở lại (mục 14.5).
+4. Giới hạn: mỗi cấu hình một lần, chạy trên laptop dùng chung (lần đo mốc chạy pin, các lần sau cắm sạc), chưa đo các bậc giữa 88 và 104.
+
+Kết quả ở `deploy/.local/load/results/2026-11-21T03-48-31-453Z` (72), `03-53-10-970Z` (88), `03-56-49-332Z` (104), `04-01-06-545Z` (WAL 4 GB), `04-09-20-693Z` (4 core), `04-13-00-458Z` (2 replica); tên thư mục theo giờ UTC.

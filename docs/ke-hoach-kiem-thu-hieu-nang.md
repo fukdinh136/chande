@@ -93,7 +93,7 @@ Mục tiêu: biết mức gãy, **thành phần gãy đầu tiên**, và hệ th
 
 | ID | Kịch bản | Trạng thái |
 | --- | --- | --- |
-| S1 | 1000 tài xế, tăng 48 → 56 → 64 → 72 → 80 chuyến/giây, 2 phút mỗi bậc, dừng ở bậc đầu không đạt | Đo lại 2026-11-18: 64 đạt (p95 2,4 s), 72 không (617 lượt bị bỏ, PostgreSQL 1,43 core); mỗi bậc một lần, chưa đo 66–70 ([báo cáo 16.4](bao-cao-kiem-thu-tai.md#164-stress-testing)) |
+| S1 | 1000 tài xế, tăng 48 → 56 → 64 → 72 → 80 chuyến/giây, 2 phút mỗi bậc, dừng ở bậc đầu không đạt | Đo lại 2026-11-21: 72 và 88 đạt (p95 1,3–1,4 s), 104 không (803 lượt bị bỏ); giới hạn là CPU của máy đo, nâng CPU PostgreSQL hay `max_wal_size` không giúp ([báo cáo 17](bao-cao-kiem-thu-tai.md#17-mức-gãy-mới-và-các-chỉnh-sửa-không-tốn-tiền-2026-11-21)). Lần 2026-11-18: 64 đạt, 72 không ([báo cáo 16.4](bao-cao-kiem-thu-tai.md#164-stress-testing)) |
 | S2 | 5000 tài xế, tăng 32 → 40 → 48 → … tới bậc không đạt | Đã đo 2026-11-18: 40, 48, 56 đạt; 64 không đạt (146 lượt bị bỏ) ([báo cáo 16.4](bao-cao-kiem-thu-tai.md#164-stress-testing)) |
 | S3 | Đột biến (spike): 3000 khách đặt trong 2 phút trên nền 3500 tài xế | Sau khi sửa Matching (2026-11-18): 2754/3000 được gán (91,8%, trước đó 69%), chưa đạt 95% ([báo cáo 16.7](bao-cao-kiem-thu-tai.md#167-nhiều-người-cùng-lúc)) |
 | S4 | Hồi phục: ngay sau bậc không đạt của S1, chạy L1; phải đạt lại trong 5 phút | Đạt (2026-11-18): L1 ngay sau bậc 80 gán chuyến p95 0,78 s |
