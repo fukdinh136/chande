@@ -5,13 +5,13 @@
 const fs = require('node:fs'), path = require('node:path'), {spawn} = require('node:child_process');
 const {base, pause, args} = require('./lib.cjs');
 
-const o = args({drivers: 50, radius: 2000, ramp: 0, gpsMs: 10000, rate: 1, duration: '5m', warmup: 20, trips: 0, login: 0, events: 'poll', hold: 0, ridersOnline: 0, reads: 0, out: ''});
+const o = args({drivers: 50, radius: 2000, ramp: 0, gpsMs: 10000, rate: 1, duration: '5m', warmup: 20, trips: 0, login: 0, events: 'poll', hold: 0, ridersOnline: 0, reads: 0, renew: 1, out: ''});
 if (!o.out) throw new Error('--out is required');
 fs.mkdirSync(o.out, {recursive: true});
 const exited = child => new Promise(resolve => child.once('exit', code => resolve(code)));
 
 (async () => {
-  const drivers = spawn(process.execPath, [path.join(__dirname, 'drivers.cjs'), '--count', String(o.drivers), '--radius', String(o.radius), '--ramp', String(o.ramp), '--gps-ms', String(o.gpsMs), '--out', path.join(o.out, 'drivers.json')], {stdio: ['ignore', 'pipe', 'inherit']});
+  const drivers = spawn(process.execPath, [path.join(__dirname, 'drivers.cjs'), '--count', String(o.drivers), '--radius', String(o.radius), '--ramp', String(o.ramp), '--gps-ms', String(o.gpsMs), '--renew', String(o.renew), '--out', path.join(o.out, 'drivers.json')], {stdio: ['ignore', 'pipe', 'inherit']});
   await new Promise((resolve, reject) => {
     drivers.stdout.on('data', chunk => { process.stdout.write(chunk); if (/READY \d+/.test(chunk)) resolve(); });
     drivers.once('exit', code => reject(new Error('Driver simulator exited early with code ' + code)));

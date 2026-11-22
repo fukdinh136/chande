@@ -9,7 +9,7 @@ import { UpdateLocation } from '../../application/use-cases/update-location';
 import { RealtimeError } from '../../domain/errors';
 import { LocationDto } from './dto/location.dto';
 import { envelope, errorResponse } from '../http/response';
-import { DriverSocketGuard, SocketSession } from './guards/driver-socket.guard';
+import { armExpiry, DriverSocketGuard, renew, SocketSession } from './guards/driver-socket.guard';
 import { OfferConsumer } from '../../infrastructure/offers/consumer';
 import { measured, observeSockets } from './metrics';
 @WebSocketGateway({ namespace: '/realtime', transports: ['websocket'], maxHttpBufferSize: 4096 })
@@ -40,8 +40,7 @@ export class LocationGateway implements OnGatewayInit, OnGatewayDisconnect {
     });
     server.on('connection', socket => {
       const state = socket.data as SocketSession;
-      state.expiryTimer = setTimeout(() => socket.disconnect(true), Math.min(2147483647, Math.max(1, state.identity!.expiresAt - Date.now())));
-      state.expiryTimer.unref();
+      armExpiry(state, () => socket.disconnect(true));
       void socket.join('driver:' + state.identity!.driverId);
       void this.offers.replay(state.identity!.driverId).catch(() => {});
     });
@@ -51,6 +50,19 @@ export class LocationGateway implements OnGatewayInit, OnGatewayDisconnect {
     if (state.expiryTimer) clearTimeout(state.expiryTimer);
     delete state.identity;
     // GPS expiry is independent of disconnect; never change Driver intent or Trip.
+  }
+  /** B5: renew the JWT of an open socket; replies `{ data: { expiresAt } }` or an error, the socket stays open either way. */
+  @SubscribeMessage('driver.auth.refresh')
+  async refresh(@ConnectedSocket() socket: Socket, @MessageBody() payload: unknown) {
+    const requestId = randomUUID();
+    try {
+      const token = payload && typeof payload === 'object' && 'token' in payload ? payload.token : undefined;
+      if (typeof token !== 'string') throw new RealtimeError('INVALID_REQUEST');
+      const state = socket.data as SocketSession;
+      renew(state, await this.verifier.verify(token));
+      armExpiry(state, () => socket.disconnect(true));
+      return envelope({ expiresAt: new Date(state.identity!.expiresAt).toISOString() }, requestId);
+    } catch (error) { return errorResponse(error, requestId); }
   }
   @SubscribeMessage('driver.location.update')
   async location(@ConnectedSocket() socket: Socket, @MessageBody() payload: unknown) {

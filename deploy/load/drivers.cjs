@@ -5,11 +5,14 @@ const fs = require('node:fs');
 const {io} = require('../../service/matching-service/node_modules/socket.io-client');
 const {base, center, pause, request, withRateLimit, readJson, writeJson, around, pool, percentile, args, randomUUID} = require('./lib.cjs');
 
-const options = args({count: 50, gpsMs: 3000, radius: 2000, ramp: 0, out: ''});
+// --renew 1 (default): like the app (B5), each driver renews its JWT on the open GPS socket 1 to 3 minutes before it
+// expires, at a random point. --renew 0 keeps the old behaviour: REST tokens refreshed every 10 minutes for all drivers,
+// and Realtime closing every socket when the JWT it connected with expires (5000 drivers reconnecting together).
+const options = args({count: 50, gpsMs: 3000, radius: 2000, ramp: 0, renew: 1, out: ''});
 const all = readJson('drivers.json', []);
 if (all.length < options.count) throw new Error(`Only ${all.length} load drivers seeded; run: node deploy/load/accounts.cjs seed --drivers ${options.count}`);
 const drivers = all.slice(0, options.count);
-const stats = {onlineFailures: 0, gpsSent: 0, gpsAcked: 0, gpsErrors: 0, gpsAckMs: [], offers: 0, accepted: 0, acceptErrors: 0, acceptMs: [], disconnects: 0, errors: {}};
+const stats = {onlineFailures: 0, gpsSent: 0, gpsAcked: 0, gpsErrors: 0, gpsAckMs: [], offers: 0, accepted: 0, acceptErrors: 0, acceptMs: [], disconnects: 0, renewals: 0, renewErrors: 0, errors: {}};
 const fail = (key, e) => { const k = key + ':' + (e.code ?? e.status ?? e.message); stats.errors[k] = (stats.errors[k] ?? 0) + 1; };
 let stopping = false;
 
@@ -71,6 +74,25 @@ async function accept(driver, offer) {
   } catch (e) { stats.acceptErrors++; fail('accept', e); }
 }
 
+// The exp claim of a JWT, in milliseconds.
+const expiryOf = token => { try { return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).exp * 1000; } catch { return Date.now() + 10 * 60 * 1000; } };
+// B5: refresh the REST token and send it on the open socket, then plan the next renewal from the new token.
+function scheduleRenew(driver, delay = Math.max(5000, expiryOf(driver.token) - Date.now() - 60000 - Math.random() * 120000)) {
+  clearTimeout(driver.renewTimer);
+  driver.renewTimer = setTimeout(async () => {
+    if (stopping) return;
+    try {
+      await refresh(driver);
+      if (driver.socket?.connected) {
+        const reply = await driver.socket.timeout(5000).emitWithAck('driver.auth.refresh', {token: driver.token});
+        if (!reply?.data) throw new Error(reply?.error?.code ?? 'RENEW_REJECTED');
+      }
+      stats.renewals++; scheduleRenew(driver);
+    } catch (e) { stats.renewErrors++; fail('renew', e); scheduleRenew(driver, 15000 + Math.random() * 15000); }
+  }, delay);
+  driver.renewTimer.unref?.();
+}
+
 function connect(driver) {
   return new Promise((resolve, reject) => {
     // Like the app, auth is a callback: Realtime disconnects a socket when its JWT expires, and each reconnect must send the current token.
@@ -92,12 +114,12 @@ function summary() {
   const ms = values => ({count: values.length, p50: percentile(values, 50), p95: percentile(values, 95), max: values.length ? values.reduce((a, b) => (b > a ? b : a)) : null});
   const cpu = process.cpuUsage(startedCpu), simulatorCpuCores = Math.round((cpu.user + cpu.system) / 1000 / Math.max(1, Date.now() - startedAt) * 100) / 100;
   return {drivers: drivers.length, gpsIntervalMs: options.gpsMs, radiusMeters: options.radius, simulatorCpuCores, onlineFailures: stats.onlineFailures, gpsSent: stats.gpsSent, gpsAcked: stats.gpsAcked, gpsErrors: stats.gpsErrors, gpsAckMs: ms(stats.gpsAckMs),
-    offers: stats.offers, accepted: stats.accepted, acceptErrors: stats.acceptErrors, acceptHttpMs: ms(stats.acceptMs), disconnects: stats.disconnects, errors: stats.errors};
+    offers: stats.offers, accepted: stats.accepted, acceptErrors: stats.acceptErrors, acceptHttpMs: ms(stats.acceptMs), disconnects: stats.disconnects, renewals: stats.renewals, renewErrors: stats.renewErrors, errors: stats.errors};
 }
 
 async function stop() {
   if (stopping) return; stopping = true;
-  for (const d of drivers) clearInterval(d.timer);
+  for (const d of drivers) { clearInterval(d.timer); clearTimeout(d.renewTimer); }
   clearTimeout(saveTimer); save();
   await pool(drivers.filter(d => d.token), 10, async d => {
     try { await request('/drivers/me/availability', {method: 'PUT', body: {desiredStatus: 'OFFLINE'}, token: d.token}); } catch (e) { fail('offline', e); }
@@ -132,7 +154,9 @@ process.on('SIGINT', stop); process.on('SIGTERM', stop); process.on('SIGHUP', st
     sendGps(driver); driver.timer = setInterval(() => sendGps(driver), options.gpsMs);
   });
   console.info(`READY ${online.length}`);
-  // Access tokens last 15 minutes; refresh REST tokens well before that.
-  setInterval(() => { void pool(drivers, 5, d => refresh(d).catch(e => fail('refresh', e))); }, 10 * 60 * 1000).unref();
+  // Access tokens last 15 minutes. With --renew 1 each driver renews on its own schedule (B5); otherwise refresh REST
+  // tokens for everyone every 10 minutes and let Realtime close the sockets at expiry, as before.
+  if (options.renew) for (const d of online) scheduleRenew(d);
+  else setInterval(() => { void pool(drivers, 5, d => refresh(d).catch(e => fail('refresh', e))); }, 10 * 60 * 1000).unref();
   setInterval(() => { const s = summary(); console.info(`drivers gps=${s.gpsAcked}/${s.gpsSent} ackP95=${s.gpsAckMs.p95}ms offers=${s.offers} accepted=${s.accepted} errors=${s.acceptErrors + s.gpsErrors}`); }, 15000).unref();
 })().catch(async e => { console.error('drivers failed: ' + e.message + (e.cause ? ` (${e.cause.code ?? ''} ${e.cause.message ?? ''})` : '')); process.exitCode = 1; await stop(); });

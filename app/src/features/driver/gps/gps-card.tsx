@@ -18,7 +18,13 @@ export function GpsCard({ desiredStatus, selectedVehicleId,activeTrip=false }: {
     if (!session || session.driver.driverId !== driverId) throw new Error('UNAUTHENTICATED');
     return session.accessToken;
   }, [runtime, driverId]);
-  const gps = useDriverGps(requested && allowed, token,runtime.config.gatewayBase);
+  // B5: a token valid for at least 5 more minutes, to renew the open GPS socket before its JWT expires.
+  const renew = useCallback(async (signal: AbortSignal) => {
+    const value = await runtime.session.accessToken(signal, 5 * 60 * 1000);
+    if (runtime.session.getSnapshot().session?.driver.driverId !== driverId) throw new Error('UNAUTHENTICATED');
+    return value;
+  }, [runtime, driverId]);
+  const gps = useDriverGps(requested && allowed, token,runtime.config.gatewayBase, renew);
   return <View style={{paddingHorizontal:20,paddingVertical:8,backgroundColor:palette.card,borderBottomWidth:1,borderColor:palette.line}}><View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}><Notice>{gps.lastAcceptedAt?'Vị trí đang cập nhật':'Bật GPS để nhận chuyến gần bạn'}</Notice><Switch accessibilityLabel="Bật GPS" value={requested} disabled={!requested&&!allowed} onValueChange={setRequested} trackColor={{true:palette.primary,false:'#cad8d4'}}/></View>
     {!allowed && <Notice>Cần đăng nhập, chọn xe và bật nhận cuốc để gửi vị trí.</Notice>}
     <Notice>{gps.message}</Notice>

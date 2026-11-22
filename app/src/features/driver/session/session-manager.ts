@@ -99,12 +99,13 @@ export class SessionManager {
     void job.then(finish, finish);
     return job;
   }
-  async accessToken(signal?: AbortSignal): Promise<string> {
+  /** `minValidityMs`: refresh first when the token expires sooner than this (B5 renews the GPS socket minutes early). */
+  async accessToken(signal?: AbortSignal, minValidityMs = 30000): Promise<string> {
     const epoch = this.epoch;
     let current = this.state.session;
     if (!current) throw new ApiError('UNAUTHENTICATED', 401);
     if (signal?.aborted) throw new ApiError('CANCELLED');
-    if (this.expiresAt - Date.now() < 30000) current = await this.refresh(current.accessToken);
+    if (this.expiresAt - Date.now() < minValidityMs) current = await this.refresh(current.accessToken);
     if (epoch !== this.epoch || signal?.aborted) throw new ApiError('CANCELLED');
     return current.accessToken;
   }

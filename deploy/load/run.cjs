@@ -8,7 +8,7 @@
 const fs = require('node:fs'), path = require('node:path'), {spawn, spawnSync} = require('node:child_process');
 const {dir, base, args, kubectl} = require('./lib.cjs');
 
-const options = args({drivers: 50, radius: 2000, ramp: 0, rate: 1, duration: '5m', warmup: 20, interval: 10, trips: 0, drain: 900, gpsMs: 10000, login: 0, events: 'poll', inCluster: 0, ridersOnline: 0, reads: 0});
+const options = args({drivers: 50, radius: 2000, ramp: 0, rate: 1, duration: '5m', warmup: 20, interval: 10, trips: 0, drain: 900, gpsMs: 10000, login: 0, events: 'poll', inCluster: 0, ridersOnline: 0, reads: 0, renew: 1});
 const script = (name, extra) => { const r = spawnSync(process.execPath, [path.join(__dirname, name), ...extra], {stdio: 'inherit'}); if (r.status !== 0) throw new Error(`${name} ${extra[0] ?? ''} failed`); };
 const stamp = new Date().toISOString().replace(/[:.]/g, '-'), out = path.join(dir, 'results', stamp);
 fs.mkdirSync(out, {recursive: true});
@@ -36,7 +36,7 @@ function startRunner() {
   script('accounts.cjs', ['cleanup']);
 
   const traffic = ['--drivers', options.drivers, '--radius', options.radius, '--ramp', options.ramp, '--gps-ms', options.gpsMs, '--rate', options.rate, '--duration', options.duration,
-    '--warmup', options.warmup, '--trips', options.trips, '--login', options.login, '--events', options.events, '--hold', options.trips ? 1 : 0, '--riders-online', options.ridersOnline, '--reads', options.reads].map(String);
+    '--warmup', options.warmup, '--trips', options.trips, '--login', options.login, '--events', options.events, '--hold', options.trips ? 1 : 0, '--riders-online', options.ridersOnline, '--reads', options.reads, '--renew', options.renew].map(String);
   if (options.inCluster) startRunner();
   const child = options.inCluster
     ? spawn('kubectl', ['--context', 'docker-desktop', '-n', 'chande-local', 'exec', RUNNER, '--', 'node', 'deploy/load/traffic.cjs', ...traffic, '--out', REMOTE], {stdio: ['ignore', 'pipe', 'inherit']})

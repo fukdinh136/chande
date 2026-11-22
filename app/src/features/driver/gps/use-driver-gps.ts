@@ -16,7 +16,7 @@ const explanation: Record<string, string> = {
   GPS_DISCONNECTED: 'GPS chưa kết nối. Đang chờ kết nối lại.',
   RATE_LIMITED: 'GPS gửi quá nhanh. Đang chờ chu kỳ tiếp theo.',
 };
-export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => Promise<string>, gatewayBase?:string|null) {
+export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => Promise<string>, gatewayBase?:string|null, renew?: (signal: AbortSignal) => Promise<string>) {
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [message, setMessage] = useState('GPS chưa bật.');
   const [lastAcceptedAt, setLastAcceptedAt] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => P
         const permission = await Location.requestForegroundPermissionsAsync();
         if (disposed) return;
         if (!permission.granted) { publish('Bạn chưa cấp quyền vị trí. Không gửi GPS.'); return; }
-        client = new SocketLocationClient(base, () => token(controller.signal), publish, () => { void tick(); });
+        client = new SocketLocationClient(base, () => token(controller.signal), publish, () => { void tick(); }, renew ? () => renew(controller.signal) : undefined);
         watcher=await Location.watchPositionAsync({accuracy:Location.Accuracy.High,timeInterval:1000,distanceInterval:1},position=>{
           if(disposed)return;const accuracy=position.coords.accuracy;if(accuracy===null||!Number.isFinite(accuracy))return;
           const value={lat:position.coords.latitude,lng:position.coords.longitude,accuracy,timestamp:position.timestamp,speed:position.coords.speed??-1,heading:position.coords.heading??-1};
@@ -73,6 +73,6 @@ export function useDriverGps(enabled: boolean, token: (signal: AbortSignal) => P
       }
     })();
     return () => { disposed = true; controller.abort(); halt(); };
-  }, [enabled, foreground, token, gatewayBase]);
+  }, [enabled, foreground, token, gatewayBase, renew]);
   return { message: enabled && foreground ? message : 'Định vị đang tạm dừng.', lastAcceptedAt };
 }

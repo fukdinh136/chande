@@ -32,6 +32,10 @@ Freshness default/tối đa 30.000 ms; recorded time và receive time phải tr�
 
 ## 3. S01 — Socket.IO /realtime, driver.location.update
 
+### Làm mới JWT trên socket đang mở (B5)
+
+`driver.auth.refresh` với payload `{ "token": "<JWT mới>" }`, có ack. Server kiểm token như lúc kết nối, chỉ nhận khi token hiện tại còn hạn và JWT mới cùng `driverId`; thành công thì dời thời điểm đóng socket theo `exp` mới và trả `{ data: { expiresAt } }`, lỗi trả `{ error: { code } }` (`INVALID_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`) và socket vẫn mở tới hạn cũ. App tài xế và bộ giả lập tải gửi token mới vào một thời điểm ngẫu nhiên 1–3 phút trước khi hết hạn, nên tài xế đăng nhập cùng lúc không còn bị đóng socket và nối lại cùng lúc mỗi 15 phút ([báo cáo kiểm thử tải, mục 16.9](../../../docs/bao-cao-kiem-thu-tai.md#169-soak-k3-2-giờ)).
+
 ### Kết nối và xác thực
 
 Socket.IO v4 namespace /realtime trên cùng port HTTP; transport chỉ websocket. Engine.IO path mặc định /socket.io/ chưa có cấu hình đổi. Đây là Socket.IO protocol, không phải endpoint WebSocket thuần.
