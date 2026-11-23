@@ -3,12 +3,12 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Trip, API Gateway, Payment, Price, Driver |
-| Rà soát | 2026-11-22 |
+| Rà soát | 2026-11-23 |
 | Quy ước | [Format và số liệu](../quy-uoc-tai-lieu.md) |
 
 ## Trạng thái
 
-**Đã triển khai bước expand + migrate 2026-11-22 trên nhánh `perf/adr-0008-trip-outbox`, chờ đo tải và nhóm duyệt.** Bước contract (xoá đường HTTP) để sau khi đo, giống [ADR-0001](0001-matching-so-huu-tim-ung-vien.md). Phase 1, cải tiến P1.3 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md). Chi tiết ở [mục Triển khai](#triển-khai-2026-11-22).
+**Đã triển khai bước expand + migrate 2026-11-22 trên nhánh `perf/adr-0008-trip-outbox`, đã đo tải 2026-11-22 đến 2026-11-23, chờ nhóm duyệt.** Bước contract (xoá đường HTTP) làm được vì bus không chậm hơn HTTP, giống [ADR-0001](0001-matching-so-huu-tim-ung-vien.md). Phase 1, cải tiến P1.3 trong [Kiến trúc mục tiêu](../kien-truc-muc-tieu.md). Chi tiết ở [mục Triển khai](#triển-khai-2026-11-22).
 
 ## Bối cảnh
 
@@ -65,4 +65,4 @@ Khác với bản đề xuất: inbox chống trùng của Gateway vẫn là Red
 | Thêm consumer không cần sửa Trip | Đạt về thiết kế: Trip không biết queue nào; consumer tự khai báo queue của mình |
 | Smoke qua Gateway thật | Đạt ở cả `bus` và `http` (8 sự kiện mỗi lần smoke, DLQ rỗng) |
 | Trip không còn `GATEWAY_EVENTS_*`, Gateway không còn endpoint POST | **Chưa**: bước contract, làm sau khi đo tải so sánh `bus` và `http` |
-| Đo tải | **Chưa đo** |
+| Đo tải | Đạt ([báo cáo 18.1](../bao-cao-kiem-thu-tai.md#181-bus-và-http-trên-cùng-code), [18.4](../bao-cao-kiem-thu-tai.md#184-soak-k3-2-giờ-có-b5-2026-11-23)). 16 chuyến/giây: bus p95 0,81–0,87 s, HTTP 0,85–1,07 s. Quá tải 88 chuyến/giây: bus gán 9729 và 8776 chuyến trong 2 phút, HTTP 6376 và 6134. Soak 2 giờ ở chế độ bus: 115.197 chuyến, p95 0,77 s, RabbitMQ khoảng 0,05 core |

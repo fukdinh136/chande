@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-11-17 |
+| Rà soát | 2026-11-23 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Báo cáo kiểm thử hiệu năng cho mục P2.6 trong [kiến trúc mục tiêu](kien-truc-muc-tieu.md), đo ngày 2026-11-04 sau khi hoàn thành nhóm cải tiến A và cải tiến môi trường đo E1–E3 trong [đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md). Mọi kết quả được so với mốc ban đầu đo ngày 2026-10-28/29 trên cùng máy và cùng kịch bản. Kế hoạch, test case và ngưỡng nằm trong [kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md); công cụ nằm trong [deploy/load](../deploy/load/README.md).
@@ -1100,3 +1100,78 @@ Mỗi dòng giữ thay đổi của dòng trên, trừ dòng cuối là thử ri
 4. Giới hạn: mỗi cấu hình một lần, chạy trên laptop dùng chung (lần đo mốc chạy pin, các lần sau cắm sạc), chưa đo các bậc giữa 88 và 104.
 
 Kết quả ở `deploy/.local/load/results/2026-11-21T03-48-31-453Z` (72), `03-53-10-970Z` (88), `03-56-49-332Z` (104), `04-01-06-545Z` (WAL 4 GB), `04-09-20-693Z` (4 core), `04-13-00-458Z` (2 replica); tên thư mục theo giờ UTC.
+
+## 18. Ba thay đổi kiến trúc mới: RabbitMQ, hạn chót tìm xe, breaker (2026-11-22 đến 2026-11-23)
+
+Đo sau ba commit `a2d6ca6` ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md), hạn chót tìm xe), `f9c853d` (B5, làm mới JWT trên socket GPS) và `ec485d7` ([ADR-0002](adr/0002-truc-su-kien-rabbitmq.md), sự kiện chuyến qua RabbitMQ). Kubernetes local, tắt observability, dữ liệu test đã dọn bằng `accounts.cjs purge` (64.537 chuyến) trước loạt đo. Lệnh chung như mục 17, mỗi bậc 2 phút, 1000 tài xế. Hai chế độ chạy trên cùng image, chỉ đổi `TRIP_EVENT_TRANSPORT` khi `kube-up`; thứ tự chạy: bus → http → bus 72.
+
+**Máy đo hôm nay yếu hơn ngày 2026-11-21:** tiến trình hiển thị của ứng dụng Claude dùng khoảng 275% CPU trong lúc đo (đo bằng `ps` trước loạt), CPU rảnh của máy trước mỗi lần chạy 50–80%. Vì vậy chỉ so được các lần trong ngày với nhau; mức gãy hôm nay không thay mức gãy ở mục 17.
+
+### 18.1 Bus và HTTP trên cùng code
+
+| Lần | Chuyến được gán / tạo | Lượt bị bỏ | Gán chuyến p95 | Báo giá p95 | Sự kiện `/ws` p95 | Commit/giây | CPU gateway-api / trip-worker / rabbitmq TB |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Bus, 16/s (3 lần) | 1920–1921 / 1920–1921 | 0 | 0,81 / 0,87 / 0,82 s | 26 / 33 / 20 ms | 266 / 275 / 255 ms | 765–770 | 131–181 / 42–50 / 53–60 m |
+| HTTP, 16/s (3 lần) | 1920–1921 / 1920–1921 | 0 | 1,07 / 1,02 / 0,85 s | 83 / 54 / 24 ms | 292 / 285 / 267 ms | 740–770 | 157–258 / 60–82 / 24–30 m |
+| Bus, 88/s (2 lần) | 9729 / 9729; 8776 / 8776 | 831; 1784 | 18,1; 28,9 s | 296; 491 ms | 600; 692 ms | 3217; 2637 | 688; 652 / 237; 235 / 232; 221 m |
+| HTTP, 88/s (2 lần) | 6376 / 7605; 6134 / 7497 | 2950; 3055 | 51,5; 54,9 s | 607; 604 ms | 1,9; 1,4 s | 1980; 1909 | 732; 710 / 352; 352 / 76; 75 m |
+| HTTP, 72/s | 6357 / 6655 | 1986 | 42,3 s | 753 ms | 1,5 s | 1933 | 703 / 345 / 76 m |
+| Bus, 72/s | 5547 / 6461 | 2183 | 48,1 s | 717 ms | 1,3 s | 1712 | 784 / 252 / 195 m |
+
+- **Ở tải bình thường, bus không chậm hơn HTTP:** cả ba lần mỗi bên đều đạt; Gateway và trip-worker dùng ít CPU hơn (Trip không còn đợi Gateway trả lời từng sự kiện, Gateway không còn xử lý request HTTP cho mỗi sự kiện); RabbitMQ thêm khoảng 0,03 core.
+- **Quá tải ở 88/s, bus gán được nhiều chuyến hơn rõ** (9729 và 8776 so với 6376 và 6134 trong 2 phút) và bỏ ít lượt hơn. Thời gian dồn vào bước tìm xe của Matching (`SEARCHING` → offer p95 17,6 và 28,3 s với bus) như ở mục 17.2; các đoạn sau vẫn dưới 0,3 s.
+- **Ở 72/s hai chế độ trượt như nhau**, và HTTP ở 72 và 88 trượt trong khi ngày 2026-11-21 cả hai đạt: hôm nay máy đo, không phải giao thức, quyết định mức gãy. Các lần chạy sau cũng kém dần (bus 72 là lần cuối của loạt).
+- Toàn vẹn dữ liệu sạch ở mọi lần. Mỗi bậc một hoặc hai lần, chưa đủ ba lần như quy tắc của kế hoạch.
+
+Kết luận cho ADR-0002: không có lý do giữ HTTP vì hiệu năng; bước contract (xoá đường HTTP) có thể làm.
+
+### 18.2 Hạn chót tìm xe dưới tải (ADR-0004)
+
+Sau lần bus 72/s, còn 666 chuyến `SEARCHING` mà không còn tài xế nào online. Chúng được Matching huỷ `NO_DRIVER_FOUND` đúng tại hạn chót của từng chuyến (15:04:33 đến 15:05:39 UTC, 3 phút sau khi đặt), không cần can thiệp. Trước ADR-0004 các chuyến này ở `SEARCHING` mãi: smoke chạy ngay sau lần đo trượt vì chuyến của smoke xếp sau chúng (Priority Queue phục vụ chuyến đặt sớm nhất trước), và qua lại ngay khi tồn đọng được dọn.
+
+### 18.3 Diễn tập hỏng: Routing treo 25 giây (D1)
+
+L1 (1000 tài xế, 16/s) chạy 4 phút; ở phút thứ hai container routing-api bị `docker pause` 25 giây (tiến trình treo, kết nối không bị từ chối; dưới ngưỡng liveness 30 giây nên kubelet không khởi động lại). Một khách gọi báo giá mỗi 0,5 giây trong suốt lần chạy.
+
+| Chỉ số | Kết quả |
+| --- | --- |
+| Request đầu tiên khi Routing treo | Chờ hết timeout 5 s, trả 503 |
+| 40 request tiếp theo trong lúc treo | 503 `DEPENDENCY_UNAVAILABLE` sau 4–17 ms (breaker của Trip đã mở) |
+| Hồi phục | Request đầu tiên sau khi Routing chạy lại đã thành công (dưới 1 giây sau `unpause`) |
+| Tìm xe | 3440/3440 chuyến được tạo đều được gán, 0 lượt bị bỏ, p95 1,07 s; phút có sự cố p95 3,6 s, phút sau 0,76 s; 154 lần Matching thử lại job |
+| Lỗi HTTP cả bài | 2,8% (các lần báo giá trong 25 giây treo) |
+
+Breaker làm đúng việc của nó: thay vì mỗi báo giá treo 5 giây và giữ kết nối, khách nhận lỗi ngay và hệ thống trở lại bình thường khi Routing hồi phục.
+
+Kết quả ở `deploy/.local/load/results/2026-11-22T14-16-32-961Z`, `14-19-46-773Z`, `14-23-08-788Z` (bus 16), `14-26-31-593Z`, `14-30-11-128Z` (bus 88), `14-34-55-669Z`, `14-38-38-927Z`, `14-42-05-606Z` (http 16), `14-45-30-983Z`, `14-49-33-226Z` (http 88), `14-53-38-360Z` (http 72), `14-58-33-433Z` (bus 72), `15-06-05-410Z` (D1); tên thư mục theo giờ UTC.
+
+### 18.4 Soak K3 2 giờ có B5 (2026-11-23)
+
+Cùng kịch bản với lần 2 ở mục 16.9 (`2026-11-18T10-35-02-819Z`): 5000 tài xế, bán kính 6 km, 16 chuyến/giây trong 120 phút, warm-up 60 giây, tài xế đăng nhập thật, sự kiện qua `/ws`, `OUTBOX_RETENTION_MS=1800000` cho trip-worker và matching-worker (gỡ sau khi chạy). Khác lần trước: chế độ `bus` của ADR-0002, hạn chót tìm xe của ADR-0004 và tài xế làm mới JWT trên socket đang mở (B5, `--renew 1`). Chạy 04:30–06:30 giờ máy, chỉ còn Claude và Docker Desktop mở, CPU máy rảnh khoảng 55% dưới tải. Lần chạy trước đó trong ngày 2026-11-22 bị dừng ở phút 57 vì máy bão hoà CPU (CPU rảnh 1,5–3,6%, cả cụm đứng từ 16:12); kết quả lần đó không dùng.
+
+| Chỉ số | 2026-11-18, lần 2 | 2026-11-23 (B5) |
+| --- | --- | --- |
+| Chuyến được gán / tạo | 115.188 / 115.201 | **115.197 / 115.200** |
+| Lượt bị bỏ, lỗi HTTP | 0, 0% | 0, 0% |
+| Gán chuyến p95 / p99 cả bài | 0,80 / 1,25 s | **0,77 / 1,07 s** |
+| p95 cao nhất trong một phút | 1,25 s (2 phút trên 1 s) | **0,86 s (không phút nào trên 1 s)** |
+| p95 trung bình 10 phút đầu → 10 phút cuối | 0,57 → 0,83 s | 0,54 → 0,76 s |
+| Báo giá p95 / p99 | 14 / 40 ms | 10 / 34 ms |
+| Tạo chuyến p95 | 14 ms | 10 ms |
+| Sự kiện `/ws` p95 | 254 ms | 253 ms |
+| Ack GPS p95 / lỗi GPS | 20 ms / 454 | **14 ms / 0** (3.635.595 lần gửi) |
+| Tài xế rớt kết nối | **55.000** (11 đợt 5000 khi JWT hết hạn) | **0** |
+| Làm mới JWT trên socket | — | 44.976 lần, 0 lỗi |
+| Pod khởi động lại | không | không |
+| Cache hit, commit/giây | 95,5%, 799 | 97,3%, 790 |
+| CPU PostgreSQL TB | 258 m | 247 m |
+| Toàn vẹn dữ liệu | sạch | sạch |
+
+- **B5 đạt mục tiêu:** không còn đợt 5000 tài xế nối lại cùng lúc (R4). Mỗi tài xế đổi token khoảng 9 lần trong 2 giờ vào thời điểm ngẫu nhiên, nên p95 từng phút không còn gợn ở các mốc 15 phút; phút chậm nhất là 0,86 s ở cuối bài.
+- **Ba thay đổi kiến trúc không làm chậm tải dài:** mọi chỉ số bằng hoặc tốt hơn lần 2026-11-18. Ở 16 chuyến/giây RabbitMQ dùng trung bình 49 m CPU.
+- 3 chuyến chưa được gán khi bài kết thúc (lần trước 13); chuyến gán chậm nhất mất 59 s (lần trước 29,6 s), là một chuyến lẻ vì không phút nào có p95 trên 1 s. Sau bài không còn chuyến nào ở `SEARCHING`: các chuyến còn mở được đóng theo hạn chót 3 phút của ADR-0004.
+- p95 nền vẫn trôi khoảng 0,2 s từ đầu tới cuối bài như lần trước, nên nguyên nhân không nằm ở JWT. Outbox giữ ở khoảng 154 nghìn dòng (Trip) và 124 nghìn dòng (Matching), giống lần trước.
+- Redis chạm `maxmemory` 128 MB và xoá 514 nghìn key có hạn sống (`volatile-lru`, như thiết kế ở mục 16); key vị trí GPS không bị xoá.
+- RAM pod đầu → cuối (MiB): Gateway 427 → 375, realtime-api 383 → 361, matching-worker 39 → 90, trip-worker 54 → 82, Redis 187 → 180, PostgreSQL 1373 → 1533.
+
+Kết quả ở `deploy/.local/load/results/2026-11-22T21-27-56-798Z` (giờ UTC).
