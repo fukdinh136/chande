@@ -3,22 +3,22 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | realtime-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
-Ngày đối chiếu: 06/10/2026. GPS/nearby/offer đã chạy qua Docker local Hà Nội; thiết bị/background và production chưa nghiệm thu. [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Deploy](deploy.md).
+Ngày đối chiếu: 06/10/2026. GPS/offer đã chạy qua Docker local Hà Nội; thiết bị/background và production chưa nghiệm thu. [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Deploy](deploy.md).
 
 ## 1. Nguồn và mức độ xác nhận
 
-- Phạm vi V1 gồm GPS Driver, nearby cho Routing và giao offer Matching qua RabbitMQ/Socket.IO. Route, ngưỡng và lỗi lấy từ implementation hiện tại.
+- Phạm vi V1 gồm GPS Driver, vị trí thô cho Matching và giao offer Matching qua RabbitMQ/Socket.IO. Route, ngưỡng và lỗi lấy từ implementation hiện tại.
 - Cách tổ chức tài liệu theo [Driver](../../driver-service/README.md) và bộ docs của Driver. [Nghiệp vụ Trip](../../trip-service/docs/nghiep-vu.md) mục 10 là nguồn ánh xạ user story; chưa có nguồn user story độc lập mới hơn để xác nhận toàn bộ hệ thống.
-- “Đã triển khai” nghĩa là có mã với hành vi tương ứng. Không đồng nghĩa đã chạy được với Redis, issuer, Routing/Driver thật hoặc app trên thiết bị. Các tiêu chí nghiệm thu ở cuối là việc cần kiểm thử, chưa đánh dấu pass.
+- “Đã triển khai” nghĩa là có mã với hành vi tương ứng. Không đồng nghĩa đã chạy được với Redis, issuer, Matching/Driver thật hoặc app trên thiết bị. Các tiêu chí nghiệm thu ở cuối là việc cần kiểm thử, chưa đánh dấu pass.
 
 ## 2. Phạm vi
 
 ### Trong Realtime v1
 
-Nhận GPS của chủ thể DRIVER đã xác thực; trả ACK; lưu vị trí/thời gian và watermark; dọn vị trí cũ; trả nearby cho Routing, kiểm freshness/eligibility Driver theo lô. Giao offer/cập nhật vào room driver đã xác thực; reconnect lấy trạng thái Matching, không kéo dài hạn offer.
+Nhận GPS của chủ thể DRIVER đã xác thực; trả ACK; lưu vị trí/thời gian và watermark; dọn vị trí cũ; trả vị trí thô còn mới cho Matching (gần nhất trước, tối đa 200). Giao offer/cập nhật vào room driver đã xác thực; reconnect lấy trạng thái Matching, không kéo dài hạn offer.
 
 ### Ngoài Realtime v1
 
@@ -29,10 +29,10 @@ OTP/refresh/logout, hồ sơ/xe/ONLINE, assignment/vòng đời Trip, thuật to
 | Thành phần | Sở hữu | Realtime phối hợp |
 | --- | --- | --- |
 | Driver App | Quyền vị trí, đo GPS, foreground/focus, phiên người dùng | Gửi GPS với Driver JWT; hiển thị ACK/lỗi |
-| Realtime | Vị trí mới nhất, thời gian đo/nhận, GEO, expiry, watermark | Lưu Redis riêng; nhận GPS và trả nearby |
-| Driver | Identity, ý định PostgreSQL ONLINE/OFFLINE, xe chọn/active, policy eligibility | Cấp JWT/JWKS; trả batch eligibility qua credential riêng |
-| Routing | Điểm đón và loại xe; tính ETA từ danh sách GPS | Caller HTTP nearby đã kiểm chứng trong smoke Matching |
-| Matching | Mời/accept/decline và reservation | Kiểm tra lại trước chọn/gán; nearby không thực hiện trách nhiệm này |
+| Realtime | Vị trí mới nhất, thời gian đo/nhận, GEO, expiry, watermark | Lưu Redis riêng; nhận GPS và trả vị trí cho Matching |
+| Driver | Identity, ý định PostgreSQL ONLINE/OFFLINE, xe chọn/active, policy eligibility | Cấp JWT/JWKS; trả eligibility theo lô cho Matching (không cho Realtime) |
+| Routing | Tính ETA cho vị trí Matching gửi | Không gọi Realtime từ 2026-11-05 |
+| Matching | Tìm ứng viên, mời/accept/decline và reservation | Gọi driver-locations mỗi lần tìm; kiểm điều kiện ở Driver |
 | Trip | Active Trip, assignment, version và lịch sử trạng thái | Realtime không gọi Trip hoặc đọc trip_db |
 | Gateway chính thức | Exposure/TLS/proxy khi nhóm triển khai | Contract chuyển tiếp Socket.IO còn chờ; Gateway demo không phải dependency |
 
@@ -53,7 +53,7 @@ Chỉ Realtime ghi realtime:{gps}:*. Driver giữ ownership các key riêng củ
 | RBR-09 | Cùng time khác payload trả LOCATION_OUT_OF_ORDER | Không chọn payload đến sau như dữ liệu mới |
 | RBR-10 | Bản tin mới cách lượt nhận trước dưới 1.000 ms bị RATE_LIMITED | Đây là min interval server, khác chu kỳ 10 giây của app |
 | RBR-11 | Radius mặc định/tối đa 2.000 m; trả tối đa 50 | Radius tùy chọn 1–2.000 m; result limit 50 là hằng số |
-| RBR-12 | Loại xe từ Driver: BIKE/CAR_4/CAR_7 | Không suy ra loại xe từ GPS; bộ mã cần thống nhất với Routing/Driver |
+| RBR-12 | Loại xe từ Driver: BIKE/CAR_4/CAR_7 | Không suy ra loại xe từ GPS; bộ mã cần thống nhất với Matching/Driver |
 | RBR-13 | Chỉ trả quyết định eligible=true và availabilityKnown=true | UNKNOWN còn trong phạm vi tìm kiếm gây 503; không trả danh sách thiếu rồi gọi là đầy đủ |
 | RBR-14 | Disconnect/expiry GPS không đổi ý định hoặc hủy Trip | Vị trí có thể còn được xét đến khi hết freshness |
 | RBR-15 | Redis/Driver/contract lỗi trả lỗi phụ thuộc | Không biến outage thành drivers:[] hoặc tự đánh dấu AVAILABLE |
@@ -75,27 +75,19 @@ Availability được đọc lại ở OverviewScreen theo mục tiêu 10 giây.
 
 Foreground GPS có mã; chưa chạy trên emulator/thiết bị. Không có background task hay giao thức presence heartbeat riêng. Socket disconnect không xóa ngay GPS, không giải phóng reservation và không kết thúc Trip.
 
-## 6. UC-R02 — Routing tìm tài xế gần
+## 6. UC-R02 — Matching lấy vị trí tài xế gần
 
-1. Routing gửi latitude/longitude của điểm đón, vehicleType tùy chọn, radiusMeters tùy chọn, với X-Service-Token riêng.
-2. Guard xác thực credential; DTO và NearbyPolicy kiểm query. Rider/Driver JWT không thay thế credential nội bộ.
-3. LocationStore GEOSEARCH trong bán kính, ASC WITHDIST; kiểm expiry ngay trong Lua. Không COUNT 50 trước lọc. Nếu tổng GEO rows trong bán kính vượt NEARBY_MAX_CANDIDATES, trả SEARCH_CAPACITY_EXCEEDED trước lọc metadata.
-4. FindNearby kiểm lại tuổi đo/nhận bằng đồng hồ process. Không có ứng viên mới thì trả 200 drivers:[] và không cần gọi Driver.
-5. DriverEligibilityClient chia tối đa 100 UUID/request; gọi các lô tuần tự với một deadline chung DRIVER_TIMEOUT_MS, validate envelope/định danh/cờ trả về.
-6. Driver đọc nguồn của mình: ý định ONLINE, hồ sơ, selection đúng owner, xe active/type và projection vận hành. Legacy không tự chuyển đổi. Chỉ eligible khi profile hợp lệ, projection ONLINE và operational AVAILABLE; BUSY/OFFLINE bị loại.
-7. Sau HTTP, Realtime đọc lại GEO/metadata: loại mẫu hết hạn/ra ngoài bán kính; dùng vị trí mới nhất. Tài xế mới xuất hiện chưa được kiểm eligibility không nằm trong response lần này.
-8. Nếu một ứng viên còn mới trong lần đọc lại có availabilityKnown=false, trả 503 ELIGIBILITY_UNDETERMINED. Nếu tất cả quyết định đủ thông tin, lọc eligible/type rồi sort distanceMeters, tie-break driverId và lấy tối đa 50.
-9. Trả danh sách nội bộ tối thiểu; distance là khoảng cách địa lý do GEO, không quãng đường chạy xe/ETA. Routing phải xử lý [] khác lỗi 503.
+1. Matching gửi latitude/longitude của điểm đón, radiusMeters (2000) và limit (200) với X-Service-Token = MATCHING_LOCATION_TOKEN.
+2. Guard xác thực credential; DTO và use case kiểm query. Rider/Driver JWT không thay thế credential nội bộ.
+3. LocationStore chạy GEOSEARCH trong bán kính, ASC, COUNT limit, WITHDIST; kiểm expiry ngay trong Lua.
+4. ListDriverLocations kiểm lại tuổi đo/nhận bằng đồng hồ process và trả danh sách tối thiểu (driverId, tọa độ, distanceMeters, recordedAt).
+5. Distance là khoảng cách địa lý do GEO tính, không phải quãng đường hay ETA. Không lọc loại xe hay trạng thái: Matching kiểm điều kiện ở Driver ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)).
 
 ## 7. Eligibility, tính nhất quán và giới hạn
 
-Batch hiện đã có trong Driver, khác endpoint Matching từng tài xế chỉ trả profileEligible. availabilityKnown=true có thể đi cùng profileEligible=false: đã có lý do chắc chắn để loại tài xế, không có nghĩa đã đối soát active Trip.
+Realtime không quyết định tài xế có được mời hay không. Từ 2026-11-05 Matching gọi Driver theo lô cho danh sách vị trí, loại tài xế đã mời hoặc đang giữ chỗ, rồi kiểm lại khi gán; ràng buộc một chuyến mở cho mỗi tài xế ở Trip là chốt cuối. Realtime không tự quảng bá AVAILABLE từ GPS.
 
-ONLINE + xe/hồ sơ hợp lệ nhưng không xác minh được occupancy trả UNKNOWN/lỗi. Realtime không tự quảng bá AVAILABLE từ GPS. Driver batch gọi lookup active Trip và reservation Matching bằng credential riêng, không dùng service credential thay JWT cho GET /trips/active.
-
-Driver sở hữu producer AVAILABLE/BUSY/OFFLINE và đối soát active Trip/reservation. Snapshot có thể cũ sau lần đọc; Matching/Trip kiểm lại khi reservation/assignment. Không suy ra kết thúc chuyến từ TTL lock. PostgreSQL, Redis và HTTP không có transaction chung.
-
-Watermark mặc định giữ 24 giờ sau lượt ghi, dọn riêng khỏi metadata 30 giây. Redis mất dữ liệu thì watermark cũng có thể mất; không có lịch sử GPS bền để khôi phục thứ tự trước đó. ACK không bảo đảm exactly-once qua restart/failover. Đồng hồ thiết bị/process/Redis cần đồng bộ; app lấy thời gian đo của OS, không thay bằng thời gian retry.
+Watermark mặc định giữ 24 giờ sau lượt ghi, dọn riêng khỏi metadata 30 giây. Redis mất dữ liệu thì watermark cũng có thể mất; không có lịch sử GPS bền để khôi phục.
 
 ## 8. Lỗi, dữ liệu trống và quyền xem
 
@@ -103,21 +95,19 @@ Watermark mặc định giữ 24 giờ sau lượt ghi, dọn riêng khỏi meta
 | --- | --- |
 | DTO sai/unknown field/accuracy quá giới hạn | ACK INVALID_REQUEST hoặc HTTP 400 cho query |
 | JWT sai/hết hạn/JWKS timeout | connect_error; event hết phiên trả UNAUTHENTICATED; JWKS timeout được phân loại dependency |
-| Redis không khả dụng | ACK/nearby DEPENDENCY_UNAVAILABLE; ready 503 |
-| Driver timeout/status lỗi/JSON thiếu hoặc sai | Nearby 503 DEPENDENCY_UNAVAILABLE, không [] |
-| Eligibility chưa xác định của ứng viên còn mới | Nearby 503 ELIGIBILITY_UNDETERMINED |
+| Redis không khả dụng | ACK/driver-locations DEPENDENCY_UNAVAILABLE; ready 503 |
 | Không GPS mới trong bán kính hoặc tất cả bị loại có căn cứ | 200 drivers:[] |
 | Cleanup bị dừng/chậm | Dữ liệu vật lý có thể còn; read vẫn lọc expiry/freshness |
-| Routing thiếu/sai credential | HTTP 401 INVALID_SERVICE_CREDENTIAL |
+| Matching thiếu/sai credential | HTTP 401 INVALID_SERVICE_CREDENTIAL |
 
-Driver chỉ gửi vị trí của mình; không có API đọc vị trí theo driverId hoặc subscribe phòng tài xế khác. Routing có credential được xem danh sách nội bộ cho điểm đón, không có scope theo từng rider/trip trong v1. Không expose /internal/* cho Rider hoặc nhúng service credential trong EXPO_PUBLIC_*. Transport TLS/private network/ACL cần triển khai khi vận hành; CORS không thay thế authentication. Code không log JWT/payload GPS.
+Driver chỉ gửi vị trí của mình; không có API đọc vị trí theo driverId hoặc subscribe phòng tài xế khác. Matching có credential được xem danh sách nội bộ cho điểm đón, không có scope theo từng rider/trip trong v1. Không expose /internal/* cho Rider hoặc nhúng service credential trong EXPO_PUBLIC_*. Transport TLS/private network/ACL cần triển khai khi vận hành; CORS không thay thế authentication. Code không log JWT/payload GPS.
 
 ## 9. Liên hệ user story
 
 | Story | Vai trò Realtime v1 | Phần vẫn thuộc bên khác |
 | --- | --- | --- |
-| US5 / US-05 — bản đồ/vị trí/điểm đón trả | GPS và nearby hỗ trợ dữ liệu vị trí | UI bản đồ, điểm đón/trả, route thuộc app/Routing/Trip |
-| US7 / US-07 — chọn loại phương tiện | Filter BIKE/CAR_4/CAR_7 từ Driver | Danh mục chung, UI chọn xe, quote thuộc Driver/Routing/Trip |
+| US5 / US-05 — bản đồ/vị trí/điểm đón trả | GPS và driver-locations hỗ trợ dữ liệu vị trí | UI bản đồ, điểm đón/trả, route thuộc app/Routing/Trip |
+| US7 / US-07 — chọn loại phương tiện | Loại xe do Driver trả cho Matching | Danh mục chung, UI chọn xe, quote thuộc Driver/Routing/Trip |
 | US19 / US-19 — đăng nhập tài xế | Tin cậy JWT/JWKS Driver | OTP/session/refresh/logout thuộc Driver và app |
 | US20 / US-20 — đăng ký phương tiện | Dùng xe được Driver xác minh | Tạo xe/ownership/unique plate thuộc Driver |
 | US23 / US-23 — bật/tắt nhận cuốc | Eligibility lọc ý định và vận hành; app dừng GPS khi mất điều kiện | PostgreSQL intent thuộc Driver; offer/reservation thuộc Matching |
@@ -139,4 +129,4 @@ Driver chỉ gửi vị trí của mình; không có API đọc vị trí theo d
 | RAC-09 | Tắt GPS/background/rời màn hình/logout/thu hồi quyền | Không tiếp tục gửi từ vòng cũ; cleanup listener/timer/socket |
 | RAC-10 | Reconnect/token expiry/refresh đồng thời | Lấy JWT qua single-flight; đo mới, không replay backlog |
 
-RAC là tiêu chí đối chiếu, không đánh dấu tất cả pass từ một smoke. GPS/nearby/offer/reconnect đã chạy thật trong [báo cáo Matching](../../matching-service/docs/bao-cao-trien-khai.md); thiết bị/background còn cần nghiệm thu.
+RAC là tiêu chí đối chiếu, không đánh dấu tất cả pass từ một smoke. GPS/offer/reconnect đã chạy thật trong [báo cáo Matching](../../matching-service/docs/bao-cao-trien-khai.md); thiết bị/background còn cần nghiệm thu.

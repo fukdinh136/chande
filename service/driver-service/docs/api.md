@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | driver-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Hợp đồng theo controller/DTO/use case hiện tại. Base URL local http://localhost:3003, không prefix /api/v1. [Routes](routes.md), [Nghiệp vụ](nghiep-vu.md), [Deploy](deploy.md).
@@ -90,9 +90,9 @@ GET /internal/drivers/:driverId/eligibility?vehicleType=BIKE; X-Service-Token b�
 
 Data: driverId, profileEligible, desiredStatus, vehicleId, reasons, driverSnapshot, vehicleSnapshot. Snapshot chỉ có khi hồ sơ/xe hợp lệ. driverSnapshot gồm fullName/avatarUrl; vehicleSnapshot gồm vehicleType/licensePlate/brand/color, với brand ánh xạ nguyên brand_model. ID nằm ngoài snapshot. Không phải reservation hoặc bảo đảm Trip đang rảnh.
 
-## 7. Realtime batch eligibility
+### Eligibility theo lô cho Matching
 
-POST /internal/drivers/eligibility/batch; X-Service-Token bằng REALTIME_INBOUND_TOKEN, credential >=32 ký tự và khác Matching token. Không cấu hình credential thì route từ chối 401; không chặn toàn Driver.
+POST /internal/drivers/eligibility/candidates; X-Service-Token bằng MATCHING_INBOUND_TOKEN ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)).
 
 ```json
 {
@@ -101,7 +101,11 @@ POST /internal/drivers/eligibility/batch; X-Service-Token bằng REALTIME_INBOUN
 }
 ```
 
-1–100 UUID unique, normalize lowercase, vehicleType optional. Data `{items:[{driverId,profileEligible,eligible,availabilityKnown,vehicleType,operationalStatus,reasons}]}`. Khi bật occupancy, Driver đọc active Trip/reservation trước khi coordinate từng driver và project Redis riêng. Không tồn tại/legacy/OFFLINE bị loại có reasons; dependency lỗi toàn batch 503. Không có nguồn xác minh thì UNKNOWN/eligible=false; không suy từ GPS.
+1–100 UUID unique, `vehicleType` bắt buộc. Data `{items:[{driverId,eligible,reasons,vehicleId,driverSnapshot,vehicleSnapshot}]}`, cùng luật và cùng snapshot với GET eligibility đơn. Cả lô tốn 2 câu SQL (`drivers`, `vehicles` theo `id = ANY`) và 1 script Redis; không khoá, không ghi Redis, không hỏi Trip / Matching ai đang bận. Một tài xế không tồn tại hoặc cần migration bị loại riêng; lỗi PostgreSQL / Redis làm cả lô 503.
+
+## 7. Realtime batch eligibility (đã gỡ)
+
+`POST /internal/drivers/eligibility/batch` cho Realtime và biến `REALTIME_INBOUND_TOKEN` đã gỡ ngày 2026-11-05 ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)). Matching dùng eligibility theo lô ở mục 6.
 
 ## 8. Lỗi
 

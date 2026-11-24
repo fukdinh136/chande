@@ -31,9 +31,11 @@ test('Driver socket handshake joins refresh without recursive re-auth or duplica
 });
 test('Driver socket server disconnect backs off with one listener set and stops retries after release', async t => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 10000 });
+  // B5: the first retry after a server disconnect waits a random 2-10 s; random() = 0 makes it exactly 2 s.
+  t.mock.method(Math, 'random', () => 0);
   const boundary = socketBoundary(), load = loader({ 'socket.io-client': boundary }), { DriverSocket } = load('src/features/driver/realtime/driver-socket.ts'), connection = new DriverSocket('http://realtime.test', owner());
   const release = connection.acquire(); const socket = boundary.sockets[0]; socket.trigger('disconnect', 'io server disconnect'); socket.trigger('disconnect', 'io server disconnect');
-  t.mock.timers.tick(999); assert.equal(socket.connects, 1); t.mock.timers.tick(1); assert.equal(socket.connects, 2); socket.trigger('disconnect', 'io server disconnect'); release(); t.mock.timers.tick(60000); assert.equal(socket.connects, 2); connection.dispose(); await flush();
+  t.mock.timers.tick(1999); assert.equal(socket.connects, 1); t.mock.timers.tick(1); assert.equal(socket.connects, 2); socket.trigger('disconnect', 'io server disconnect'); release(); t.mock.timers.tick(60000); assert.equal(socket.connects, 2); connection.dispose(); await flush();
 });
 test('Driver location adapter rejects mismatched ACK and cancels pending send at stop', async () => {
   const { SocketLocationClient } = loader()('src/features/driver/gps/socket-location-client.ts'); let reply, released = 0;
@@ -60,4 +62,17 @@ test('Driver Trip notification handshake is single-flight; expiry reconnects wit
   socket.onmessage({ data: JSON.stringify({ type: 'auth.ok', role: 'DRIVER', userId: ids.driver }) }); assert.equal(invalidations, 1);
   const late = socket.onmessage; socket.onclose({ code: 4401, reason: 'TOKEN_EXPIRED' }); t.mock.timers.tick(1000); await flush(); assert.equal(sockets.length, 2);
   session.change(ids.other); late({ data: JSON.stringify({ type: 'trip.event', event: {} }) }); t.mock.timers.tick(90000); await flush(); assert.equal(invalidations, 1); assert.equal(sockets.length, 2); assert.ok(sockets[1].closed);
+});
+test('Driver socket moves an open connection to a new JWT with driver.auth.refresh, and reconnects only if Realtime refuses (B5)', async () => {
+  const boundary = socketBoundary(), session = owner(), load = loader({ 'socket.io-client': boundary }), { DriverSocket } = load('src/features/driver/realtime/driver-socket.ts');
+  const connection = new DriverSocket('http://realtime.test', session), release = connection.acquire(); await flush();
+  const socket = boundary.sockets[0], sent = []; let reply = { data: { expiresAt: '2026-11-24T00:15:00Z' } };
+  socket.timeout = () => socket; socket.emitWithAck = async (event, payload) => { sent.push([event, payload.token]); return reply; };
+  socket.connected = true; socket.trigger('connect');
+  session.update({ session: tokens({ accessToken: 'renewed-access' }) }); await flush();
+  assert.deepEqual(sent, [['driver.auth.refresh', 'renewed-access']]); assert.equal(socket.disconnects, 0); assert.equal(boundary.sockets.length, 1);
+  reply = { error: { code: 'FORBIDDEN' } };
+  session.update({ session: tokens({ accessToken: 'refused-access' }) }); await flush();
+  assert.equal(sent.at(-1)[1], 'refused-access'); assert.equal(socket.disconnects, 1); assert.equal(boundary.sockets.length, 2);
+  release(); connection.dispose();
 });

@@ -211,12 +211,13 @@ export class SessionManager {
     void job.then(finish, finish);
     return job;
   };
-  async accessToken(signal?: AbortSignal): Promise<string> {
+  /** `minValidityMs`: refresh first when the token expires sooner than this (B5 renews the open socket minutes early). */
+  async accessToken(signal?: AbortSignal, minValidityMs = 30000): Promise<string> {
     const epoch = this.epoch;
     if (signal?.aborted) throw new ApiError('CANCELLED');
     if (this.rotation) {
       try { await this.rotation; } catch { /* A still-valid access token may remain usable. */ }
-    } else if (this.state.session && this.credential?.refreshState === 'ready' && !this.pendingInstall && !this.clearPending && !this.accessRejected && (!this.validAccess() || this.expiresAt - Date.now() < 30000) && this.state.phase !== 'credential-error') {
+    } else if (this.state.session && this.credential?.refreshState === 'ready' && !this.pendingInstall && !this.clearPending && !this.accessRejected && (!this.validAccess() || this.expiresAt - Date.now() < minValidityMs) && this.state.phase !== 'credential-error') {
       try { await this.refresh(); } catch { /* Never retry an uncertain refresh. */ }
     }
     if (epoch !== this.epoch || signal?.aborted) throw new ApiError('CANCELLED');

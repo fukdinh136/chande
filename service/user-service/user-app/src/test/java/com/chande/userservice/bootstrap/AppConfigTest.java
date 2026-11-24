@@ -43,6 +43,7 @@ class AppConfigTest {
         assertThat(cfg.jwt().previousPublicKeysDir()).isNull();
         assertThat(cfg.jwt().audience()).isEmpty();
         assertThat(cfg.bcryptCost()).isEqualTo(10);
+        assertThat(cfg.bcryptMaxWait()).isEqualTo(Duration.ofSeconds(1));
         assertThat(cfg.maxBodyBytes()).isEqualTo(65536);
         assertThat(cfg.shutdownGrace()).isEqualTo(Duration.ofSeconds(20));
     }

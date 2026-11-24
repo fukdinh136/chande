@@ -29,7 +29,6 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 | Routing Service | [Cấu hình](../service/routing-service/docs/cau-hinh.md) | Endpoint OSRM, proxy key tùy chọn, vehicle profiles và secrets |
 | Routing Service | [Deploy](../service/routing-service/docs/deploy.md) | Kế hoạch local/production, dataset OSRM, probes, lifecycle và rollback |
 | Routing Service | [OSRM Hà Nội](../service/routing-service/docs/osrm-ha-noi.md) | Backend CAR tự host Docker, cắt dataset, cấu hình Trip và kiểm thử Route/Table thật |
-| Routing Service | [Realtime Client](../service/routing-service/docs/realtime-client.md) | ETA Matrix lấy vị trí driver trong bán kính 2 km qua client Routing để tính ETA trả Matching |
 | Routing Service | [Kế hoạch phát triển](../service/routing-service/docs/ke-hoach-phat-trien.md) | F00–F11, dependency, acceptance, test và commit theo feature |
 | Routing Service | [Báo cáo triển khai](../service/routing-service/docs/bao-cao-trien-khai.md) | Feature/commit/checks và giới hạn tích hợp thật |
 | Price Service | [Thiết kế v1](../service/price-service/README.md) | Giá mẫu BIKE/CAR_4/CAR_7 và CAR legacy, công thức/config và contract Trip |
@@ -44,9 +43,15 @@ Thư mục này lưu mục lục và tài liệu chung của dự án. Tài li�
 ## Chuẩn và validation chung
 
 - [Quy ước format](quy-uoc-tai-lieu.md): UTF-8, metadata, headings/bảng/code/link và nguồn số liệu.
+- [Kiến trúc mục tiêu và lộ trình hai phase](kien-truc-muc-tieu.md): đối chiếu với ứng dụng đặt xe lớn, C1/C2 đích, danh mục cải tiến (nằm ở đâu, mục đích), danh mục sự kiện, phân công theo tuần. Quyết định lớn ghi trong [ADR](adr/README.md).
 - [Hợp đồng liên service](hop-dong-lien-service.md): defaults/overrides, đơn vị, danh mục xe, giá, auth/routes và các khoảng trống tích hợp.
 - [Báo cáo validation](bao-cao-validation.md): commands, kết quả hiện tại, phạm vi thật/mock và lỗi tài liệu đã sửa.
 - [Rà soát và demo Kubernetes](bao-cao-demo-kubernetes.md): lần chạy hiện tại, tài khoản test lưu DB, Customer/Driver web, các lỗi sửa và giới hạn Android/production.
+- [Kế hoạch kiểm thử hiệu năng](ke-hoach-kiem-thu-hieu-nang.md): mục tiêu 5000 tài xế và 32 chuyến/giây; kịch bản, lệnh chạy, ngưỡng và trạng thái cho load, stress, soak, Realtime và GPS, database, nhiều người dùng đồng thời, đăng nhập và rate limit; công cụ còn thiếu.
+- [Đề xuất cải tiến hiệu năng](de-xuat-cai-tien-hieu-nang.md): cải tiến kiến trúc và môi trường đo theo kết quả kiểm thử tải, xếp theo chi phí (công sức, RAM, tiền cloud), gắn với lộ trình Phase 1–2 và mục tiêu đo lại; kèm nhóm chịu lỗi và vận hành (circuit breaker, rolling update, RPO/RTO, saga).
+- [Tổng hợp cải tiến hiệu năng](tong-hop-cai-tien-hieu-nang.md): nhánh `perf/adr-0008-trip-outbox` đổi gì so với `main`, vì sao, kết quả đo, đánh đổi, việc chưa làm và xung đột khi merge; đọc trước khi quyết định merge.
+| Toàn hệ thống | [Saga chuyến đi](saga-chuyen-di.md) | Trạng thái chuyến, từng bước giữa Trip, Matching, Driver, Realtime, lỗi có thể xảy ra, bù trừ và chỗ còn thiếu |
+- [Báo cáo kiểm thử tải](bao-cao-kiem-thu-tai.md): ba nhóm kiểm thử: benchmark luồng đặt xe trước và sau tối ưu, tăng quy mô tới 5000 tài xế, trần thông lượng và kịch bản 3000 khách / 3500 tài xế; p50/p95 từng bước, CPU/RAM từng pod và điểm nghẽn theo ưu tiên. Công cụ ở [deploy/load](../deploy/load/README.md).
 - [Deploy backend](deploy-backend.md): Docker/Kubernetes local, ingress, secrets/PVC, startup/restart và smoke.
 - [Báo cáo tích hợp backend](bao-cao-tich-hop-backend.md): Gateway kết nối backend thật, deployment và kết quả hai môi trường.
 - [Thiết kế frontend Android](frontend/README.md): hai app Customer/Driver, UI Stitch, public APIs, kiến trúc và MapLibre Navigation gate/skip.

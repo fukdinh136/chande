@@ -80,7 +80,8 @@ public final class Main {
 
         AppConfig.Jwt jwt = cfg.jwt();
         RsaKeys keys = RsaKeys.load(jwt.privateKeyFile(), jwt.keyId(), jwt.previousPublicKeysDir());
-        var hasher = new BCryptPasswordHasher(cfg.bcryptCost(), Runtime.getRuntime().availableProcessors());
+        var hasher = new BCryptPasswordHasher(cfg.bcryptCost(), Runtime.getRuntime().availableProcessors(),
+                cfg.bcryptMaxWait());
         var issuer = new Rs256AccessTokenIssuer(keys.current(), jwt.issuer(), jwt.audience(), jwt.accessTokenTtl());
         var verifier = new Rs256JwtVerifier(keys.all(), jwt.issuer(), jwt.clockSkew(), clock);
 

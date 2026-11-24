@@ -1,0 +1,42 @@
+// The traffic part of one load run: drivers online -> warm-up -> k6 -> drivers offline.
+// run.cjs starts it on the host, or inside the cluster with --in-cluster (E1). It prints "K6_START <iso>" and
+// "K6_END <iso>" so run.cjs can sample pods and SQL around the k6 window. With --hold 1 (burst mode) drivers stay
+// online after k6 until the file <out>/release exists, so queued trips can still be assigned.
+const fs = require('node:fs'), path = require('node:path'), {spawn} = require('node:child_process');
+const {base, pause, args} = require('./lib.cjs');
+
+const o = args({drivers: 50, radius: 2000, ramp: 0, gpsMs: 10000, rate: 1, duration: '5m', warmup: 20, trips: 0, login: 0, events: 'poll', hold: 0, ridersOnline: 0, reads: 0, renew: 1, out: ''});
+if (!o.out) throw new Error('--out is required');
+fs.mkdirSync(o.out, {recursive: true});
+const exited = child => new Promise(resolve => child.once('exit', code => resolve(code)));
+
+(async () => {
+  const drivers = spawn(process.execPath, [path.join(__dirname, 'drivers.cjs'), '--count', String(o.drivers), '--radius', String(o.radius), '--ramp', String(o.ramp), '--gps-ms', String(o.gpsMs), '--renew', String(o.renew), '--out', path.join(o.out, 'drivers.json')], {stdio: ['ignore', 'pipe', 'inherit']});
+  await new Promise((resolve, reject) => {
+    drivers.stdout.on('data', chunk => { process.stdout.write(chunk); if (/READY \d+/.test(chunk)) resolve(); });
+    drivers.once('exit', code => reject(new Error('Driver simulator exited early with code ' + code)));
+  });
+  // Concurrent users: keep this many riders connected to the Gateway /ws like open apps, during the whole k6 window.
+  let riders;
+  if (o.ridersOnline) {
+    riders = spawn(process.execPath, [path.join(__dirname, 'riders.cjs'), '--count', String(o.ridersOnline), '--out', path.join(o.out, 'riders-online.json')], {stdio: ['ignore', 'pipe', 'inherit']});
+    await new Promise((resolve, reject) => {
+      riders.stdout.on('data', chunk => { process.stdout.write(chunk); if (/RIDERS_READY \d+/.test(chunk)) resolve(); });
+      riders.once('exit', code => reject(new Error('Rider simulator exited early with code ' + code)));
+    });
+  }
+  console.info(`Warm-up ${o.warmup}s so every driver has fresh GPS in Redis`);
+  await pause(o.warmup * 1000);
+  console.info('K6_START ' + new Date().toISOString());
+  const k6 = spawn('k6', ['run', '-q', '-e', 'BACKEND_URL=' + base, '-e', 'RATE=' + o.rate, '-e', 'DURATION=' + o.duration, '-e', 'TRIPS=' + o.trips, '-e', 'SKIP_SETUP=1', '-e', 'LOGIN=' + o.login, '-e', 'EVENTS=' + o.events, '-e', 'SUMMARY_OUT=' + path.join(o.out, 'k6.json'), path.join(__dirname, 'booking.js')], {stdio: 'inherit'});
+  // C2: riders reading their trips at --reads app starts per second, in the same window as the bookings.
+  const reads = o.reads ? spawn('k6', ['run', '-q', '-e', 'BACKEND_URL=' + base, '-e', 'READS=' + o.reads, '-e', 'DURATION=' + o.duration, '-e', 'SUMMARY_OUT=' + path.join(o.out, 'reads.json'), path.join(__dirname, 'reads.js')], {stdio: 'inherit'}) : null;
+  // Listen now: reads.js may finish before booking.js, and an exit listener added afterwards would never fire.
+  const readsDone = reads ? exited(reads) : null;
+  const code = await exited(k6);
+  if (readsDone) await readsDone;
+  console.info('K6_END ' + new Date().toISOString() + ' ' + code);
+  if (o.hold) while (!fs.existsSync(path.join(o.out, 'release'))) await pause(1000);
+  if (riders) { riders.kill('SIGTERM'); await exited(riders); }
+  drivers.kill('SIGTERM'); await exited(drivers);
+})().catch(e => { console.error(e.message); process.exitCode = 1; });

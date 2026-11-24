@@ -48,20 +48,27 @@ public record RoutingProperties(
      * @param instances             URL gốc của từng instance, ví dụ {@code http://trip-1:3001}
      * @param paths                 các mẫu đường dẫn phía sau {@code /api/v1}, ví dụ {@code /trips/**}
      * @param maxConcurrentRequests số request đang chờ service này trả lời tối đa; vượt quá thì trả 503 ngay
+     * @param clientAddress         chuyển IP thật của client xuống service (ví dụ Driver giới hạn OTP theo IP)
      */
     public record Service(List<URI> instances,
                           List<String> paths,
                           @DefaultValue("256") int maxConcurrentRequests,
-                          @DefaultValue("") String serviceToken) {
+                          @DefaultValue("") String serviceToken,
+                          @DefaultValue ClientAddress clientAddress) {
 
         public Service(List<URI> instances, List<String> paths, int maxConcurrentRequests) {
             this(instances, paths, maxConcurrentRequests, "");
         }
 
+        public Service(List<URI> instances, List<String> paths, int maxConcurrentRequests, String serviceToken) {
+            this(instances, paths, maxConcurrentRequests, serviceToken, ClientAddress.NONE);
+        }
+
         @Override
         public String toString() {
             return "Service[instances=" + instances + ", paths=" + paths
-                    + ", maxConcurrentRequests=" + maxConcurrentRequests + ", serviceToken=***]";
+                    + ", maxConcurrentRequests=" + maxConcurrentRequests + ", serviceToken=***, clientAddress="
+                    + clientAddress + "]";
         }
 
         @ConstructorBinding
@@ -95,9 +102,50 @@ public record RoutingProperties(
             instances = List.copyOf(instances);
             paths = List.copyOf(paths);
             serviceToken = serviceToken == null ? "" : serviceToken.trim();
-            if (serviceToken.chars().anyMatch(c -> c <= 32 || c >= 127)) {
+            if (!printable(serviceToken)) {
                 throw new IllegalStateException("Service credential must be printable ASCII without whitespace");
             }
+            clientAddress = clientAddress == null ? ClientAddress.NONE : clientAddress;
         }
+    }
+
+    /**
+     * Header mang IP thật của client xuống service, kèm credential để service biết header do Gateway đặt.
+     * Gateway luôn xoá hai header này nếu client tự gửi; chỉ đặt lại khi có {@code token}.
+     *
+     * @param header      tên header chứa IP, ví dụ {@code X-Driver-Client-IP}
+     * @param tokenHeader tên header chứa credential, ví dụ {@code X-Driver-Proxy-Token}
+     * @param token       credential dùng chung với service; rỗng thì không chuyển IP
+     */
+    public record ClientAddress(@DefaultValue("") String header,
+                                @DefaultValue("") String tokenHeader,
+                                @DefaultValue("") String token) {
+
+        public static final ClientAddress NONE = new ClientAddress("", "", "");
+
+        public ClientAddress {
+            header = header == null ? "" : header.trim();
+            tokenHeader = tokenHeader == null ? "" : tokenHeader.trim();
+            token = token == null ? "" : token.trim();
+            if (!header.isEmpty() != !tokenHeader.isEmpty() || (!token.isEmpty() && header.isEmpty())) {
+                throw new IllegalStateException("client-address cần cả header và token-header");
+            }
+            if (!header.matches("[A-Za-z0-9-]*") || !tokenHeader.matches("[A-Za-z0-9-]*") || !printable(token)) {
+                throw new IllegalStateException("client-address: tên header hoặc token không hợp lệ");
+            }
+        }
+
+        public boolean configured() {
+            return !header.isEmpty();
+        }
+
+        @Override
+        public String toString() {
+            return configured() ? "ClientAddress[header=" + header + ", tokenHeader=" + tokenHeader + ", token=***]" : "none";
+        }
+    }
+
+    private static boolean printable(String value) {
+        return value.chars().noneMatch(c -> c <= 32 || c >= 127);
     }
 }

@@ -3,12 +3,12 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | realtime-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Hướng dẫn chạy trên môi trường riêng. Các bước runtime bên dưới là quy trình vận hành và tiêu chí kiểm chứng, không phải kết quả kiểm thử đã chạy. [Kiến trúc](kien-truc.md), [API](api.md), [Routes](routes.md), [Nghiệp vụ](nghiep-vu.md).
 
-Kết quả GPS/nearby/offer/reconnect thật: [báo cáo Matching](../../matching-service/docs/bao-cao-trien-khai.md). Offer cần RABBITMQ_URL, MATCHING_BASE_URL, MATCHING_REALTIME_TOKEN; startup/shutdown/retry/DLQ theo [runbook Matching](../../matching-service/docs/deploy.md). Không ghi đè .env hoặc volume existing.
+Kết quả GPS/offer/reconnect thật: [báo cáo Matching](../../matching-service/docs/bao-cao-trien-khai.md). Offer cần RABBITMQ_URL, MATCHING_BASE_URL, MATCHING_REALTIME_TOKEN; startup/shutdown/retry/DLQ theo [runbook Matching](../../matching-service/docs/deploy.md). Không ghi đè .env hoặc volume existing.
 
 ## 1. Topology và điều kiện local
 
@@ -16,7 +16,7 @@ Kết quả GPS/nearby/offer/reconnect thật: [báo cáo Matching](../../matchi
 | --- | --- | --- |
 | Realtime | http://localhost:3004 | HTTP và Socket.IO /realtime cùng process |
 | Redis riêng Realtime | 127.0.0.1:56379 | GPS/expiry/watermark; không dùng key Driver |
-| Driver/JWKS | http://127.0.0.1:3003 | OTP/JWT, JWKS, batch eligibility |
+| Driver/JWKS | http://127.0.0.1:3003 | OTP/JWT và JWKS; Realtime không gọi eligibility từ 2026-11-05 |
 | App Expo | Web origin thường localhost:8081 | Foreground GPS; thiết bị/emulator dùng URL thích hợp |
 | Trip | Theo config Driver | Driver có thể cần Trip khi chọn/sửa xe; Realtime không gọi Trip |
 
@@ -51,10 +51,6 @@ Chưa có test suite/script test, migration, Swagger generation hoặc worker ri
 | AUTH_JWT_ISSUER | Bắt buộc; sample http://localhost:3003 | Khớp iss chính xác, không suy ra từ hostname JWKS |
 | AUTH_JWT_AUDIENCE | Default realtime-service | Phải có trong aud Driver JWT |
 | AUTH_JWKS_TIMEOUT_MS | Default 3.000 | Integer 1–10.000 |
-| ROUTING_INBOUND_TOKEN | Bắt buộc, sample placeholder | Routing → Realtime; >=32 ký tự, không bắt đầu REPLACE_ |
-| DRIVER_ELIGIBILITY_TOKEN | Bắt buộc, sample placeholder | Realtime → Driver; >=32 ký tự, khác Routing token, bằng REALTIME_INBOUND_TOKEN của Driver |
-| DRIVER_BASE_URL | Bắt buộc; sample http://127.0.0.1:3003 | HTTP(S), không credentials/query/hash |
-| DRIVER_TIMEOUT_MS | Default 3.000 | Integer 1–10.000; deadline chung cho tất cả batch |
 | LOCATION_FRESHNESS_MS | Default/tối đa 30.000 | Integer 1–30.000; tuổi phải nhỏ hơn ngưỡng |
 | LOCATION_MAX_FUTURE_MS | Default 5.000 | Integer 1–10.000 |
 | LOCATION_MAX_ACCURACY_METERS | Default 100 | Integer 1–1.000; accuracy input 0 đến ngưỡng |
@@ -62,7 +58,8 @@ Chưa có test suite/script test, migration, Swagger generation hoặc worker ri
 | LOCATION_ORDER_RETENTION_MS | Default 86.400.000 | Integer <=604.800.000, phải >freshness; watermark dọn theo scheduler |
 | CLEANUP_INTERVAL_MS | Default 10.000 | Integer 1–60.000 |
 | CLEANUP_BATCH_SIZE | Default 500 | Integer 1–5.000; giới hạn GPS và watermark mỗi tick |
-| NEARBY_MAX_CANDIDATES | Default 5.000 | Integer 1–50.000; trần GEO rows trước stale filter, vượt trả 503 |
+| OFFER_CACHE_TTL_SECONDS | Default 3.600 | Integer 1–604.800; hạn sống của key `realtime:offer:*` (chặn offer cũ đến muộn). Retry offer kết thúc trong khoảng 5 phút; trước đây cố định 7 ngày làm Redis đầy khi đo tải |
+| MATCHING_LOCATION_TOKEN | Bắt buộc | Matching → Realtime `driver-locations`; >=32 ký tự, khác MATCHING_REALTIME_TOKEN |
 | SOCKET_CORS_ORIGINS | Default/sample http://localhost:8081,http://127.0.0.1:8081 | Origin exact, dấu phẩy; client không Origin vẫn phải auth |
 
 Loader hỗ trợ NAME_FILE cho biến đọc qua value(), gồm URL/issuer/tokens/config; không đặt đồng thời giá trị và _FILE. Hai credential khác nhau, không đưa vào EXPO_PUBLIC_*, source, collection chia sẻ hoặc log. Redis DSN có password là secret. Radius tối đa 2.000 m, result limit 50 hardcode trong NearbyPolicy; chu kỳ app 10 giây không phải biến Realtime.
@@ -86,7 +83,7 @@ AUTH_JWT_AUDIENCES=driver-service,trip-service,realtime-service
 REALTIME_INBOUND_TOKEN=REPLACE_WITH_PRIVATE_REALTIME_TO_DRIVER_CREDENTIAL
 ```
 
-Thay placeholder bằng credential >=32 ký tự, khác MATCHING_INBOUND_TOKEN. Realtime dùng cùng giá trị ở DRIVER_ELIGIBILITY_TOKEN. Chưa đặt thì Driver có thể chạy nhưng batch từ chối 401. Driver vẫn cần config database/OTP/Trip/Redis của chính nó; xem [hướng dẫn Driver](../../driver-service/docs/deploy.md). Không đổi legacy status hoặc chạy migration Trip trên Driver DB.
+Driver vẫn cần config database/OTP/Trip/Redis của chính nó; xem [hướng dẫn Driver](../../driver-service/docs/deploy.md). Không đổi legacy status hoặc chạy migration Trip trên Driver DB.
 
 Sau khi Driver config/dependency/schema đã đúng, chạy ở terminal riêng:
 
@@ -220,34 +217,14 @@ Remove-Item Env:DRIVER_ACCESS_TOKEN -ErrorAction SilentlyContinue
 
 Chỉ bỏ biến terminal, không xóa Redis/DB. Chưa có bằng chứng nghiệm thu ACK với Redis thật.
 
-## 9. Nearby và eligibility diagnostic — Postman
+## 9. Vị trí cho Matching — Postman
 
 ```http
-GET http://localhost:3004/internal/realtime/nearby-drivers?latitude=0&longitude=0&vehicleType=BIKE
-X-Service-Token: {{routingRealtimeToken}}
+GET http://localhost:3004/internal/realtime/driver-locations?latitude=21.0285&longitude=105.8542&limit=50
+X-Service-Token: {{matchingLocationToken}}
 ```
 
-Private routingRealtimeToken bằng ROUTING_INBOUND_TOKEN, không JWT. Bỏ vehicleType để lấy các loại; radiusMeters default/max 2000. Response 200 là mảng data.drivers gần → xa tối đa 50; không assignment. Ví dụ hai xe trong API là shape, không kết quả đã chạy.
-
-Người có credential riêng có thể kiểm batch Driver:
-
-```http
-POST http://localhost:3003/internal/drivers/eligibility/batch
-X-Service-Token: {{realtimeToDriverToken}}
-Content-Type: application/json
-```
-
-```json
-{
-  "driverIds": [
-    "40000000-0000-4000-8000-000000000001",
-    "40000000-0000-4000-8000-000000000002"
-  ],
-  "vehicleType": "BIKE"
-}
-```
-
-Thay UUID mẫu bằng tài khoản test đang gửi GPS. Credential bằng REALTIME_INBOUND_TOKEN/DRIVER_ELIGIBILITY_TOKEN, khác Routing token. Xem eligible/availabilityKnown/operationalStatus/reasons. UNKNOWN cần chủ Driver/Matching/Gateway xác nhận producer/freshness/đối soát Trip; không HSET AVAILABLE hoặc sửa DB để ca test pass.
+`matchingLocationToken` bằng MATCHING_LOCATION_TOKEN, không dùng JWT. Response 200 `data.drivers` là vị trí còn mới trong 2 km, gần nhất trước, tối đa `limit`; không lọc loại xe hay trạng thái tài xế ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)). Endpoint `/nearby-drivers` và lời gọi Driver `eligibility/batch` đã gỡ ngày 2026-11-05.
 
 ## 10. Tình huống kiểm thử thủ công
 
@@ -255,14 +232,13 @@ Thay UUID mẫu bằng tài khoản test đang gửi GPS. Credential bằng REAL
 | --- | --- | --- |
 | Nhiều xe gần | Hai Driver test có xe/hồ sơ hợp lệ và AVAILABLE được nguồn chính thức xác nhận; hai JWT/terminal GPS_COUNT=0; A 0.0003,0.0004, B 0.001,0.001 | Danh sách nhiều xe đúng type/gần → xa; nếu producer chưa có, ca này bị chặn |
 | Không xe phù hợp | Không GPS trong radius hoặc các ứng viên bị loại có căn cứ: OFFLINE/BUSY/inactive/sai loại | 200 drivers:[], không Trip/assignment side effect |
-| GPS hết hạn | Gửi GPS_COUNT=1, không gửi tiếp, chờ >30 giây rồi nearby | Mẫu bị loại kể cả cleanup chưa dọn; hết candidate thì [] |
-| UNKNOWN | Hồ sơ/xe ONLINE hợp lệ, projection chưa xác minh | 503 ELIGIBILITY_UNDETERMINED, không AVAILABLE giả |
-| JWT/credential sai | Sai issuer/audience/role/expiry; nearby thiếu token hoặc chỉ JWT | connect_error hoặc HTTP 401 tương ứng |
+| GPS hết hạn | Gửi GPS_COUNT=1, không gửi tiếp, chờ >30 giây rồi gọi driver-locations | Mẫu bị loại kể cả cleanup chưa dọn; hết candidate thì [] |
+| JWT/credential sai | Sai issuer/audience/role/expiry; driver-locations thiếu token hoặc chỉ JWT | connect_error hoặc HTTP 401 tương ứng |
 | Ordering/duplicate | Cùng timestamp payload giống/khác, mẫu cũ sau mẫu mới | Không ghi đè; duplicate không kéo dài expiry |
-| Redis/Driver lỗi | Outage mô phỏng được phép ở môi trường riêng | ready/ACK/nearby lỗi rõ, không [] giả |
+| Redis lỗi | Outage mô phỏng được phép ở môi trường riêng | ready/ACK/driver-locations lỗi rõ, không [] giả |
 | Cleanup race | Nhiều client gửi quanh expiry trên Redis riêng | Mẫu mới hợp lệ không bị cleanup cũ xóa; cần kiểm chứng runtime |
 
-Empty nearby, disconnect hoặc expiry GPS không kết thúc Trip/reservation. Các ca là tiêu chí đối chiếu; kết quả runtime GPS/nearby/offer/reconnect đã có trong báo cáo Matching, không đồng nghĩa mọi ca thiết bị/background đã nghiệm thu.
+Danh sách vị trí rỗng, disconnect hoặc expiry GPS không kết thúc Trip/reservation. Các ca là tiêu chí đối chiếu; kết quả runtime GPS/nearby/offer/reconnect đã có trong báo cáo Matching, không đồng nghĩa mọi ca thiết bị/background đã nghiệm thu.
 
 ## 11. App foreground và Expo Go
 
@@ -292,20 +268,18 @@ Theo [Expo Location SDK57](https://docs.expo.dev/versions/v57.0.0/sdk/location/)
 | Origin bị từ chối | Origin exact, Socket.IO namespace/path/transport đúng |
 | live 200, ready 503 | Redis URL/port/auth/ACL/network; không in DSN/password chia sẻ |
 | ready 200 nhưng operation lỗi | PING chưa chứng minh EVAL/GEO/TIME/HASH/ZSET permission, Driver/JWKS |
-| DEPENDENCY_UNAVAILABLE nearby | Driver URL/deadline/token/schema/Redis, batch đủ ID và đúng envelope/type; token khác Routing |
-| ELIGIBILITY_UNDETERMINED | availabilityKnown=false; nguồn projection/resync chưa chốt, không tự đánh dấu AVAILABLE |
+| DEPENDENCY_UNAVAILABLE driver-locations | Redis URL/timeout/ready |
 | LOCATION_STALE | Timestamp đo mới; GPS_RECORDED_AT cố định không dùng loop dài |
 | LOCATION_IN_FUTURE / OUT_OF_ORDER | Clock lệch hoặc watermark mới hơn; reconnect không reset watermark |
 | RATE_LIMITED | Mẫu mới dưới min interval, kiểm timer/client trùng |
 | drivers:[] | Đúng pickup/radius/type, freshness, batch reasons; [] khác outage |
-| 401 INVALID_SERVICE_CREDENTIAL | Header thiếu/sai, Routing và batch dùng token khác nhau, env terminal override |
-| SEARCH_CAPACITY_EXCEEDED | GEO rows vượt cap kể cả stale chưa cleanup; không cắt danh sách trước lọc |
+| 401 INVALID_SERVICE_CREDENTIAL | Header thiếu/sai, MATCHING_LOCATION_TOKEN chưa đặt hoặc khác giá trị Matching dùng, env terminal override |
 | App chưa gửi | Phiên/ONLINE/selection/focus/foreground/quyền/services, URL LAN/emulator/dependency; UI có thể không giữ code handshake |
 
 ## 13. Bàn giao vận hành
 
 Production còn cần TLS/ingress, private internal/probes, credential rotation/ACL, persistence và monitoring clock/capacity/outage. Expiry là logic theo member/field; cleanup lỗi có thể giữ dữ liệu vật lý, read vẫn lọc stale. Ready không phải health toàn hệ thống.
 
-Routing xác nhận caller/mapping/credential/error handling; Driver xác nhận producer/freshness operational state với active Trip. Gateway chuẩn cần namespace/path/origin/proxy; consumer GEO cũ cần chuyển tường minh. Không đọc key Driver/trip_db để bù API thiếu, không hứa snapshot loại hết assignment race.
+Matching xác nhận caller/mapping/credential/error handling. Gateway chuẩn cần namespace/path/origin/proxy; consumer GEO cũ cần chuyển tường minh. Không đọc key Driver/trip_db để bù API thiếu, không hứa snapshot loại hết assignment race.
 
-Chưa có bằng chứng integration Redis/Driver/Routing hoặc device E2E. Realtime không có PostgreSQL/ORM; xác minh schema/dữ liệu Driver là công việc riêng của owner Driver. Kiểm tra tĩnh không chứng minh runtime hoặc schema database thực.
+Chưa có bằng chứng device E2E. Realtime không có PostgreSQL/ORM; xác minh schema/dữ liệu Driver là công việc riêng của owner Driver. Kiểm tra tĩnh không chứng minh runtime hoặc schema database thực.

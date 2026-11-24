@@ -6,8 +6,8 @@ import type { Response } from 'express';
 import { TripContext } from '../bootstrap/context';
 import { verifyServiceCredential } from './auth';
 import { envelope, result, type TripRequest } from './http';
-import { parse, uuid, estimateBody, createBody, updateBody, cancelBody, assignmentBody, historyQuery } from './schemas';
-import { quoteResponse, tripResponse, detailResponse, pageResponse, assignmentResponse, errorResponse, responseEnvelope } from './schemas';
+import { parse, uuid, estimateBody, createBody, updateBody, cancelBody, assignmentBody, noDriverBody, historyQuery } from './schemas';
+import { quoteResponse, tripResponse, detailResponse, pageResponse, assignmentResponse, noDriverResponse, errorResponse, responseEnvelope } from './schemas';
 export const CONTEXT = 'TRIP_CONTEXT';
 function body(schema: z.ZodType) { return ApiBody({ schema: z.toJSONSchema(schema, { target: 'openapi-3.0', io: 'input' }) as Extract<ApiBodyOptions, { schema: unknown }>['schema'] }); }
 function response(status: number, schema: z.ZodType) { return ApiResponse({ status, schema: z.toJSONSchema(schema, { target: 'openapi-3.0', io: 'input' }) as Extract<ApiBodyOptions, { schema: unknown }>['schema'] }); }
@@ -50,6 +50,9 @@ export class AssignmentController {
   constructor(@Inject(CONTEXT) private readonly context: TripContext) {}
   @Post(':id/assignment') @HttpCode(202) @tripParam() @body(assignmentBody) @response(202, responseEnvelope(assignmentResponse)) @ApiOperation({ operationId: 'assignTrip' })
   async assign(@Req() req: TripRequest, @Res({ passthrough: true }) res: Response, @Param('id') id: string, @Body() input: unknown) { return result(req, res, await this.context.assignment.execute(parse(uuid, id), parse(assignmentBody, input))); }
+  // ADR-0004: Matching reached the search deadline with no offer pending. 409 TRIP_NOT_SEARCHING when the trip moved on.
+  @Post(':id/no-driver-found') @HttpCode(202) @tripParam() @body(noDriverBody) @response(202, responseEnvelope(noDriverResponse)) @ApiOperation({ operationId: 'noDriverFound' })
+  async noDriver(@Req() req: TripRequest, @Res({ passthrough: true }) res: Response, @Param('id') id: string, @Body() input: unknown) { return result(req, res, await this.context.noDriver.execute(parse(uuid, id), parse(noDriverBody, input).eventId)); }
   @Get(':id/matching-state')
   async state(@Req() req: TripRequest, @Param('id') id: string) {
     const trip = await this.context.store.transaction(tx => tx.findTrip(parse(uuid, id)));
@@ -63,9 +66,8 @@ export class DriverLookupController {
   async activeDrivers(@Req() req: TripRequest, @Body() input: unknown) {
     verifyServiceCredential(req.header('X-Service-Token'), this.context.config.driverLookupToken ?? '');
     const { driverIds } = parse(z.object({ driverIds: z.array(uuid).min(1).max(100).refine(ids => new Set(ids).size === ids.length) }).strict(), input);
-    const items = await this.context.store.transaction(async tx => {
-      const result = []; for (const driverId of driverIds) { const trip = await tx.active({ sub: driverId, role: 'DRIVER' }); result.push({ driverId, tripId: trip?.tripId ?? null }); } return result;
-    });
+    const active = await this.context.store.transaction(tx => tx.activeTripsByDriver(driverIds));
+    const items = driverIds.map(driverId => ({ driverId, tripId: active.get(driverId) ?? null }));
     return envelope(req, { items });
   }
 }

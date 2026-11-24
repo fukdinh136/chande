@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | trip-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày bàn giao: 05/10/2026. Cơ sở: tài liệu nghiệp vụ, kiến trúc, API, routes và kế hoạch C00–C15; yêu cầu mới nhất cho phép triển khai liên tục, kiểm thử và push từng feature nhỏ.
@@ -159,8 +159,25 @@ Các lựa chọn này hoàn thiện thiết kế kỹ thuật; không thay đ�
 | Service ngoài thật | Xác nhận O01–O07, callback/ACK, vehicle codes, snapshots và credentials; chạy integration tại môi trường chung |
 | Gateway/mobile | Proxy R01–R07, giữ JWT/key/request ID, đăng ký realtime; frontend chưa nối API trong đợt này |
 | Hosting/registry/domain/TLS | Chưa chọn/chưa publish image hoặc deploy lên host thật; Compose deploy mới kiểm tra cấu hình và quyền DB bằng integration test |
-| Monitoring/backup/restore | Có probes/log/requeue; chưa lắp dashboard/exporter/alert hoặc chạy restore drill trên hosting |
-| Retention và scale | Chưa cleanup quote/receipt/inbox/outbox tự động; chưa có load test hoặc HA benchmark |
+| Monitoring/backup/restore | Có probes/log/requeue và metric/trace OpenTelemetry tuỳ chọn (B6); chưa có alert hoặc restore drill trên hosting |
+| Retention và scale | Outbox đã gửi xong được xoá sau 24 giờ (A6); quote/receipt/inbox chưa cleanup. Đã có load test trên Kubernetes local ([báo cáo kiểm thử tải](../../../docs/bao-cao-kiem-thu-tai.md)); chưa có HA benchmark nhiều replica |
 | Nghiệm thu người dùng | Review nghiệp vụ, API, O07 và báo cáo trước khi phát hành môi trường thật |
 
 Payment, rating, chat, GPS streaming, khiếu nại, admin và thuật toán tìm xe vẫn ngoài phạm vi v1 của Trip. Mock giá/Matching phục vụ kiểm thử, không thay cho nghiệp vụ các service đó.
+
+## 8. Cải tiến hiệu năng và chịu lỗi
+
+Làm trên nhánh `perf/adr-0008-trip-outbox` (2026-10-28 → 2026-11-16), mỗi bước đo lại bằng bộ đo tải. Tổng quan cả hệ thống: [tổng hợp cải tiến hiệu năng](../../../docs/tong-hop-cai-tien-hieu-nang.md).
+
+| Cải tiến | Thay đổi trong Trip | Commit |
+| --- | --- | --- |
+| A1, [ADR-0008](../../../docs/adr/0008-xu-ly-hang-doi-lien-tuc.md) | Outbox worker chạy lượt kế ngay khi lô đầy, chỉ nghỉ khi hết việc | `f8ecc7f` |
+| A6 | Xoá tin outbox đã gửi xong sau 24 giờ; migration thêm index cho việc dọn | `bfac1f3` |
+| B7 | `active-drivers/batch` trả lời cả lô bằng một câu SQL thay vì một câu mỗi tài xế | `d48fe7c` |
+| B6, [ADR-0003](../../../docs/adr/0003-observability-opentelemetry.md) | OpenTelemetry tuỳ chọn; metric độ trễ và kết quả gửi outbox | `7ae5bd2`, `abea764` |
+| D1 | Circuit breaker cho mỗi đích của `JsonHttpClient` | `b0b21b4` |
+| Leader Election | Chỉ một replica worker dọn outbox | `65489b1` |
+| Saga | Vai trò của Trip trong luồng chuyến đi và các bước bù trừ: [saga chuyến đi](../../../docs/saga-chuyen-di.md) | `589eb1c` |
+
+Không đổi: API public, state machine, chính sách huỷ và tính giá. Kết quả đo của cả hệ thống: [báo cáo kiểm thử tải](../../../docs/bao-cao-kiem-thu-tai.md).
+

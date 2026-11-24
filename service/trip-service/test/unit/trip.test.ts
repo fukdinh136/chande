@@ -1,3 +1,4 @@
+import { enqueueEvent } from '../../src/application/use-cases/shared';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Trip } from '../../src/domain/trip';
@@ -50,4 +51,13 @@ test('SEARCHING remains active after a long wait; no time-based transition exist
   const trip = searching();
   assert.equal(trip.snapshot().status, 'SEARCHING');
   assert.equal(trip.cancel(rider, 'stop waiting', 1, new Date(+now + 86400000)).trip.snapshot().status, 'CANCELLED');
+});
+test('trip events go to the destinations the runtime names; the default keeps Gateway and notification', async () => {
+  const seen: string[][] = []; const tx = { enqueue: async (_m: unknown, destinations: string[]) => { seen.push(destinations); } } as never;
+  const data = (status: string) => ({ tripId: 't', version: 1, riderId: 'r', driverId: null, status }) as never;
+  const base = { now: () => new Date(0), id: () => 'id' };
+  await enqueueEvent(tx, data('ASSIGNED'), base, new Date(0));
+  await enqueueEvent(tx, data('ASSIGNED'), { ...base, eventDestinations: ['gateway'] }, new Date(0));
+  await enqueueEvent(tx, data('COMPLETED'), { ...base, eventDestinations: ['gateway'] }, new Date(0));
+  assert.deepEqual(seen, [['gateway', 'notification'], ['gateway'], ['gateway', 'matching']]);
 });

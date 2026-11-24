@@ -6,11 +6,12 @@ export async function close(tx: Tx, search: Search, status: 'CANCELLED' | 'COMPL
   search.status = status; await tx.saveSearch(search);
 }
 export class Commands {
-  constructor(private readonly repo: Repository) {}
+  /** `searchTimeoutMs`: the deadline of a new search, counted from when Matching stores it (ADR-0004). */
+  constructor(private readonly repo: Repository, private readonly searchTimeoutMs = 180000) {}
   search(command: Command) {
     return this.repo.transaction(tx => tx.receipt('command:' + command.commandId, command, async () => {
       await tx.lock('search:' + command.tripId); const existing = await tx.search(command.tripId);
-      if (!existing) await tx.saveSearch({ tripId: command.tripId, status: 'SEARCHING', command, offerId: null, attempts: 0 });
+      if (!existing) await tx.saveSearch({ tripId: command.tripId, status: 'SEARCHING', command, offerId: null, attempts: 0, deadlineAt: new Date(await tx.now() + this.searchTimeoutMs).toISOString() });
       return { commandId: command.commandId, accepted: true as const };
     }));
   }

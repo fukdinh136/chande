@@ -251,6 +251,21 @@ class HttpApiTest {
         }
 
         @Test
+        void saturatedHashingIs503WithRetryAfter() {
+            seedUser();
+            app.world.hasher.busy(true);
+            var login = app.call("POST", "/auth/login").json("{\"phoneNumber\":\"0912345678\",\"password\":\"matkhau123\"}").send();
+            assertError(login, 503, "SERVICE_BUSY");
+            assertThat(login.headers().firstValue("Retry-After")).hasValue("1");
+            var register = app.call("POST", "/auth/register")
+                    .json("{\"phoneNumber\":\"0911111111\",\"password\":\"matkhau123\",\"fullName\":\"A\"}").send();
+            assertError(register, 503, "SERVICE_BUSY");
+            app.world.hasher.busy(false);
+            assertThat(app.call("POST", "/auth/login").json("{\"phoneNumber\":\"0912345678\",\"password\":\"matkhau123\"}").send()
+                    .statusCode()).isEqualTo(200);
+        }
+
+        @Test
         void publicRoutesIgnoreAuthorizationHeader() {
             seedUser();
             var response = app.call("POST", "/auth/login").header("Authorization", "Bearer expired.or.garbage")

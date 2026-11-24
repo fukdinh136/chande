@@ -480,6 +480,7 @@ Trả 200 `{"status":"UP"}` khi `SELECT 1` tới DB thành công, ngược lại
 | `DATA_CONFLICT` | 409 | Dữ liệu vừa bị thay đổi bởi thao tác khác, vui lòng thử lại | Vi phạm ràng buộc DB không lường trước (ví dụ 2 request cùng đặt mặc định), đổi mật khẩu đồng thời |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Dữ liệu gửi lên phải ở dạng JSON | Body không phải `application/json` |
 | `INTERNAL_ERROR` | 500 | Lỗi hệ thống, vui lòng thử lại sau | Mọi lỗi không lường trước |
+| `SERVICE_BUSY` | 503 | Hệ thống đang bận, vui lòng thử lại sau giây lát | A1, A2, P3 khi chờ chỗ băm BCrypt quá `BCRYPT_MAX_WAIT`; kèm `Retry-After: 1` |
 
 Client nên dựa vào `code`, không nên dựa vào `message`.
 

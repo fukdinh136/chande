@@ -7,12 +7,14 @@ import { RoutingError } from '../../src/domain/errors';
 import { config, context, routeJob, tick } from '../helpers/fixtures';
 const ok = { distanceMeters: 1, durationSeconds: 2, steps: [] };
 const permit = { acquire: async () => undefined };
+// Every ROUTING_BUSY carries the limit that was hit, so metrics can tell them apart.
+const busyFor = (reason: string) => (error: unknown) => error instanceof RoutingError && error.code === 'ROUTING_BUSY' && error.reason === reason;
 test('bounded pool caps concurrency, rejects overflow and preserves result identity', async () => {
   const gates: (() => void)[] = []; let calls = 0; let running = 0; let max = 0;
   const provider: MapProvider = { route: async () => { const id = ++calls; running++; max = Math.max(max, running); await new Promise<void>(r => gates.push(r)); running--; return { ...ok, distanceMeters: id }; }, matrix: async () => [] };
   const pool = new WorkerPool(provider, permit, { ...config().limits, queueSize: 1 }, systemClock);
   const a = pool.dispatch(routeJob, context()); const b = pool.dispatch(routeJob, context()); const c = pool.dispatch(routeJob, context());
-  await assert.rejects(pool.dispatch(routeJob, context()), /ROUTING_BUSY/); await tick(); assert.equal(calls, 2);
+  await assert.rejects(pool.dispatch(routeJob, context()), busyFor('queue_full')); await tick(); assert.equal(calls, 2);
   gates[0]!(); assert.equal((await a).distanceMeters, 1); await tick(); assert.equal(calls, 3); gates[1]!(); gates[2]!();
   assert.equal((await b).distanceMeters, 2); assert.equal((await c).distanceMeters, 3); await pool.close(); assert.equal(max, 2); assert.deepEqual(pool.stats, { accepting: false, running: 0, queued: 0 });
 });
@@ -27,9 +29,9 @@ test('queued cancellation never reaches provider and worker survives exceptions'
 test('expired queue and shutdown settle every Promise even for hanging adapters', async () => {
   const provider: MapProvider = { route: () => new Promise(() => undefined), matrix: async () => [] };
   const pool = new WorkerPool(provider, permit, { ...config().limits, workers: 1, queueWait: 10, shutdownGrace: 10 }, systemClock);
-  const a = pool.dispatch(routeJob, context()); const aRejected = assert.rejects(a, /ROUTING_BUSY/);
-  await assert.rejects(pool.dispatch(routeJob, context()), /ROUTING_BUSY/);
-  await pool.close(); await aRejected; assert.equal(pool.stats.running, 0); await assert.rejects(pool.dispatch(routeJob, context()), /ROUTING_BUSY/);
+  const a = pool.dispatch(routeJob, context()); const aRejected = assert.rejects(a, busyFor('shutting_down'));
+  await assert.rejects(pool.dispatch(routeJob, context()), busyFor('queue_wait'));
+  await pool.close(); await aRejected; assert.equal(pool.stats.running, 0); await assert.rejects(pool.dispatch(routeJob, context()), busyFor('shutting_down'));
 });
 test('active deadline frees slots and retry obtains a fresh permit', async () => {
   let calls = 0; let permits = 0;

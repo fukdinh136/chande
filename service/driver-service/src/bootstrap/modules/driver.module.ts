@@ -15,8 +15,6 @@ import { InternalController } from "../../presentation/http/controllers/internal
 import { OperationsController } from "../../presentation/http/controllers/operations.controller";
 import { UserGuard } from "../../presentation/http/guards/user.guard";
 import { ServiceGuard } from "../../presentation/http/guards/service.guard";
-import { RealtimeServiceGuard } from "../../presentation/http/guards/realtime-service.guard";
-import { RealtimeInternalController } from "../../presentation/http/controllers/realtime-internal.controller";
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -47,7 +45,6 @@ import { RealtimeInternalController } from "../../presentation/http/controllers/
     },
     UserGuard,
     ServiceGuard,
-    RealtimeServiceGuard,
   ],
   controllers: [
     AuthController,
@@ -55,7 +52,6 @@ import { RealtimeInternalController } from "../../presentation/http/controllers/
     VehicleController,
     AvailabilityController,
     InternalController,
-    RealtimeInternalController,
     OperationsController,
   ],
 })

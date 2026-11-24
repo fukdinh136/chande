@@ -2,13 +2,6 @@ import { z } from 'zod';
 import { RoutingError, invalidProvider } from './errors';
 export const locationSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), address: z.string().max(500).optional() }).strict();
 export type Location = z.infer<typeof locationSchema>;
-export const driverSchema = z.object({ driverId: z.string().min(1).max(128).refine(id => id.trim() === id && id.trim().length > 0), location: locationSchema, observedAt: z.iso.datetime() }).strict();
-export type DriverLocation = z.infer<typeof driverSchema>;
-export function driverSnapshot(value: unknown): DriverLocation[] {
-  const result = z.array(driverSchema).safeParse(value);
-  if (!result.success || new Set(result.data.map(d => d.driverId)).size !== result.data.length) throw new RoutingError('INVALID_REALTIME_RESPONSE', 503);
-  return result.data;
-}
 export function measurement(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || Math.ceil(value) > 2147483647) throw invalidProvider();
   return Math.ceil(value);

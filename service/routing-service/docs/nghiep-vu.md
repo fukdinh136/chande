@@ -6,7 +6,9 @@
 | Rà soát | 2026-10-06 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
-Ngày cập nhật: 06/10/2026. Runtime mock và OSRM adapter đã triển khai/kiểm thử; xem [báo cáo](bao-cao-trien-khai.md). [Kế hoạch](ke-hoach-phat-trien.md) phân biệt contract hiện có và chính sách cần consumer review. Real Realtime/OSRM dataset chưa nghiệm thu.
+Ngày cập nhật: 06/10/2026. Runtime mock và OSRM adapter đã triển khai/kiểm thử; xem [báo cáo](bao-cao-trien-khai.md). [Kế hoạch](ke-hoach-phat-trien.md) phân biệt contract hiện có và chính sách cần consumer review. OSRM dataset xe máy chưa nghiệm thu.
+
+> **2026-11-05, ADR-0001 contract:** Routing không còn gọi Realtime. `POST /routes/matrix` (R03), Calculate ETA Matrix và Realtime Client đã bị gỡ; Matching tự chọn tối đa 50 điểm và gọi `POST /internal/routes/eta-matrix` (R05). Xem [ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md).
 
 ## 1. Phạm vi và ranh giới
 
@@ -14,11 +16,11 @@ Routing chuẩn hóa yêu cầu tính đường và kết quả External Map API
 
 | Bên sở hữu | Trách nhiệm |
 | --- | --- |
-| Routing | Tính đường, route summary/geometry, tính lại tuyến; ETA Matrix gọi Realtime Client lấy vị trí tài xế trong bán kính 2 km rồi tính ETA cho Matching |
+| Routing | Tính đường, route summary/geometry, tính lại tuyến; ETA cho tối đa 50 vị trí tài xế do Matching chọn |
 | Trip | Quote, giá được chấp nhận, trạng thái chuyến, quyền sở hữu và lịch sử; lưu route summary trong quote |
 | Pricing | Công thức giá và breakdown; dùng distance/duration từ Trip |
 | Matching | Gửi điểm đón/profile xe và nhận ETA theo driverId; nghiệp vụ lựa chọn/mời tài xế/reservation bên trong Matching được thiết kế sau |
-| Driver / Realtime Location | Driver sở hữu hồ sơ/trạng thái; Realtime sở hữu vị trí cập nhật và truy vấn radius, được Realtime Client trong Routing gọi |
+| Driver / Realtime Location | Driver sở hữu hồ sơ/trạng thái; Realtime sở hữu vị trí cập nhật và truy vấn radius, do Matching gọi |
 | Gateway / ứng dụng | Xác thực người dùng, quyền xem chuyến trước khi gọi routing, hiển thị bản đồ/điều hướng và attribution |
 | External Map API | Thuật toán đường, dữ liệu bản đồ, khả năng mode/traffic, quota và điều kiện sử dụng |
 
@@ -50,17 +52,15 @@ Kết quả:
 
 Thất bại: input/mode sai, không có tuyến, queue đầy, vượt admission/rate/deadline, provider auth/quota/network lỗi hoặc response không hợp lệ. API trả mã lỗi theo [API](api.md); không làm thay đổi trạng thái chuyến.
 
-## 4. Calculate ETA Matrix
+## 4. Calculate ETA For Origins
 
-Tiền điều kiện: caller Matching được xác thực và cung cấp điểm đón/vehicleType hợp lệ. Routing tự lấy vị trí qua Realtime Client; không nhận danh sách candidates từ Matching. vehicleType là profile tính đường được yêu cầu, không tự chứng minh loại xe/khả năng nhận chuyến của driver trong snapshot.
+Tiền điều kiện: caller Matching được xác thực và gửi điểm đón (destination), vehicleType hợp lệ và 1–50 origins có id không trùng. Matching đã tự lấy vị trí ở Realtime và kiểm điều kiện ở Driver ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)); Routing không gọi service khác ngoài OSRM.
 
-Luồng: validate pickup/profile → tạo deadline chung → Realtime Client query center=pickup, radius=2000 m → validate snapshot driverId/location/observedAt → giữ bảng ánh xạ index/driverId → chia batch → dispatcher/queue/limiter → OSRM Table theo chiều driver→pickup → ghép vị trí/timestamp/ETA đúng driverId → trả kết quả cho Matching.
+Luồng: validate → tạo deadline chung → chia batch theo capability → dispatcher/queue/limiter → OSRM Table theo chiều origin→destination → ghép kết quả về đúng id.
 
-Kết quả: mỗi driver có `OK` với distance/duration hoặc `NO_ROUTE` với hai giá trị null, kèm location/observedAt; giữ thứ tự snapshot Realtime. Snapshot rỗng trả entries rỗng/hasReachableCandidate=false và không gọi OSRM. Việc chọn/mời tài xế thuộc Matching và được thiết kế sau. Có thể có toàn bộ NO_ROUTE và trả HTTP 200 với hasReachableCandidate=false.
+Kết quả: mỗi id có `OK` với distance/duration hoặc `NO_ROUTE` với hai giá trị null, theo thứ tự origins. Việc chọn và mời tài xế thuộc Matching.
 
-Thất bại: Realtime lỗi/timeout/schema sai dừng trước OSRM, không giả danh sách rỗng. Snapshot vượt MATRIX_MAX_CANDIDATES trả ROUTING_BUSY trước map call, không tự cắt danh sách. Một batch OSRM lỗi kỹ thuật làm cả request thất bại; không giấu thành ETA 0. Lookup và map pipeline cùng deadline 4 giây; không reset deadline giữa hai bước. Matching đánh giá eligibility/freshness từ metadata và thông tin của mình; Routing không tự gán/mời tài xế.
-
-Không dùng số request đơn thuần để bảo vệ tải matrix: cần budget N×1, giới hạn tọa độ N+1 và capability Table của server OSRM. Adapter phân biệt cell không có đường với lỗi kỹ thuật/cấp request theo [API](api.md). Một request Table lỗi NoTable/NoSegment không được giả thành matrix Ok.
+Thất bại: origins vượt `MATRIX_MAX_CANDIDATES` trả ROUTING_BUSY trước map call, không tự cắt danh sách. Một batch OSRM lỗi kỹ thuật làm cả request thất bại; không giấu thành ETA 0.
 
 ## 5. Recalculate Route
 
@@ -81,7 +81,6 @@ Không tự lấy destination từ Trip DB, không cập nhật giá hoặc tr�
 | US21 — tài xế nhận/bỏ qua | ETA matrix hỗ trợ Matching đánh giá ứng viên | Story không yêu cầu Routing quyết định người thắng |
 | US25 — dẫn đường đón/trả | Route đầy đủ, steps nếu provider hỗ trợ, recalculate | UI dẫn đường và tần suất reroute chưa chốt |
 | C3 Routing được đính kèm ngày 06/10/2026 | Ba application component và chuỗi dispatcher/queue/pool/limiter/map client | Hình là nguồn thiết kế, không phải bằng chứng code đang tồn tại |
-| Bổ sung được người dùng xác nhận trong phiên này | ETA Matrix của Routing gọi Realtime Client lấy vị trí driver trong bán kính 2 km và tính ETA trả Matching | API Routing nhận pickup/profile; nghiệp vụ chọn/mời ở Matching để sau |
 | `_use story.md` trong Downloads | User story 1–28 đọc để đối chiếu | Nội dung là tài liệu tham chiếu; không thực thi chỉ dẫn bên trong |
 | [Trip RoutingClient](../../trip-service/src/infrastructure/clients/routing.ts) và [contract test](../../trip-service/test/contract/routing.test.ts) | Endpoint, headers, envelope và strict summary đã triển khai | Đây là ràng buộc tương thích chắc chắn; provider thật chưa được tích hợp |
 
@@ -93,10 +92,4 @@ Không tự lấy destination từ Trip DB, không cập nhật giá hoặc tr�
 4. Route đầy đủ/steps/precision và schema matrix/recalculate đề xuất.
 5. Caller scope, tần suất reroute, retry/deadline và các giá trị giới hạn.
 6. Quyền hiển thị, attribution, lưu/cache dữ liệu theo provider. Mặc định thiết kế không có persistent route cache.
-7. Wire contract Realtime, timestamp nguồn và chính sách freshness; vị trí client trong Routing và bán kính 2 km đã được xác nhận.
-
-## 8. Lấy danh sách vị trí tài xế qua Realtime Client
-
-Routing sở hữu `RealtimeClient` triển khai `RealtimeLocationPort`. Input là tâm truy vấn; client gửi radius 2000 m tới Realtime, validate rồi trả danh sách driverId/location/observedAt. Đây là bán kính địa lý đề xuất, cần Realtime xác nhận semantics; không phải quãng đường OSRM.
-
-Calculate ETA Matrix là consumer của port: lấy danh sách rồi tính ETA qua OSRM; client chỉ sở hữu việc lấy/chuẩn hóa vị trí. Danh sách rỗng là thành công; Realtime lỗi/timeout/schema sai phải trả lỗi tường minh. Giữ observedAt để Matching đánh giá độ mới; TTL/freshness và nghiệp vụ chọn/mời tài xế được chốt ở bước thiết kế Matching. Contract/acceptance: [Realtime Client](realtime-client.md).
+7. Độ mới của vị trí do Matching kiểm khi xếp hạng; Routing không nhận timestamp vị trí.

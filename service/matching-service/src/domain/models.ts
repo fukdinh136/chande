@@ -8,7 +8,17 @@ export const completedEvent = z.object({ schemaVersion: z.literal(1), eventId: u
 export type Command = z.infer<typeof searchCommand>;
 export type SearchStatus = 'SEARCHING' | 'ASSIGNMENT_PENDING' | 'ASSIGNED' | 'CANCELLED' | 'COMPLETED';
 export type OfferStatus = 'PENDING' | 'ASSIGNMENT_PENDING' | 'ASSIGNED' | 'DECLINED' | 'EXPIRED' | 'REJECTED' | 'REVOKED';
-export interface Search { tripId: string; status: SearchStatus; command: Command | null; offerId: string | null; attempts: number }
+/** `deadlineAt`: no new offer after it, and the trip is cancelled as NO_DRIVER_FOUND once no offer is pending (ADR-0004).
+ * `timeoutEventId`: idempotency key of that cancellation, kept so a retried job sends the same one. A search stored
+ * before ADR-0004 has no deadlineAt; its deadline is counted from when the trip was booked (see deadlineOf). */
+export interface Search { tripId: string; status: SearchStatus; command: Command | null; offerId: string | null; attempts: number; deadlineAt?: string | null; timeoutEventId?: string | null }
+/** The search deadline in ms: the stored one, or for a search stored before ADR-0004, booking time + `timeoutMs`. */
+export function deadlineOf(s: Search, timeoutMs: number): number | null {
+  if (s.deadlineAt) return Date.parse(s.deadlineAt);
+  return s.command ? Date.parse(s.command.occurredAt) + timeoutMs : null;
+}
+/** True once the search has passed its deadline at `now` (ms). */
+export const pastDeadline = (s: Search, now: number, timeoutMs: number) => { const deadline = deadlineOf(s, timeoutMs); return deadline !== null && now >= deadline; };
 export interface Assignment { eventId: string; driverId: string; vehicleId: string; driverSnapshot: { fullName: string; avatarUrl: string | null }; vehicleSnapshot: { vehicleType: string; licensePlate: string; brand: string | null; color: string | null } }
 export interface Offer { offerId: string; tripId: string; driverId: string; version: number; status: OfferStatus; createdAt: string; expiresAt: string; assignment: Assignment; command: Command; assignmentAttempted?: boolean }
 export interface Candidate { driverId: string; observedAt: string; status: 'OK' | 'NO_ROUTE'; distanceMeters: number | null; durationSeconds: number | null }

@@ -59,8 +59,11 @@ export interface Trip {
   driver?: {fullName:string;avatarUrl:string|null}|null;
   vehicle?: {licensePlate:string;brand:string|null;color:string|null}|null;
   timestamps?: { requestedAt: string; assignedAt: string | null; driverArrivedAt: string | null; startedAt: string | null; completedAt: string | null; cancelledAt: string | null };
-  cancellation?: { actorType: 'RIDER' | 'DRIVER'; reason: string; cancelledAt: string } | null;
+  // SYSTEM with NO_DRIVER_FOUND: the search reached its deadline without a driver (ADR-0004).
+  cancellation?: { actorType: 'RIDER' | 'DRIVER' | 'SYSTEM'; reason: string; cancelledAt: string } | null;
 }
+export const NO_DRIVER_FOUND = 'NO_DRIVER_FOUND';
+export function noDriverFound(trip: Trip) { return trip.status === 'CANCELLED' && trip.cancellation?.actorType === 'SYSTEM' && trip.cancellation.reason === NO_DRIVER_FOUND; }
 export interface TripHistoryEntry {
   fromStatus: TripStatus | null;
   toStatus: TripStatus;

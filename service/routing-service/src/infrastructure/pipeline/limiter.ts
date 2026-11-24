@@ -9,7 +9,7 @@ export class RateLimiter implements PermitLimiter {
   constructor(private readonly limits: { rps: number; burst: number; elementsPerMinute: number; rateWait: number }, private readonly clock: Clock,
     private readonly sleep: typeof wait = wait) { this.tokens = limits.burst; this.updated = clock.now(); }
   async acquire(count: number, context: Context): Promise<void> {
-    if (!Number.isInteger(count) || count < 0 || count > this.limits.elementsPerMinute) throw busy();
+    if (!Number.isInteger(count) || count < 0 || count > this.limits.elementsPerMinute) throw busy('matrix_too_large');
     const end = Math.min(context.deadline, this.clock.now() + this.limits.rateWait);
     while (true) {
       checkpoint(context, this.clock); const now = this.clock.now();
@@ -22,7 +22,7 @@ export class RateLimiter implements PermitLimiter {
       const tokenWait = Math.max(0, (1 - this.tokens) * 1000 / this.limits.rps);
       const elementWait = remaining < count ? this.elements[0]!.at + 60000 - now : 0;
       const pause = Math.max(1, Math.ceil(Math.max(tokenWait, elementWait)));
-      if (now + pause > end) throw busy();
+      if (now + pause > end) throw busy(elementWait > tokenWait ? 'matrix_budget' : 'rate_limit');
       await this.sleep(pause, context.signal);
     }
   }

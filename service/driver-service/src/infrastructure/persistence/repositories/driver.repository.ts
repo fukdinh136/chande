@@ -2,7 +2,7 @@ import { Driver as DriverEntity } from "../entities/driver.entity";
 import { Driver } from "../../../domain/driver/driver";
 import { DriverError } from "../../../domain/value-objects/error";
 import { driverModel } from "../mappers/driver.mapper";
-import { EntityManager } from "typeorm";
+import { EntityManager, In } from "typeorm";
 import { DriverRepository } from "../../../application/ports/driver-repository.port";
 export class PostgresDriverRepository implements DriverRepository {
   constructor(private readonly manager: EntityManager) {}
@@ -13,6 +13,15 @@ export class PostgresDriverRepository implements DriverRepository {
         ...(lock ? { lock: { mode: "pessimistic_write" as const } } : {}),
       }),
     );
+  }
+  async drivers(ids: readonly string[]) {
+    const rows = ids.length ? await this.manager.find(DriverEntity, { where: { id: In([...ids]) } }) : [];
+    const found = new Map<string, Driver>(), migrationRequired = new Set<string>();
+    for (const row of rows) {
+      try { found.set(row.id, driverModel(row)!); }
+      catch (error) { if (error instanceof DriverError && error.code === "DRIVER_STATUS_MIGRATION_REQUIRED") migrationRequired.add(row.id); else throw error; }
+    }
+    return { found, migrationRequired };
   }
   async driverByPhone(phone: string) {
     // Support existing '+' storage without rewriting IDs or phone data.

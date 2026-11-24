@@ -6,7 +6,7 @@
 | Rà soát | 2026-10-06 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
-Ngày cập nhật: 06/10/2026. R01–R04 đã triển khai và kiểm thử qua NestJS HTTP; R01 được kiểm tra bằng Trip client/use case thật. R02–R04 vẫn cần consumer validate nghiệp vụ tích hợp. REST JSON cho phase 1; chưa có gRPC. Realtime HTTP adapter đã nối nearby API hiện có và nghiệm thu ETA qua OSRM Hà Nội.
+Ngày cập nhật: 06/10/2026. R01, R02, R04 và R05 đã triển khai và kiểm thử qua NestJS HTTP; R01 được kiểm tra bằng Trip client/use case thật. R02–R04 vẫn cần consumer validate nghiệp vụ tích hợp. REST JSON cho phase 1; chưa có gRPC. Realtime HTTP adapter đã nối nearby API hiện có và nghiệm thu ETA qua OSRM Hà Nội.
 
 ## 1. Quy ước chung
 
@@ -78,56 +78,9 @@ Caller đề xuất: Gateway; Trip được mở scope full route nếu sau này
 
 Polyline value là placeholder; runtime dùng precision 6. Nếu `includeSteps=true`, mỗi step có `distanceMeters`, `durationSeconds`, `streetName` nullable, `instruction` nullable và `maneuver` gồm `type`, `modifier` nullable, `location`, `exit` nullable. Adapter map maneuver, chưa có formatter tiếng Việt nên `instruction=null`. Mock trả fixture geometry và steps rỗng, không mô phỏng hướng dẫn thật. Attribution thuộc app hiển thị; xem [deploy](deploy.md).
 
-## 4. R03 — POST /routes/matrix
+## 4. R05 — POST /internal/routes/eta-matrix
 
-Caller: Matching. Routing nhận điểm đón và profile loại xe cần tính, tự gọi Realtime Client lấy vị trí tài xế trong bán kính 2 km rồi tính ETA đến điểm đón. Request không nhận danh sách candidates/locations từ Matching. Matching đã triển khai lựa chọn/mời tuần tự, reservation và quyết định tài xế.
-
-```json
-{
-  "pickup": {"lat": 10.7769, "lng": 106.7009},
-  "vehicleType": "BIKE"
-}
-```
-
-Application tạo deadline chung → gọi `RealtimeLocationPort.findNearbyDriverLocations(pickup, context)` với radius 2000 m → validate snapshot → batch OSRM Table với origins là vị trí driver, destination là pickup → map kết quả đúng driverId → trả response. Không sort theo ETA hoặc chọn tài xế thắng trong Routing.
-
-Giữ driverId/location/observedAt từ Realtime qua mọi batch. Vị trí trùng driverId/sai schema làm dependency response lỗi. `MATRIX_MAX_CANDIDATES` giới hạn số vị trí xử lý trong một request; vượt giới hạn trả ROUTING_BUSY trước khi gọi OSRM, không cắt danh sách âm thầm. `vehicleType` chọn profile tính đường; danh sách vị trí không tự chứng minh loại xe hoặc khả năng nhận chuyến của driver. Matching kiểm tra eligibility trong luồng của mình sau.
-
-Đề xuất `data`:
-
-```json
-{
-  "entries": [
-    {
-      "driverId": "driver-a",
-      "location": {"lat": 10.7700, "lng": 106.6900},
-      "observedAt": "2026-10-06T02:00:00.000Z",
-      "status": "OK",
-      "distanceMeters": 1800,
-      "durationSeconds": 240
-    },
-    {
-      "driverId": "driver-b",
-      "location": {"lat": 10.7800, "lng": 106.7100},
-      "observedAt": "2026-10-06T02:00:00.000Z",
-      "status": "NO_ROUTE",
-      "distanceMeters": null,
-      "durationSeconds": null
-    }
-  ],
-  "radiusMeters": 2000,
-  "hasReachableCandidate": true,
-  "calculatedAt": "2026-10-06T02:00:00.000Z"
-}
-```
-
-Realtime trả danh sách rỗng: HTTP 200 với `entries=[]`, `radiusMeters=2000`, `hasReachableCandidate=false`, calculatedAt; không gọi OSRM. HTTP 200 cũng áp dụng cho matrix hợp lệ kể cả tất cả entries NO_ROUTE. Entry OK yêu cầu đủ số đo; NO_ROUTE bắt buộc null, không dùng 0/Infinity. Giữ thứ tự snapshot Realtime.
-
-Realtime lỗi/timeout/schema sai làm request thất bại; không trả empty list. Lỗi network/quota/schema của một OSRM batch hoặc shape sai trả lỗi toàn request v1; không đưa technical failure vào NO_ROUTE. OSRM NoTable/NoSegment ở cấp request trả 422 NO_ROUTE; chỉ map từng cell NO_ROUTE khi matrix Ok hợp lệ. Không có rank/winner/assignment trong response.
-
-Batch size là minimum của MATRIX_BATCH_MAX_ELEMENTS và RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE. Limiter kiểm tra budget khả dụng trước từng attempt; quá budget chờ hữu hạn hoặc lỗi, không âm thầm giảm snapshot. Giới hạn server/capability cần kiểm chứng và cấu hình batch phù hợp; không tự detect khi startup. Matrix là N×1, không mở NxM tùy ý.
-
-Realtime lookup, queue, limiter, OSRM attempts/batches và aggregation cùng chia sẻ deadline 4 giây; không reset deadline sau khi nhận vị trí. R03 đã được triển khai với Realtime HTTP adapter thật và mock; estimate R01 của Trip giữ nguyên.
+Cho Matching ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)); chỉ credential Matching. Body `{destination:{lat,lng}, vehicleType, origins:[{id, lat, lng}]}` với 1–50 origin, `id` không trùng. Data `{entries:[{id, status:"OK"|"NO_ROUTE", distanceMeters, durationSeconds}], calculatedAt}` theo thứ tự origins. Batch size là minimum của MATRIX_BATCH_MAX_ELEMENTS và RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE; batches chạy tuần tự trong deadline 4 giây chung. Entry OK có đủ số đo; NO_ROUTE có hai giá trị null. Thay cho R03 `POST /routes/matrix` đã gỡ ngày 2026-11-05. Quá `MATRIX_MAX_CANDIDATES` trả 503 `ROUTING_BUSY`; lỗi một batch OSRM làm cả request lỗi.
 
 ## 5. R04 — POST /routes/recalculate
 
@@ -157,20 +110,16 @@ CurrentLocation trở thành origin; application dùng chung Calculate Route. Ga
 | 413 | INVALID_REQUEST | Body vượt 64 KiB |
 | 422 | NO_ROUTE | Route/estimate/recalculate không tìm được tuyến; matrix dùng entry status |
 | 422 | UNSUPPORTED_CAPABILITY | Mode không hỗ trợ matrix/geometry/steps theo request |
-| 503 | ROUTING_BUSY | Queue đầy, snapshot Realtime vượt capacity matrix, job chờ quá budget hoặc limiter không cấp permit kịp |
+| 503 | ROUTING_BUSY | Queue đầy, số origins vượt capacity matrix, job chờ quá budget hoặc limiter không cấp permit kịp |
 | 503 | PROVIDER_UNAVAILABLE | Network/429/5xx provider sau retry hữu hạn |
 | 503 | PROVIDER_CONFIGURATION_ERROR | Key/billing/auth provider không hợp lệ; không retry tự động |
 | 503 | INVALID_PROVIDER_RESPONSE | Schema/đơn vị/index/geometry sai; không chấp nhận kết quả |
-| 503 | REALTIME_UNAVAILABLE | Realtime network/service lỗi; không chuyển thành empty list |
-| 503 | REALTIME_CONFIGURATION_ERROR | Endpoint/credential/auth Realtime sai |
-| 503 | INVALID_REALTIME_RESPONSE | Danh sách/ID/tọa độ/timestamp/schema hoặc response size sai |
-| 504 | REALTIME_DEADLINE_EXCEEDED | Timeout Realtime trước khi hết deadline request |
 | 504 | ROUTING_DEADLINE_EXCEEDED | Deadline end-to-end hết; không để response đến sau deadline |
 | 500 | INTERNAL_ERROR | Lỗi ngoài dự kiến, không trả stack trace/secret |
 
 Có thể trả `Retry-After: 1` cho ROUTING_BUSY như gợi ý backoff; không coi đó là cam kết có quota sau một giây. Không trả nguyên body lỗi provider, key, URL query hay nội dung secret. Trip hiện ánh xạ mọi Routing failure thành `DEPENDENCY_UNAVAILABLE`; việc expose lỗi NO_ROUTE riêng cho khách cần thay đổi Trip contract ở feature khác.
 
-Nếu deadline end-to-end đã hết, trả ROUTING_DEADLINE_EXCEEDED; REALTIME_DEADLINE_EXCEEDED dành cho timeout lookup khi request còn budget. Lỗi Realtime chỉ ảnh hưởng R03; estimate/full route/recalculate không gọi dependency vị trí.
+Nếu deadline end-to-end đã hết, trả ROUTING_DEADLINE_EXCEEDED.
 
 ## 7. OSRM adapter contract
 
@@ -180,7 +129,7 @@ Provider đã chọn OSRM; wire API tham chiếu [OSRM HTTP API](https://project
 | --- | --- | --- |
 | Summary estimate | GET `/route/v1/{profile}/{lng1},{lat1};{lng2},{lat2}?alternatives=false&overview=false&steps=false` | Validate code Ok; lấy routes[0].distance/duration; làm tròn lên, check INT32; không geometry |
 | Full route / recalculate | GET route cùng tọa độ với `alternatives=false&overview=full&geometries=polyline6&steps={true,false}` | Lấy route đầu, geometry precision 6; map legs/steps/maneuver khi được yêu cầu |
-| Matrix batch N→1 | GET `/table/v1/{profile}/{coordinates}?sources=0;...;N-1&destinations=N&annotations=duration,distance` | Coordinates là N driver locations từ snapshot Realtime rồi pickup; validate durations/distances có N hàng, một cột; map row i về driverId i |
+| Matrix batch N→1 | GET `/table/v1/{profile}/{coordinates}?sources=0;...;N-1&destinations=N&annotations=duration,distance` | Coordinates là N origins Matching gửi rồi destination; validate durations/distances có N hàng, một cột; map row i về id i |
 
 Không bật `fallback_speed`; không dùng đường chim bay cho cell không có đường. Cả duration/distance null → NO_ROUTE; một giá trị null và một số hoặc shape sai → INVALID_PROVIDER_RESPONSE. Adapter kiểm tra hàng/cột theo sources/destinations đã gửi, giữ mapping gốc qua batch.
 
@@ -188,8 +137,3 @@ Kiểm tra HTTP và code JSON; không coi HTTP 200 là đủ. `NoRoute`/`NoSegme
 
 Profile trong URL không tự chọn lại dataset đã build; mapping endpoint/profile ở [cấu hình](cau-hinh.md) phải được acceptance cho loại xe. Capability Table distance phải kiểm tra với version/algorithm đang deploy; không tự chạy N route fallback khi thiếu distance vì sẽ đổi tải/latency. Đã test wire bằng fixture và smoke OSRM CAR Hà Nội thật; xem osrm-ha-noi.md và báo cáo Matching. BIKE real vẫn cần profile đã kiểm chứng.
 
-## 8. Realtime Client — outbound contract
-
-Calculate ETA Matrix của Routing gọi Realtime Client lấy danh sách vị trí tài xế trong bán kính 2 km quanh pickup. Contract application: `findNearbyDriverLocations(center, context): Promise<DriverLocation[]>`, mỗi entry gồm driverId, location và observedAt. Radius v1 là 2000 m; empty list là thành công, lỗi dependency không được đổi thành empty list.
-
-Method/path/envelope/auth HTTP thực tế của Realtime còn cần đối chiếu service đó. R03 dùng client này để lấy origins; giữ endpoint `/routes/matrix`, không thêm nearby endpoint. Luồng xử lý kết quả, lựa chọn và mời tài xế trong Matching thiết kế sau. Chi tiết DTO, lỗi, cấu hình và kiểm thử: [Realtime Client](realtime-client.md).

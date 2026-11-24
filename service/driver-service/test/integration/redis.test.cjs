@@ -44,3 +44,26 @@ test(
     }
   },
 );
+test(
+  "Redis batch read returns the same state as read(), in input order",
+  { skip: !url },
+  async () => {
+    storageTarget("redis", url);
+    const redis = new Redis(url, { lazyConnect: true, enableOfflineQueue: false, maxRetriesPerRequest: 1 });
+    const ids = [randomUUID(), randomUUID(), randomUUID(), randomUUID()], vehicle = randomUUID();
+    const keys = ids.flatMap((id) => ["driver:" + id + ":state", "driver:" + id + ":availability"]);
+    await redis.connect();
+    try {
+      const state = new RedisState(redis, ["BIKE"]);
+      const [stays, wentOffline, switched, empty] = ids;
+      for (const id of [stays, wentOffline, switched]) { await state.select(id, vehicle); await state.setDesired(id, "ONLINE"); }
+      const before = await state.readMany(ids);
+      assert.deepEqual(before, await Promise.all(ids.map((id) => state.read(id))));
+      assert.deepEqual(before[3], { projectedStatus: null, vehicleId: null, realtimeStatus: "UNKNOWN" });
+    } finally {
+      await redis.del(...keys);
+      for (const id of ids) { await redis.zrem("drivers:locations:last_seen", id); await redis.zrem("drivers:geo:BIKE", id); }
+      redis.disconnect();
+    }
+  },
+);

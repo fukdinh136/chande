@@ -10,6 +10,7 @@ public final class FakePasswordHasher implements PasswordHasher {
 
     private final List<String> hashed = new ArrayList<>();
     private final List<String> matchedAgainst = new ArrayList<>();
+    private boolean busy;
 
     public static String hashOf(String raw) {
         return "hashed:" + raw;
@@ -17,12 +18,18 @@ public final class FakePasswordHasher implements PasswordHasher {
 
     @Override
     public synchronized String hash(String raw) {
+        if (busy) {
+            throw new BusyException();
+        }
         hashed.add(raw);
         return hashOf(raw);
     }
 
     @Override
     public synchronized boolean matches(String raw, String hash) {
+        if (busy) {
+            throw new BusyException();
+        }
         matchedAgainst.add(hash);
         return hashOf(raw).equals(hash);
     }
@@ -36,7 +43,13 @@ public final class FakePasswordHasher implements PasswordHasher {
         return List.copyOf(matchedAgainst);
     }
 
+    /** Giả lập BCrypt quá tải: mọi lần băm ném {@link BusyException}. */
+    public synchronized void busy(boolean value) {
+        busy = value;
+    }
+
     public synchronized void reset() {
+        busy = false;
         hashed.clear();
         matchedAgainst.clear();
     }

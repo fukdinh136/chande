@@ -2,6 +2,7 @@ import { DomainError } from './error';
 import type { Actor, Assignment, HistoryEntry, Principal, Quote, TripData } from './models';
 import { assertUsableQuote, validateEstimate } from './quote';
 import { nextStatus, type TripAction } from './state-machine';
+export const NO_DRIVER_FOUND = 'NO_DRIVER_FOUND';
 
 export class Trip {
   private constructor(private readonly data: TripData) {}
@@ -49,6 +50,15 @@ export class Trip {
     if (status === 'DRIVER_ARRIVED') data.timestamps.driverArrivedAt = now.toISOString();
     if (status === 'IN_PROGRESS') data.timestamps.startedAt = now.toISOString();
     if (status === 'COMPLETED') { data.timestamps.completedAt = now.toISOString(); data.fare.finalAmount = data.fare.estimatedAmount; }
+    return result;
+  }
+  /** Matching found no driver before the search deadline (ADR-0004): the trip is cancelled by SYSTEM. Only from SEARCHING,
+   * so an assignment that won the race is never undone. */
+  noDriverFound(now: Date): { trip: Trip; history: HistoryEntry } {
+    if (this.data.status !== 'SEARCHING') throw new DomainError('TRIP_NOT_SEARCHING');
+    const result = this.transition('CANCEL', { type: 'SYSTEM', id: null }, now);
+    result.trip.data.timestamps.cancelledAt = now.toISOString();
+    result.trip.data.cancellation = { actorType: 'SYSTEM', actorId: null, reason: NO_DRIVER_FOUND, cancelledAt: now.toISOString() };
     return result;
   }
   cancel(principal: Principal, reason: string, version: number, now: Date): { trip: Trip; history: HistoryEntry } {

@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | driver-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Driver trực tiếp không có global prefix. Path Gateway chính thức phải được xác nhận trước khi bật gateway mode trong app. [API](api.md), [Deploy](deploy.md).
@@ -26,7 +26,7 @@ Driver trực tiếp không có global prefix. Path Gateway chính thức phải
 | GET | /drivers/me/availability | UserGuard | AvailabilityController → availability.availability |
 | PUT | /drivers/me/availability | UserGuard | AvailabilityController → availability.setAvailability |
 | GET | /internal/drivers/:driverId/eligibility | ServiceGuard: Matching X-Service-Token | InternalController → eligibility.eligibility |
-| POST | /internal/drivers/eligibility/batch | RealtimeServiceGuard: riêng X-Service-Token | RealtimeInternalController → batchEligibility.execute |
+| POST | /internal/drivers/eligibility/candidates | ServiceGuard: Matching X-Service-Token | InternalController → candidates.execute |
 | GET | /.well-known/jwks.json | Public key discovery | OperationsController → tokens.jwks |
 | GET | /health/live | Probe | OperationsController |
 | GET | /health/ready | Probe | OperationsController → store.ready |
@@ -39,7 +39,7 @@ Controller/guard/DTO/filter ở src/presentation/http/. Không route đăng ký,
 | --- | --- | --- | --- |
 | Driver EditPolicy | Trip | GET /trips/active; JWT người dùng | HttpTripActive; thêm HttpOccupancy khi cấu hình |
 | Driver HttpOtp | OTP provider | POST /challenges, /challenges/consume; private Bearer | Contract local cần xác nhận, không phải API Trip |
-| Realtime | Driver | POST /internal/drivers/eligibility/batch; Realtime credential | Không dùng Matching token hoặc user JWT |
+| Matching | Driver | POST /internal/drivers/eligibility/candidates; Matching credential | Kiểm theo lô khi tìm xe ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)) |
 | Driver occupancy | Trip | POST /internal/trips/active-drivers/batch; TRIP_LOOKUP_TOKEN | Internal active-driver lookup; fail closed |
 | Driver occupancy | Matching | POST /internal/matching/reservations/batch; MATCHING_LOOKUP_TOKEN | Reservation lookup; không đọc Redis Matching |
 | Realtime | Driver | GET /.well-known/jwks.json | Xác minh JWT Socket.IO |
@@ -47,10 +47,10 @@ Controller/guard/DTO/filter ở src/presentation/http/. Không route đăng ký,
 | App Driver | Trip | PATCH /trips/:id/status, POST /trips/:id/cancel | version + Idempotency-Key |
 | App Driver | Realtime | Socket.IO /realtime, driver.location.update | Driver JWT; foreground GPS |
 
-Nearby thuộc Realtime GET /internal/realtime/nearby-drivers cho Routing. Offer/accept/decline đã có REST trong Matching, không mount tại Driver; app offer UI chưa tích hợp. Trip route cũng không mount trong Driver.
+Vị trí tài xế thuộc Realtime `GET /internal/realtime/driver-locations`, do Matching gọi. Offer/accept/decline đã có REST trong Matching, không mount tại Driver; app offer UI chưa tích hợp. Trip route cũng không mount trong Driver.
 
 ## Ingress chính thức
 
-Giữ nguyên status, envelope, X-Request-Id, Retry-After, Authorization, Idempotency-Key và replay header của upstream. Không public Matching/Realtime internal endpoints. Nếu forward IP cho rate limit, Gateway phải dùng credential riêng và X-Driver-Client-IP theo client-address.ts; direct mode lấy socket remoteAddress, bỏ qua header không được xác thực.
+Giữ nguyên status, envelope, X-Request-Id, Retry-After, Authorization, Idempotency-Key và replay header của upstream. Không public Matching/Realtime internal endpoints. Gateway chuyển IP thật của client bằng X-Driver-Client-IP kèm X-Driver-Proxy-Token (`DRIVER_PROXY_TOKEN` của Gateway = `GATEWAY_PROXY_TOKEN` của Driver), xử lý theo client-address.ts; direct mode lấy socket remoteAddress, bỏ qua header không được xác thực.
 
 Gateway mode của app là tùy chọn có xác nhận path mapping, không tham chiếu thư mục Gateway demo. Không dùng service credential thay JWT DRIVER trên route Trip.

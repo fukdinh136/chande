@@ -6,14 +6,14 @@ import {Card, Action, Notice} from '../ui/components';
 import {Chip, palette, vnd} from '../ui/design';
 import {driverDate, vehicleLabel} from '../driver/presentation/format';
 import {Avatar} from '../ui/avatar';
-import {customerTripStates} from './trip-policy';
+import {tripPresentation} from './trip-policy';
 import {RebookAction} from './rebook-action';
 
 export function CustomerHistoryCard({trip}: {trip: Trip}) {
   return <Card>
     <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between'}}>
       <ThemedText type="smallBold">{vehicleLabel(trip.vehicleType)}</ThemedText>
-      <Chip tone={trip.status === 'CANCELLED' ? 'danger' : 'default'}>{customerTripStates[trip.status].title}</Chip>
+      <Chip tone={trip.status === 'CANCELLED' ? 'danger' : 'default'}>{tripPresentation(trip).title}</Chip>
     </View>
     <Notice>{driverDate(trip.timestamps?.requestedAt)}</Notice>
     <View style={{borderLeftWidth: 3, borderLeftColor: palette.primary, paddingLeft: 12, gap: 8}}>

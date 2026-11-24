@@ -1,12 +1,20 @@
 import { z } from 'zod';
+import { CircuitBreaker, failedStatus } from '../circuit-breaker';
 export class TransportError extends Error {
   constructor(public readonly retryable: boolean, public readonly reason: string) { super(reason); }
 }
+/** The breaker's name: the dependency's host, e.g. `routing-api`. */
+const host = (url: string) => { try { return new URL(url).hostname; } catch { return 'unknown'; } };
 export class JsonHttpClient {
-  constructor(private readonly baseUrl: string, private readonly token: string, private readonly timeout: number) {}
+  /** One breaker per client, so per dependency (D1). An open breaker fails calls at once as retryable `CIRCUIT_OPEN`. */
+  constructor(private readonly baseUrl: string, private readonly token: string, private readonly timeout: number, readonly breaker = new CircuitBreaker(host(baseUrl))) {}
   async post<T>(path: string, body: unknown, requestId: string, schema: z.ZodType<T>, status = 200): Promise<T> {
     try {
-      const response = await fetch(`${this.baseUrl}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-token': this.token, 'x-request-id': requestId }, body: JSON.stringify(body), signal: AbortSignal.timeout(this.timeout), redirect: 'error' });
+      if (this.breaker.acquire() > 0) throw new TransportError(true, 'CIRCUIT_OPEN');
+      let response: Response;
+      try { response = await fetch(`${this.baseUrl}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-token': this.token, 'x-request-id': requestId }, body: JSON.stringify(body), signal: AbortSignal.timeout(this.timeout), redirect: 'error' }); }
+      catch (error) { this.breaker.failure(); throw error; }
+      if (failedStatus(response.status, response.headers.get('retry-after'))) this.breaker.failure(); else this.breaker.success();
       if (response.status !== status) { await response.body?.cancel(); throw new TransportError(response.status === 429 || response.status >= 500, `HTTP_${response.status}`); }
       if (!response.headers.get('content-type')?.toLowerCase().startsWith('application/json') || !response.body) { await response.body?.cancel(); throw new TransportError(false, 'INVALID_RESPONSE'); }
       const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let length = 0;

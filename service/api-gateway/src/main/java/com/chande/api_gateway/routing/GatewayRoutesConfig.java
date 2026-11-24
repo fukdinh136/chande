@@ -58,6 +58,7 @@ public class GatewayRoutesConfig {
                 // Credential nội bộ không bao giờ được đi từ client xuống service
                 .before(removeRequestHeader(ServiceTokenAuthenticationFilter.HEADER))
                 .before(trustedCredential(service.serviceToken()))
+                .before(clientAddress(service.clientAddress()))
                 .filter(new UpstreamFilter(serviceId, instances,
                         service.maxConcurrentRequests(), failover.maxAttempts()))
                 .after(prefixRelativeLocation())
@@ -69,6 +70,24 @@ public class GatewayRoutesConfig {
     static Function<ServerRequest, ServerRequest> trustedCredential(String token) {
         return request -> token == null || token.isEmpty() ? request : ServerRequest.from(request)
                 .headers(headers -> headers.set(ServiceTokenAuthenticationFilter.HEADER, token)).build();
+    }
+
+    /**
+     * Client không được tự khai IP hay credential proxy: xoá bản client gửi, rồi đặt IP Gateway thấy.
+     * IP đó đã qua {@code server.forward-headers-strategy: native}, tức là IP mà edge tin cậy chuyển tới.
+     */
+    static Function<ServerRequest, ServerRequest> clientAddress(RoutingProperties.ClientAddress config) {
+        if (!config.configured()) {
+            return request -> request;
+        }
+        return request -> ServerRequest.from(request).headers(headers -> {
+            headers.remove(config.header());
+            headers.remove(config.tokenHeader());
+            if (!config.token().isEmpty()) {
+                headers.set(config.header(), request.servletRequest().getRemoteAddr());
+                headers.set(config.tokenHeader(), config.token());
+            }
+        }).build();
     }
 
     /** Service trả {@code Location: /trips/<id>}; client cần đường dẫn public {@code /api/v1/trips/<id>}. */

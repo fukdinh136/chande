@@ -16,6 +16,8 @@ x-matching: &matching
   ROUTING_MATCHING_TOKEN: local-matching-routing-token-0001
   DRIVER_BASE_URL: http://driver-api:3008
   DRIVER_MATCHING_TOKEN: local-matching-driver-token-00001
+  REALTIME_BASE_URL: http://realtime-api:3009
+  REALTIME_MATCHING_TOKEN: local-matching-location-token-001
   TRIP_BASE_URL: http://trip-api:3001
   TRIP_MATCHING_TOKEN: local-matching-callback-token-0001
   AUTH_JWKS_URL: http://driver-api:3008/.well-known/jwks.json
@@ -142,7 +144,6 @@ services:
       TRIP_BASE_URL: http://trip-api:3001
       HTTP_TIMEOUT_MS: '2000'
       MATCHING_INBOUND_TOKEN: local-matching-driver-token-00001
-      REALTIME_INBOUND_TOKEN: local-realtime-driver-token-00001
       TRIP_LOOKUP_TOKEN: local-driver-trip-lookup-token-001
       MATCHING_LOOKUP_TOKEN: local-driver-matching-token-000001
       MATCHING_BASE_URL: http://matching-api:3007
@@ -160,10 +161,7 @@ services:
       AUTH_JWKS_URL: http://driver-api:3008/.well-known/jwks.json
       AUTH_JWT_ISSUER: chande-driver-local
       AUTH_JWT_AUDIENCE: realtime-service
-      DRIVER_BASE_URL: http://driver-api:3008
-      DRIVER_TIMEOUT_MS: '2500'
-      ROUTING_INBOUND_TOKEN: local-routing-realtime-token-0001
-      DRIVER_ELIGIBILITY_TOKEN: local-realtime-driver-token-00001
+      MATCHING_LOCATION_TOKEN: local-matching-location-token-001
       RABBITMQ_URL: amqp://matching_local:matching_local@rabbitmq:5672
       MATCHING_BASE_URL: http://matching-api:3007
       MATCHING_REALTIME_TOKEN: local-realtime-matching-token-0001
@@ -180,10 +178,6 @@ services:
       HOST: 0.0.0.0
       PORT: '3004'
       INTEGRATION_MODE: real
-      REALTIME_INTEGRATION_MODE: real
-      REALTIME_BASE_URL: http://realtime-api:3009
-      REALTIME_TOKEN: local-routing-realtime-token-0001
-      REALTIME_TIMEOUT_MS: '3000'
       MATRIX_MAX_CANDIDATES: '50'
       SUPPORTED_VEHICLE_TYPES: CAR_4,CAR_7
       VEHICLE_PROFILES_FILE: config/vehicle-profiles.osrm.json

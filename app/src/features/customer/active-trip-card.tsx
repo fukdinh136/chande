@@ -7,12 +7,12 @@ import {Avatar} from '../ui/avatar';
 import {isTerminal} from '../driver/contracts/models';
 import {driverDate as tripDate} from '../driver/presentation/format';
 import {useBooking} from './booking-provider';
-import {customerTripStates} from './trip-policy';
+import {cancellationText, tripPresentation} from './trip-policy';
 
 export function ActiveTripCard() {
   const {store, state, command} = useBooking(), current = state.current;
   if (!current) return null;
-  const presentation = customerTripStates[current.status], terminal = isTerminal(current);
+  const presentation = tripPresentation(current), terminal = isTerminal(current);
   const assigned = ['ASSIGNED', 'DRIVER_ARRIVED', 'IN_PROGRESS', 'COMPLETED'].includes(current.status);
   return <Card>
     <Chip tone={current.status === 'SEARCHING' || current.status === 'CREATED' ? 'warning' : current.status === 'CANCELLED' ? 'danger' : 'default'}>{presentation.title}</Chip>
@@ -34,7 +34,7 @@ export function ActiveTripCard() {
     <ThemedText>Điểm đến: {current.destination.address || `${current.destination.lat}, ${current.destination.lng}`}</ThemedText>
     {current.status === 'COMPLETED' && <Notice>Hoàn thành: {tripDate(current.timestamps?.completedAt)}</Notice>}
     {current.status === 'CANCELLED' && <>
-      <Notice>{current.cancellation ? `${current.cancellation.actorType === 'DRIVER' ? 'Tài xế' : 'Bạn'} đã hủy: ${current.cancellation.reason}` : 'Chưa có thông tin người hủy và lý do từ máy chủ.'}</Notice>
+      <Notice>{cancellationText(current)}</Notice>
       <Notice>Thời gian hủy: {tripDate(current.cancellation?.cancelledAt ?? current.timestamps?.cancelledAt)}</Notice>
     </>}
     <Action label="Xem chi tiết chuyến" variant="secondary" onPress={() => router.push({pathname: '/customer/trips/[id]', params: {id: current.tripId}})}/>

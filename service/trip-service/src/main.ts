@@ -1,3 +1,4 @@
+import './bootstrap/telemetry';
 import 'dotenv/config';
 import { loadConfig } from './bootstrap/config';
 import { TripContext } from './bootstrap/context';

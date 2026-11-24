@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | routing-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
 Ngày: 06/10/2026. Cập nhật theo từng feature; bảng F00–F10 bên dưới ghi kết quả fixture/mock tại thời điểm triển khai. Kết quả OSRM Hà Nội và Realtime thật được bổ sung ở các mục cuối.
@@ -58,3 +58,17 @@ Trip Compose đã gọi Routing API cùng Price API qua HTTP; xem [báo cáo tí
 ## Tích hợp Matching + Realtime — 06/10/2026
 
 Adapter HTTP map latitude/longitude/recordedAt, giữ freshness 30 giây, truyền vehicleType và cap 50/batch 25. CAR_4/CAR_7 dùng cùng graph OSRM ô tô Hà Nội. 30 unit tests/typecheck/lint pass ở đợt Matching; smoke real GPS → matrix → offer → Trip cũng pass cho cả hai loại xe. Xem [báo cáo Matching](../../matching-service/docs/bao-cao-trien-khai.md) và [runbook](../../matching-service/docs/deploy.md); không suy kết quả smoke thành benchmark production.
+
+## Cải tiến hiệu năng (nhánh `perf/adr-0008-trip-outbox`)
+
+Các mục ở trên là kết quả ngày 06/10/2026; phần Realtime Client và `POST /routes/matrix` đã gỡ theo ADR-0001. Tổng quan cả hệ thống: [tổng hợp cải tiến hiệu năng](../../../docs/tong-hop-cai-tien-hieu-nang.md).
+
+| Cải tiến | Thay đổi trong Routing | Commit |
+| --- | --- | --- |
+| A8 | Mặc định rate limit cho OSRM tự host lấy từ năng lực đo được | `36b8643` |
+| [ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md) | Thêm `eta-matrix` nhận origins do Matching chọn; gỡ `/routes/matrix` và Realtime Client | `d6df2f9`, `cceae34` |
+| B6, [ADR-0003](../../../docs/adr/0003-observability-opentelemetry.md) | OpenTelemetry tuỳ chọn; metric hàng đợi, pool và lý do từ chối | `7ae5bd2`, `abea764` |
+| Deploy | Giới hạn rate/pool và số luồng OSRM đổi được bằng biến môi trường khi deploy | `9a6ee48` |
+
+Ở 24–32 chuyến/giây, Routing không từ chối lần nào (`ROUTING_BUSY` = 0) và dùng dưới 0,15 core ([báo cáo kiểm thử tải](../../../docs/bao-cao-kiem-thu-tai.md)).
+

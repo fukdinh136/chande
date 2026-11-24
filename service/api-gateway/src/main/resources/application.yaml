@@ -13,12 +13,24 @@ spring:
       password: ${REDIS_PASSWORD:}
       timeout: 2s
       connect-timeout: 2s
+  # ADR-0002: chỉ kết nối khi bật gateway.events.bus.enabled (Spring AMQP mở kết nối lúc listener khởi động)
+  rabbitmq:
+    addresses: ${RABBITMQ_URL:amqp://guest:guest@localhost:5672}
+    connection-timeout: 5s
+    listener:
+      simple:
+        # Lỗi tạm thời (Redis) → message bị reject, qua DLX sang hàng chờ retry 5 giây rồi quay lại
+        default-requeue-rejected: false
+        prefetch: 50
   lifecycle:
     timeout-per-shutdown-phase: 20s
 
 server:
   port: ${PORT:8080}
   shutdown: graceful
+  # IP client lấy từ X-Forwarded-For do edge đặt. Tomcat chỉ tin header này khi kết nối đến từ
+  # proxy nội bộ (dải IP private/loopback mặc định); Gateway không được mở trực tiếp ra Internet.
+  forward-headers-strategy: native
   tomcat:
     accept-count: 500
     connection-timeout: 10s
@@ -28,6 +40,10 @@ management:
     web:
       exposure:
         include: health
+  health:
+    # Gateway vẫn phục vụ REST khi RabbitMQ lỗi; sự kiện chờ trong queue và app vẫn đọc REST
+    rabbit:
+      enabled: false
   endpoint:
     health:
       # Load balancer nên kiểm tra /actuator/health/readiness: chỉ phụ thuộc gateway,
@@ -60,6 +76,11 @@ gateway:
         instances: ${DRIVER_SERVICE_URLS:http://localhost:3003}
         paths: /driver-auth/**, /drivers/**
         max-concurrent-requests: 256
+        # Driver giới hạn OTP theo IP: chuyển IP thật kèm credential mà Driver tin (GATEWAY_PROXY_TOKEN)
+        client-address:
+          header: X-Driver-Client-IP
+          token-header: X-Driver-Proxy-Token
+          token: ${DRIVER_PROXY_TOKEN:}
       trip-service:
         instances: ${TRIP_SERVICE_URLS:http://localhost:3001}
         paths: /trips/**
@@ -79,12 +100,21 @@ gateway:
     port: ${INTERNAL_PORT:8090}
     callers:
       trip-service: ${TRIP_SERVICE_TOKEN:dev-trip-service-token-change-me-0123456789}
+  events:
+    bus:
+      # ADR-0002: true = nhận sự kiện chuyến từ RabbitMQ (queue gateway.trip-events). Endpoint HTTP
+      # /internal/events/trips vẫn giữ để Trip có thể quay lại TRIP_EVENT_TRANSPORT=http
+      enabled: ${TRIP_EVENTS_BUS:false}
+      consumers: ${TRIP_EVENTS_CONSUMERS:2}
+      # Số lần retry (mỗi lần 5 giây) trước khi chuyển message sang gateway.trip-events.dlq
+      max-attempts: 60
   realtime:
     auth-timeout: 10s
     idle-timeout: 60s
     max-sessions-per-user: 5
     location-min-interval: 1s
-    event-retention: 7d
+    # Khớp OUTBOX_RETENTION_MS mặc định của Trip (24 giờ). 7 ngày làm Redis (không có maxmemory) đầy khi đo tải
+    event-retention: 24h
 
 jwt:
   clock-skew: 30s

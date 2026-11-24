@@ -19,7 +19,7 @@ test('worker restart resumes persisted deliveries and receipts survive connectio
     const replay = await new CreateTrip(store, runtime).execute(rider, quote().quoteId, key); assert.equal(replay.replayed, true); assert.deepEqual(replay.value, original.value);
     const received: string[] = [];
     const dispatcher = new OutboxDispatcher(new PgOutbox(store.db), { send: async delivery => { received.push(delivery.id); } }, { batchSize: 20, concurrency: 3, leaseMs: 1000, retryBase: 1, retryMax: 10 });
-    const worker = await startWorker(dispatcher, store, { workerPort: 0, pollInterval: 10000, heartbeatMaxAge: 30000 }, '127.0.0.1');
+    const worker = await startWorker(dispatcher, store, { workerPort: 0, pollInterval: 10000, heartbeatMaxAge: 30000, batchSize: 20 }, '127.0.0.1');
     try { await worker.stop(); assert.equal(received.length, 3); const pending: { count: string }[] = await store.db.query("SELECT count(*) FROM outbox_deliveries WHERE status<>'delivered'"); assert.equal(pending[0]?.count, '0'); }
     finally { await worker.stop(); }
   } finally { await store.db.destroy(); }
@@ -27,7 +27,7 @@ test('worker restart resumes persisted deliveries and receipts survive connectio
 test('worker probes reflect heartbeat freshness independently of delivery errors', async () => {
   const store = await testDatabase(); await clearDatabase(store);
   const dispatcher = new OutboxDispatcher(new PgOutbox(store.db), { send: async () => { throw new TransportError(true, 'HTTP_503'); } }, { batchSize: 20, concurrency: 1, leaseMs: 1000, retryBase: 1, retryMax: 10 });
-  const worker = await startWorker(dispatcher, store, { workerPort: 0, pollInterval: 10000, heartbeatMaxAge: 30000 }, '127.0.0.1');
+  const worker = await startWorker(dispatcher, store, { workerPort: 0, pollInterval: 10000, heartbeatMaxAge: 30000, batchSize: 20 }, '127.0.0.1');
   try {
     const address = worker.server.address(); assert.ok(address && typeof address !== 'string'); const base = `http://127.0.0.1:${address.port}`;
     assert.equal((await fetch(base + '/health/live')).status, 200);

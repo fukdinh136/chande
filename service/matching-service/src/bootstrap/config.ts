@@ -13,7 +13,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   if (new Set(Object.values(tokens)).size !== 3) throw new Error('Separate inbound tokens required');
   return { port: integer('PORT', 3007, 65535), host: value('HOST', '127.0.0.1'), databaseUrl: url('DATABASE_URL', ['postgres:', 'postgresql:']), rabbitUrl: url('RABBITMQ_URL', ['amqp:', 'amqps:']), tokens,
     routingUrl: http('ROUTING_BASE_URL'), routingToken: token('ROUTING_MATCHING_TOKEN'), driverUrl: http('DRIVER_BASE_URL'), driverToken: token('DRIVER_MATCHING_TOKEN'), tripUrl: http('TRIP_BASE_URL'), tripToken: token('TRIP_MATCHING_TOKEN'),
+    // ADR-0001: the worker searches Realtime, Driver and Routing itself.
+    realtimeUrl: http('REALTIME_BASE_URL'), realtimeToken: token('REALTIME_MATCHING_TOKEN'),
+    // NEARBY_PAGES: pages of NEARBY_LIMIT drivers a search may read when every driver on a page is busy or ineligible.
+    nearbyLimit: integer('NEARBY_LIMIT', 200, 200), nearbyPages: integer('NEARBY_PAGES', 5, 25), matrixCandidates: integer('MATRIX_CANDIDATES', 25, 50),
     jwksUrl: http('AUTH_JWKS_URL'), issuer: required('AUTH_JWT_ISSUER'), audience: value('AUTH_JWT_AUDIENCE', 'matching-service'), httpTimeout: integer('HTTP_TIMEOUT_MS', 4500, 10000),
-    workers: integer('WORKER_CONCURRENCY', 2, 16), pollMs: integer('SEARCH_POLL_MS', 5000, 60000), scanMs: integer('WORKER_SCAN_MS', 1000, 5000), leaseMs: 60000, swagger: value('SWAGGER_ENABLED', 'false') === 'true' };
+    // SEARCH_TIMEOUT_MS: how long a trip may search before it is cancelled as NO_DRIVER_FOUND (ADR-0004).
+    searchTimeoutMs: integer('SEARCH_TIMEOUT_MS', 180000, 3600000),
+    workers: integer('WORKER_CONCURRENCY', 16, 64), dbPoolSize: integer('DB_POOL_SIZE', 10, 50), pollMs: integer('SEARCH_POLL_MS', 5000, 60000), scanMs: integer('WORKER_SCAN_MS', 250, 5000), leaseMs: 60000,
+    publisherBatchMax: integer('PUBLISHER_BATCH_MAX', 200, 1000), publisherScanMs: integer('PUBLISHER_SCAN_MS', 250, 5000),
+    outboxRetentionMs: integer('OUTBOX_RETENTION_MS', 86400000, 2592000000), outboxPurgeIntervalMs: integer('OUTBOX_PURGE_INTERVAL_MS', 600000, 86400000), swagger: value('SWAGGER_ENABLED', 'false') === 'true' };
 }
 export type Config = ReturnType<typeof loadConfig>;

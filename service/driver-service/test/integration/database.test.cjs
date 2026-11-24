@@ -120,6 +120,16 @@ test(
         ),
         (error) => error.driverError?.code === "23505",
       );
+      // Batch reads used by eligibility/candidates: one query each, unknown ids are absent.
+      const missing = randomUUID();
+      const batch = await store.read((repo) => repo.drivers([id, missing]));
+      assert.deepEqual([...batch.found.keys()], [id]);
+      assert.equal(batch.found.get(id).desiredStatus, "OFFLINE");
+      assert.equal(batch.migrationRequired.size, 0);
+      const [bike] = await store.read((repo) => repo.vehicles(id));
+      const vehicles = await store.read((repo) => repo.vehiclesById([bike.id, missing]));
+      assert.deepEqual(vehicles.map((v) => [v.id, v.driverId, v.vehicleType]), [[bike.id, id, "BIKE"]]);
+      assert.deepEqual(await store.read((repo) => repo.vehiclesById([])), []);
       // Actual repositories/transactions, mocked external occupancy only.
       // Multiple active vehicles are valid; selection remains an independent cache field.
       const f = require("../helpers/fixture.cjs").fixture();

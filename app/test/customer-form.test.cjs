@@ -20,4 +20,6 @@ test('Customer auth errors map known fields and hide unknown codes/server intern
   assert.ok(error.fields.password); assert.ok(error.fields.fullName); assert.equal(error.fields.unknown, undefined);
   assert.doesNotMatch(JSON.stringify(error), /STACK_TRACE|SQL_FAILURE|INTERNAL_HOST/);
   assert.doesNotMatch(authFailure(new BackendError('PRIVATE_INTERNAL_ERROR', 500)).message, /PRIVATE_INTERNAL_ERROR/);
+  // A busy user service (503 SERVICE_BUSY, Retry-After) asks the rider to wait, not to check the password.
+  assert.equal(authFailure(new BackendError('SERVICE_BUSY', 503, undefined, 1)).message, 'Hệ thống đang bận. Vui lòng thử lại sau giây lát.');
 });

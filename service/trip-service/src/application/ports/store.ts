@@ -1,5 +1,6 @@
 import type { HistoryEntry, Principal, Quote, TripData } from '../../domain/models';
-export type Destination = 'matching' | 'gateway' | 'notification';
+/** `bus`: the `trip.events` exchange on RabbitMQ (ADR-0002); `gateway`/`notification`: the HTTP fan-out kept for rollback. */
+export type Destination = 'matching' | 'gateway' | 'notification' | 'bus';
 export interface OutboxMessage { id: string; tripId: string; tripVersion: number; kind: 'search' | 'cancel' | 'event'; payload: Record<string, unknown> }
 export interface Receipt<T> { hash: string; result: T }
 export interface PageKey { requestedAt: string; tripId: string }
@@ -10,6 +11,8 @@ export interface Transaction {
   saveQuote(quote: Quote): Promise<void>;
   consumeQuote(id: string, tripId: string): Promise<void>;
   active(principal: Principal): Promise<TripData | null>;
+  /** Active trip id per driver, read in one query; drivers without an active trip are absent. */
+  activeTripsByDriver(driverIds: readonly string[]): Promise<Map<string, string>>;
   list(principal: Principal, limit: number, status?: string, cursor?: PageKey): Promise<TripData[]>;
   history(id: string): Promise<HistoryEntry[]>;
   addHistory(id: string, entries: HistoryEntry[]): Promise<void>;

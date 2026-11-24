@@ -12,7 +12,6 @@ export interface Config {
   production: boolean; host: string; port: number; swagger: boolean; logLevel: string;
   vehicleTypes: string[]; profiles: Record<string, Profile>; tokens: { trip: string; matching: string; gateway: string };
   map: { mode: Mode; auth: 'none' | 'header'; key: string; keyHeader: string; baseUrl: string };
-  realtime: { mode: Mode; baseUrl: string; token: string; timeout: number; maxResponse: number; radius: 2000 };
   limits: { deadline: number; upstreamTimeout: number; attempts: number; retryBase: number; maxResponse: number;
     queueSize: number; admissionTimeout: number; queueWait: number; workers: number; rps: number; burst: number;
     rateWait: number; elementsPerMinute: number; matrixCandidates: number; matrixBatch: number; shutdownGrace: number };
@@ -45,10 +44,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, options: { root
     const value = checked(z.enum(['mock', 'real']), text(name, 'mock'), name);
     if (production && value === 'mock') return invalid(name); return value;
   };
-  const mapMode = mode('INTEGRATION_MODE'); const realtimeMode = mode('REALTIME_INTEGRATION_MODE');
+  const mapMode = mode('INTEGRATION_MODE');
   checked(z.literal('osrm'), text('EXTERNAL_MAP_PROVIDER', 'osrm'), 'EXTERNAL_MAP_PROVIDER');
   const auth = checked(z.enum(['none', 'header']), text('EXTERNAL_MAP_AUTH_MODE', 'none'), 'EXTERNAL_MAP_AUTH_MODE');
   const allowHttp = boolean('EXTERNAL_MAP_ALLOW_HTTP', false);
+  // A self-hosted OSRM is sized by us: measured ~1000 matrix calls/s (25 elements each) on 2 threads, so defaults use
+  // about 20% of that. A shared or third-party OSRM keeps the conservative defaults. Each value can still be overridden.
+  const selfHosted = boolean('EXTERNAL_MAP_SELF_HOSTED', false);
   const hosts = text('EXTERNAL_MAP_ALLOWED_HOSTS', '127.0.0.1,localhost,osrm').split(',').map(s => s.trim().toLowerCase());
   if (hosts.some(h => !/^[a-z0-9.-]+$/.test(h))) return invalid('EXTERNAL_MAP_ALLOWED_HOSTS');
   const mapUrl = (value: string, name: string): string => {
@@ -77,26 +79,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, options: { root
   }
   const tokens = { trip: secret('ROUTING_TRIP_TOKEN', true), matching: secret('ROUTING_MATCHING_TOKEN', true), gateway: secret('ROUTING_GATEWAY_TOKEN', true) };
   if (new Set(Object.values(tokens)).size !== 3) return invalid('ROUTING_SERVICE_TOKENS');
-  const realtimeUrl = text('REALTIME_BASE_URL');
-  if (realtimeUrl) {
-    let url: URL; try { url = new URL(realtimeUrl); } catch { return invalid('REALTIME_BASE_URL'); }
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || !['', '/'].includes(url.pathname) || (production && url.protocol !== 'https:')) return invalid('REALTIME_BASE_URL');
-  }
-  if (realtimeMode === 'real' && !realtimeUrl) return invalid('REALTIME_BASE_URL');
-  const radius = integer('NEARBY_DRIVER_RADIUS_METERS', 2000, 2000); if (radius !== 2000) return invalid('NEARBY_DRIVER_RADIUS_METERS');
   return {
     production, host: checked(z.string().min(1).max(253).regex(/^[A-Za-z0-9.:-]+$/), text('HOST', '127.0.0.1'), 'HOST'),
     port: integer('PORT', 3004, 65535), swagger: boolean('SWAGGER_ENABLED', !production),
     logLevel: checked(z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']), text('LOG_LEVEL', 'INFO'), 'LOG_LEVEL'),
     tokens, vehicleTypes, profiles, map: { mode: mapMode, auth, key, keyHeader, baseUrl },
-    realtime: { mode: realtimeMode, baseUrl: realtimeUrl.replace(/\/$/, ''), token: secret('REALTIME_TOKEN', realtimeMode === 'real'),
-      timeout: integer('REALTIME_TIMEOUT_MS', 1000, 60000), maxResponse: integer('REALTIME_MAX_RESPONSE_BYTES', 1048576, 16777216), radius: 2000 },
     limits: {
       deadline: integer('REQUEST_DEADLINE_MS', 4000, 4999), upstreamTimeout: integer('UPSTREAM_TIMEOUT_MS', 1200, 60000),
       attempts: integer('UPSTREAM_MAX_ATTEMPTS', 2, 3), retryBase: integer('UPSTREAM_RETRY_BASE_MS', 100, 5000), maxResponse: integer('UPSTREAM_MAX_RESPONSE_BYTES', 1048576, 16777216),
       queueSize: integer('QUEUE_MAX_SIZE', 50, 10000), admissionTimeout: integer('QUEUE_ADMISSION_TIMEOUT_MS', 100, 5000), queueWait: integer('ROUTING_JOB_MAX_WAIT_MS', 500, 10000),
-      workers: integer('WORKER_POOL_SIZE', 2, 32), rps: integer('RATE_LIMIT_REQUESTS_PER_SECOND', 2, 10000), burst: integer('RATE_LIMIT_BURST', 2, 10000),
-      rateWait: integer('RATE_LIMIT_WAIT_TIMEOUT_MS', 250, 10000), elementsPerMinute: integer('RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE', 100, 100000),
+      workers: integer('WORKER_POOL_SIZE', 2, 32), rps: integer('RATE_LIMIT_REQUESTS_PER_SECOND', selfHosted ? 200 : 2, 10000), burst: integer('RATE_LIMIT_BURST', selfHosted ? 100 : 2, 10000),
+      rateWait: integer('RATE_LIMIT_WAIT_TIMEOUT_MS', 250, 10000), elementsPerMinute: integer('RATE_LIMIT_MATRIX_ELEMENTS_PER_MINUTE', selfHosted ? 300000 : 100, 10000000),
       matrixCandidates: integer('MATRIX_MAX_CANDIDATES', 50, 1000), matrixBatch: integer('MATRIX_BATCH_MAX_ELEMENTS', 25, 1000), shutdownGrace: integer('SHUTDOWN_GRACE_MS', 5000, 60000),
     },
   };

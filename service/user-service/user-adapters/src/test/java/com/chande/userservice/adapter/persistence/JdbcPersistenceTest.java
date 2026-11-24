@@ -331,7 +331,7 @@ class JdbcPersistenceTest {
 
         @BeforeEach
         void services() {
-            auth = new AuthService(users, tokens, new BCryptPasswordHasher(4, 8), new FakeAccessTokenIssuer(),
+            auth = new AuthService(users, tokens, new BCryptPasswordHasher(4, 8, java.time.Duration.ofSeconds(5)), new FakeAccessTokenIssuer(),
                     new SecureRefreshTokenFactory(), new UuidGenerator(), tx, clock, Duration.ofDays(30));
             address = new AddressService(addresses, users, new UuidGenerator(), tx, clock);
         }

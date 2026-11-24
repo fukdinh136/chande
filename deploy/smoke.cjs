@@ -47,7 +47,7 @@ async function scenario(type,terminal) {
     const offer=await poll(async()=>offers.find(o=>o.tripId===trip.tripId),Boolean);assert.equal(offer.driverId,driverId);
     assert.equal((await request('/drivers/me/availability',undefined,token)).data.realtimeStatus,'BUSY');
     const denied=await fetch(base+'/api/v1/matching/offers/'+offer.offerId,{headers:{Authorization:'Bearer '+customer}});assert.equal(denied.status,403);
-    const matrix=await fetch(base+'/api/v1/routes/matrix',{method:'POST',headers:{Authorization:'Bearer '+customer,'Content-Type':'application/json'},body:'{}'});assert.equal(matrix.status,403);
+    const matrix=await fetch(base+'/api/v1/internal/routes/eta-matrix',{method:'POST',headers:{Authorization:'Bearer '+customer,'Content-Type':'application/json'},body:'{}'});assert.equal(matrix.status,403);
     const hidden=await fetch(base+'/internal/events/trips');assert.equal(hidden.status,404);
     const key=randomUUID();const accepted=await request(`/matching/offers/${offer.offerId}/accept`,{},token,202,{'Idempotency-Key':key});assert.deepEqual((await request(`/matching/offers/${offer.offerId}/accept`,{},token,202,{'Idempotency-Key':key})).data,accepted.data);
     trip=await poll(async()=>(await request('/trips/'+trip.tripId,undefined,customer)).data.trip,t=>t.status==='ASSIGNED');assert.equal(trip.driverId,driverId);

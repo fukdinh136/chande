@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | trip-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../docs/quy-uoc-tai-lieu.md) |
 
 Service quản lý nghiệp vụ chuyến đi của Chande, từ báo giá và đặt xe đến nhận chuyến, cập nhật tiến trình, hoàn thành hoặc hủy.
@@ -26,7 +26,7 @@ Service quản lý nghiệp vụ chuyến đi của Chande, từ báo giá và �
 
 ## Trạng thái phát triển
 
-Đã triển khai C00–C15: domain độc lập, use case, PostgreSQL, REST API có JWT, callback Matching, transactional outbox, worker, OpenAPI và môi trường Docker local. Bộ kiểm thử gồm unit, integration, contract và e2e; xem số liệu và giới hạn trong báo cáo.
+Đã triển khai C00–C15 và các cải tiến hiệu năng, chịu lỗi của nhánh `perf/adr-0008-trip-outbox` (outbox chạy liên tục, dọn outbox cũ với Leader Election, lookup tài xế theo lô, circuit breaker, observability tuỳ chọn; xem [báo cáo triển khai, mục 8](docs/bao-cao-trien-khai.md#8-cải-tiến-hiệu-năng-và-chịu-lỗi)): domain độc lập, use case, PostgreSQL, REST API có JWT, callback Matching, transactional outbox, worker, OpenAPI và môi trường Docker local. Bộ kiểm thử gồm unit, integration, contract và e2e; xem số liệu và giới hạn trong báo cáo.
 
 Stack đã thống nhất: NestJS, TypeScript, TypeORM và PostgreSQL. Routing, Pricing và Matching được tích hợp qua contract; REST callback và outbox phục vụ luồng bất đồng bộ.
 

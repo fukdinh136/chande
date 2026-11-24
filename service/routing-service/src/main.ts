@@ -1,3 +1,4 @@
+import './bootstrap/telemetry';
 import { loadConfig, loadLocalEnvironment } from './bootstrap/config';
 import { RoutingRuntime } from './bootstrap/runtime';
 import { createApp } from './api/http';

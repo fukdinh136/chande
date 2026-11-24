@@ -3,10 +3,10 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | realtime-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
-Ngày đối chiếu: 06/10/2026. GPS/nearby/offer đã liên thông dependency thật trong smoke Matching Hà Nội. [Nghiệp vụ](nghiep-vu.md), [Kiến trúc](kien-truc.md), [Routes](routes.md), [Deploy](deploy.md).
+Ngày đối chiếu: 06/10/2026. GPS/offer đã liên thông dependency thật trong smoke Matching Hà Nội; từ 2026-11-05 Realtime trả vị trí thô cho Matching và không gọi Driver ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)). [Nghiệp vụ](nghiep-vu.md), [Kiến trúc](kien-truc.md), [Routes](routes.md), [Deploy](deploy.md).
 
 ## 1. Quy ước và identity
 
@@ -25,12 +25,16 @@ Mọi tọa độ/tên/ID/thời gian/distance trong ví dụ là dữ liệu t�
 | GPS accuracy | JSON number hữu hạn, >=0 và <= LOCATION_MAX_ACCURACY_METERS; default 100 m, bắt buộc, không null |
 | GPS recordedAt | UTC ISO: YYYY-MM-DDTHH:mm:ssZ hoặc YYYY-MM-DDTHH:mm:ss.sssZ; ngày giờ hợp lệ; không offset +07:00 |
 | LocationReceipt | accepted:true, disposition:STORED/DUPLICATE, recordedAt, receivedAt |
-| NearbyDriver | driverId UUID, vehicleType BIKE/CAR_4/CAR_7, latitude, longitude, distanceMeters number, recordedAt |
-| NearbyResult | radiusMeters integer, drivers:NearbyDriver[] tối đa 50 |
+| DriverLocationItem | driverId UUID, latitude, longitude, distanceMeters number, recordedAt |
+| DriverLocationsResult | radiusMeters integer, drivers:DriverLocationItem[] tối đa `limit` (≤200), gần nhất trước |
 
 Freshness default/tối đa 30.000 ms; recorded time và receive time phải trẻ hơn ngưỡng. Tuổi đạt ngưỡng bị loại. Future default 5.000 ms, min update interval default 1.000 ms, watermark retention default 24 giờ. Xem toàn config trong [Deploy](deploy.md). Backend không áp chu kỳ bắt buộc 10 giây; app và CLI loop thực hiện mục tiêu này.
 
 ## 3. S01 — Socket.IO /realtime, driver.location.update
+
+### Làm mới JWT trên socket đang mở (B5)
+
+`driver.auth.refresh` với payload `{ "token": "<JWT mới>" }`, có ack. Server kiểm token như lúc kết nối, chỉ nhận khi token hiện tại còn hạn và JWT mới cùng `driverId`; thành công thì dời thời điểm đóng socket theo `exp` mới và trả `{ data: { expiresAt } }`, lỗi trả `{ error: { code } }` (`INVALID_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`) và socket vẫn mở tới hạn cũ. App tài xế và bộ giả lập tải gửi token mới vào một thời điểm ngẫu nhiên 1–3 phút trước khi hết hạn, nên tài xế đăng nhập cùng lúc không còn bị đóng socket và nối lại cùng lúc mỗi 15 phút ([báo cáo kiểm thử tải, mục 16.9](../../../docs/bao-cao-kiem-thu-tai.md#169-soak-k3-2-giờ)).
 
 ### Kết nối và xác thực
 
@@ -102,78 +106,11 @@ ACK lỗi không có data.accepted=false: phân biệt bằng error. Nó không 
 
 ACK timeout 5 giây trong app/CLI là lỗi client ACK_TIMEOUT, không phải error.code backend. Nó không chứng minh lệnh chưa ghi Redis. App đo mẫu mới ở chu kỳ sau; CLI có thể gửi cùng mẫu để quan sát duplicate nếu vẫn còn freshness.
 
-## 4. R01 — GET /internal/realtime/nearby-drivers
+## 4. R02 — GET /internal/realtime/driver-locations
 
-Caller: Routing hoặc bên nội bộ được cấp credential này. Header X-Service-Token phải bằng ROUTING_INBOUND_TOKEN. Không chấp nhận Rider/Driver JWT làm credential thay thế, không public API này qua Gateway cho Rider.
+Cho Matching tìm ứng viên ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)). X-Service-Token = `MATCHING_LOCATION_TOKEN`; thiếu cấu hình thì mọi caller nhận 401 `INVALID_SERVICE_CREDENTIAL`.
 
-```http
-GET /internal/realtime/nearby-drivers?latitude=0&longitude=0&vehicleType=BIKE
-X-Service-Token: {{routingRealtimeToken}}
-```
-
-| Query | Bắt buộc | Validation/default |
-| --- | --- | --- |
-| latitude | Có | Chuỗi số thập phân hữu hạn, giới hạn như GPS |
-| longitude | Có | Chuỗi số thập phân hữu hạn, giới hạn như GPS |
-| vehicleType | Không | Chính xác BIKE, CAR_4 hoặc CAR_7; bỏ để xét cả ba |
-| radiusMeters | Không | Integer 1–2.000; mặc định 2.000 |
-
-Unknown query bị từ chối. Chỉ parse số thập phân theo regex DTO; không array/hex/scientific notation/whitespace/boolean/rỗng. lat/lng không phải alias được hỗ trợ. Không có limit/cursor/tripId/riderId/driverId query. Max results=50 hardcode, không phân trang.
-
-### 200 — ví dụ hai tài xế
-
-```json
-{
-  "data": {
-    "radiusMeters": 2000,
-    "drivers": [
-      {
-        "driverId": "40000000-0000-4000-8000-000000000001",
-        "vehicleType": "BIKE",
-        "latitude": 0.0003,
-        "longitude": 0.0004,
-        "distanceMeters": 55.6,
-        "recordedAt": "2026-10-06T00:00:00.000Z"
-      },
-      {
-        "driverId": "40000000-0000-4000-8000-000000000002",
-        "vehicleType": "BIKE",
-        "latitude": 0.001,
-        "longitude": 0.001,
-        "distanceMeters": 157.3,
-        "recordedAt": "2026-10-06T00:00:02.000Z"
-      }
-    ]
-  },
-  "meta": { "requestId": "90000000-0000-4000-8000-000000000003" }
-}
-```
-
-Distance minh họa là số mét địa lý; actual do Redis GEO tính, không integer bắt buộc, không route/ETA. Sort gần → xa, tie-break driverId. Không trả accuracy, receivedAt, hồ sơ/SĐT/GPLX, selected vehicleId, Trip hoặc snapshot cá nhân cho Routing.
-
-200 trống hợp lệ:
-
-```json
-{
-  "data": { "radiusMeters": 2000, "drivers": [] },
-  "meta": { "requestId": "90000000-0000-4000-8000-000000000004" }
-}
-```
-
-Trống khi không GPS mới hoặc các tài xế bị loại có căn cứ; không dùng [] cho outage hay eligibility chưa xác định. GEO scan không COUNT 50; sau batch Driver, đọc lại vị trí, lọc freshness/eligible/type rồi limit. Tài xế mới đến chưa được kiểm Driver chờ request sau. Không có reservation/assignment lease.
-
-### Lỗi HTTP
-
-| Status | error.code | Nguyên nhân |
-| --- | --- | --- |
-| 400 | INVALID_REQUEST | Query sai/unknown field/radius/type sai |
-| 401 | INVALID_SERVICE_CREDENTIAL | Thiếu/sai X-Service-Token hoặc header >4.096 ký tự |
-| 503 | DEPENDENCY_UNAVAILABLE | Redis/Driver timeout/lỗi, response Driver thiếu/sai hoặc id không khớp |
-| 503 | ELIGIBILITY_UNDETERMINED | Một ứng viên còn GPS mới ở lần đọc lại chưa xác định operational availability |
-| 503 | SEARCH_CAPACITY_EXCEEDED | Tổng GEO rows trong radius vượt maxCandidates trước lọc |
-| 500 | INTERNAL_ERROR | Lỗi không dự kiến |
-
-HTTP 503 có Retry-After: 1. INVALID_REQUEST không trả chi tiết validation theo từng field trong code hiện tại. Không có Idempotency-Key/version cho GET nearby hoặc GPS; watermark không phải version của Trip.
+Query: `latitude`, `longitude` bắt buộc; `radiusMeters` 1–2000 (mặc định 2000); `limit` 1–200 (mặc định 50); `offset` 0–4800 (mặc định 0), vị trí bắt đầu trong thứ hạng theo khoảng cách. Data `{radiusMeters, drivers:[{driverId, latitude, longitude, distanceMeters, recordedAt}], nextOffset}`, gần nhất trước, chỉ vị trí còn mới. `nextOffset` là `offset` của trang sau, `null` khi bán kính không còn tài xế hoặc trang sau sẽ bắt đầu quá 4800. Thứ hạng tính cả vị trí đã cũ, nên một trang có thể ít hơn `limit` người mà vẫn còn trang sau. Không lọc loại xe hay trạng thái tài xế; Matching đọc trang sau khi cả trang đều bận. Redis dùng `GEOSEARCH ... COUNT offset+limit+1` nên chi phí mỗi lần tìm có trần (tối đa 5001 dòng). Lỗi: 400 INVALID_REQUEST, 401 INVALID_SERVICE_CREDENTIAL, 503 DEPENDENCY_UNAVAILABLE khi Redis lỗi (có Retry-After: 1). Thay cho R01 `/nearby-drivers` đã gỡ ngày 2026-11-05.
 
 ## 5. H01/H02 — health đã có
 
@@ -185,64 +122,6 @@ HTTP 503 có Retry-After: 1. INVALID_REQUEST không trả chi tiết validation 
 
 Không dùng business envelope hoặc meta trong body; middleware HTTP vẫn đặt X-Request-Id/no-store. Hai endpoint không auth guard trong code; hạn chế exposure bằng mạng vận hành khi deploy. Ready không kiểm Driver/JWKS/Trip, schema DB hoặc quyền Redis EVAL/GEO. Realtime không có /docs hay /openapi.json.
 
-## 6. O01 — POST Driver /internal/drivers/eligibility/batch
-
-Đây là route **tại Driver**, đã có code ở RealtimeInternalController/BatchEligibilityUseCase, không phải Realtime route mới. Realtime gọi DRIVER_BASE_URL với X-Service-Token=DRIVER_ELIGIBILITY_TOKEN; Driver đối chiếu REALTIME_INBOUND_TOKEN. Tách credential khỏi Matching và Routing.
-
-```json
-{
-  "driverIds": [
-    "40000000-0000-4000-8000-000000000001",
-    "40000000-0000-4000-8000-000000000002"
-  ],
-  "vehicleType": "BIKE"
-}
-```
-
-1–100 UUID unique, normalize lowercase; vehicleType tùy chọn và phải thuộc SUPPORTED_VEHICLE_TYPES của Driver. Realtime chỉ hỗ trợ ba mã BIKE/CAR_4/CAR_7; hai bên phải thống nhất. Unknown field bị Driver validation từ chối. Driver thực hiện tối đa bốn lượt đọc tài xế song song trong mỗi batch; Realtime gọi các batch tuần tự với một deadline chung default 3.000 ms.
-
-200 với hai quyết định tương ứng request: một đủ điều kiện, một BUSY:
-
-```json
-{
-  "data": {
-    "items": [
-      {
-        "driverId": "40000000-0000-4000-8000-000000000001",
-        "profileEligible": true,
-        "eligible": true,
-        "availabilityKnown": true,
-        "vehicleType": "BIKE",
-        "operationalStatus": "AVAILABLE",
-        "reasons": []
-      },
-      {
-        "driverId": "40000000-0000-4000-8000-000000000002",
-        "profileEligible": true,
-        "eligible": false,
-        "availabilityKnown": true,
-        "vehicleType": "BIKE",
-        "operationalStatus": "BUSY",
-        "reasons": ["DRIVER_BUSY"]
-      }
-    ]
-  },
-  "meta": { "requestId": "90000000-0000-4000-8000-000000000005" }
-}
-```
-
-Với request hai UUID, response phải có đúng hai items theo ID. Driver không có cursor/partial success batch. Realtime kiểm đủ ID, không trùng/ngoài batch, kiểu boolean, vehicleType và khi eligible=true phải profileEligible=true/availabilityKnown=true/operationalStatus=AVAILABLE. Thiếu hoặc mâu thuẫn map DEPENDENCY_UNAVAILABLE.
-
-| Tình huống tại Driver | Quyết định / reasons |
-| --- | --- |
-| Không Driver/legacy/OFFLINE | eligible=false, availabilityKnown=true; DRIVER_NOT_FOUND / DRIVER_STATUS_MIGRATION_REQUIRED / DRIVER_OFFLINE |
-| Hồ sơ thiếu/không xe/xe inactive/type khác | eligible=false; PROFILE_INCOMPLETE / VEHICLE_REQUIRED / VEHICLE_INACTIVE / VEHICLE_TYPE_MISMATCH |
-| Hồ sơ/xe hợp lệ, projection absent/lệch/UNKNOWN | availabilityKnown=false; AVAILABILITY_UNDETERMINED |
-| Hồ sơ/xe hợp lệ, operational BUSY/OFFLINE với projection ONLINE | eligible=false, known=true; DRIVER_BUSY / OPERATIONALLY_OFFLINE |
-| Hồ sơ/xe hợp lệ, projection ONLINE và AVAILABLE | eligible=true, known=true |
-
-Xe không đúng owner được repository Driver xem như không có xe hợp lệ. availabilityKnown=true khi đã có lý do loại không phải chứng minh Trip rảnh. Raw error Driver: 400 INVALID_REQUEST, 401 INVALID_SERVICE_CREDENTIAL, 503 DEPENDENCY_UNAVAILABLE hoặc lỗi nội bộ; Realtime client map mọi HTTP non-2xx/contract/network lỗi về 503 DEPENDENCY_UNAVAILABLE cho Routing.
-
 ## 7. O02 — JWKS Driver
 
 GET AUTH_JWKS_URL, sample /.well-known/jwks.json tại Driver, không service token. Response {keys:[public JWK]} không business envelope. Driver dùng RsaTokens; JWT audience mặc định hiện có realtime-service nhưng private .env có thể override. Khi đổi config/key cần JWT phù hợp và kiểm issuer chính xác; không dùng JWT của Trip mock issuer thay thế.
@@ -253,8 +132,7 @@ Realtime không làm issuer/JWKS server hoặc refresh endpoint riêng. JWKS cac
 
 | Điểm | Đã có | Chưa được xác nhận / triển khai |
 | --- | --- | --- |
-| Driver eligibility | Batch HTTP đối soát active Trip/reservation; credential riêng | Snapshot không phải reservation; SLA/credential rotation production chưa nghiệm thu |
-| Routing nearby | Server GET và client HTTP Routing đã liên thông | Mapping/freshness/vehicleType đã kiểm; ingress production chưa nghiệm thu |
+| Matching driver-locations | Matching gọi mỗi lần tìm xe, credential riêng | Ingress production chưa nghiệm thu |
 | Mã xe | Luồng mới BIKE/CAR_4/CAR_7 | CAR/MOCK_BIKE là legacy/mock riêng, không nhận trong Realtime |
 | Redis ownership | Realtime realtime:{gps}:* | Chuyển consumer từ drivers:geo:* theo thiết kế Driver cũ; không có dual-write |
 | Gateway chuẩn | Base URL trực tiếp hoạt động theo thiết kế code | TLS/proxy namespace/path/origin/exposure; chưa có ingress trong service |

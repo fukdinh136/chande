@@ -48,6 +48,7 @@ Trình tự xử lý: route → xác thực identity → validation DTO/path/que
 | R11 | GET | `/docs` trên API:3001 | Developer local/staging | Bật khi được cấu hình; production mặc định tắt | Swagger UI |
 | R12 | GET | `/openapi.json` trên API:3001 | Developer/contract CI | Cùng chính sách R11 | OpenAPI sinh từ controller |
 | R13 | GET | `/internal/trips/:id/matching-state` | Matching | MATCHING_CALLBACK_TOKEN; không proxy public | AssignmentController; 200 data state |
+| R14 | POST | `/internal/trips/:id/no-driver-found` | Matching | MATCHING_CALLBACK_TOKEN; không proxy public | AssignmentController; 202 khi huỷ `NO_DRIVER_FOUND` (ADR-0004) |
 | R14 | POST | `/internal/trips/active-drivers/batch` | Driver | DRIVER_LOOKUP_TOKEN riêng; không proxy public | DriverLookupController; 200 data items |
 | W01 | GET | `/health/live` trên worker:3002 | Runtime/probe | Private; không proxy Gateway | Worker liveness |
 | W02 | GET | `/health/ready` trên worker:3002 | Runtime/probe | Private; không proxy Gateway | DB/schema + dispatch loop readiness |

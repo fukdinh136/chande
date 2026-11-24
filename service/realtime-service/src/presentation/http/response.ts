@@ -12,6 +12,6 @@ export function statusFor(code: string) {
   if (['INVALID_REQUEST', 'LOCATION_IN_FUTURE', 'LOCATION_STALE'].includes(code)) return 400;
   if (code === 'LOCATION_OUT_OF_ORDER') return 409;
   if (code === 'RATE_LIMITED') return 429;
-  if (['DEPENDENCY_UNAVAILABLE', 'ELIGIBILITY_UNDETERMINED', 'SEARCH_CAPACITY_EXCEEDED'].includes(code)) return 503;
+  if (code === 'DEPENDENCY_UNAVAILABLE') return 503;
   return 500;
 }

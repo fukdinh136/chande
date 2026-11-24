@@ -21,10 +21,12 @@ export const tripResponse = z.object({ tripId: id, quoteId: id, riderId: id, dri
   fare: z.object({ currency: z.literal('VND'), estimatedAmount: amount, finalAmount: amount.nullable(), breakdown }),
   driver: assignmentBody.shape.driverSnapshot.extend({ driverId: id }).nullable(), vehicle: assignmentBody.shape.vehicleSnapshot.extend({ vehicleId: id }).nullable(),
   timestamps: z.object({ requestedAt: date, assignedAt: date.nullable(), driverArrivedAt: date.nullable(), startedAt: date.nullable(), completedAt: date.nullable(), cancelledAt: date.nullable() }),
-  cancellation: z.object({ actorType: z.enum(['RIDER', 'DRIVER']), actorId: id, reason: z.string(), cancelledAt: date }).nullable(),
+  cancellation: z.object({ actorType: z.enum(['RIDER', 'DRIVER', 'SYSTEM']), actorId: id.nullable(), reason: z.string(), cancelledAt: date }).nullable(),
 });
 export const detailResponse = z.object({ trip: tripResponse, statusHistory: z.array(z.object({ fromStatus: status.nullable(), toStatus: status, actorType: z.enum(['RIDER', 'DRIVER', 'SYSTEM']), actorId: id.nullable(), occurredAt: date, version: z.number().int().min(0) })) });
 export const pageResponse = z.object({ items: z.array(tripResponse), nextCursor: z.string().nullable() });
+export const noDriverBody = z.object({ eventId: uuid }).strict();
+export const noDriverResponse = z.object({ eventId: id, tripId: id, accepted: z.literal(true), cancelledVersion: z.number().int().min(2) });
 export const assignmentResponse = z.object({ eventId: id, tripId: id, accepted: z.literal(true), assignedVersion: z.number().int().min(2) });
 export const errorResponse = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.array(z.unknown()) }), meta: z.object({ requestId: id }) });
 export function responseEnvelope(data: z.ZodType) { return z.object({ data, meta: z.object({ requestId: id }) }); }

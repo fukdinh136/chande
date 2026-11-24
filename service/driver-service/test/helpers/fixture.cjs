@@ -40,11 +40,16 @@ function fixture() {
   let failInsert = false;
   const repo = {
     driver: async (id) => (id === driver.id ? driver : null),
+    drivers: async (ids) => ({
+      found: new Map(ids.includes(driver.id) ? [[driver.id, driver]] : []),
+      migrationRequired: new Set(),
+    }),
     driverByPhone: async (phone) => (phone === driver.phone ? driver : null),
     saveDriver: async (value) => Object.assign(driver, value),
     vehicles: async () => [vehicle],
     vehicle: async (owner, id) =>
       owner === driver.id && id === vehicle.id ? vehicle : null,
+    vehiclesById: async (ids) => (ids.includes(vehicle.id) ? [vehicle] : []),
     saveVehicle: async (value) => Object.assign(vehicle, value),
     refresh: async (hash) => refresh.get(hash) ?? null,
     saveRefresh: async (token) => {
@@ -105,6 +110,10 @@ function fixture() {
     read: async () => {
       if (unavailable) throw new DriverError("DEPENDENCY_UNAVAILABLE");
       return { ...cache };
+    },
+    readMany: async (ids) => {
+      if (unavailable) throw new DriverError("DEPENDENCY_UNAVAILABLE");
+      return ids.map(() => ({ ...cache }));
     },
     clearSelection: async (_, id) => {
       if (cache.vehicleId === id) cache.vehicleId = null;

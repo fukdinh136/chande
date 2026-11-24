@@ -10,7 +10,7 @@ import {useCustomerSession} from './provider';
 import {useBooking} from './booking-provider';
 import {BookingSheet} from './booking-sheet';
 import {CustomerTripLifecycle} from './trip-lifecycle';
-import {customerTripStates} from './trip-policy';
+import {tripPresentation} from './trip-policy';
 
 export function CustomerHome() {
   const {store, state, locked} = useBooking(), session = useCustomerSession();
@@ -23,7 +23,7 @@ export function CustomerHome() {
   const fitKey = `customer/${pickup?.lat},${pickup?.lng}/${destination?.lat},${destination?.lng}/${candidate?.point.lat},${candidate?.point.lng}`;
   const changeExpanded = useCallback((expanded: boolean) => store.setSheet(expanded ? 'expanded' : 'collapsed'), [store]);
   return <GestureHandlerRootView style={styles.root}><SafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
-    <View style={styles.header}><Logo compact={dimensions.fontScale > 1.3 || dimensions.width < 360 || dimensions.height < 700}/><View style={{flex: 1, minWidth: 0}}><ThemedText type="smallBold" numberOfLines={2}>Xin chào {session.session?.profile.fullName}</ThemedText><ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>{state.current ? customerTripStates[state.current.status].title : 'Bạn muốn đi đâu?'}</ThemedText></View></View>
+    <View style={styles.header}><Logo compact={dimensions.fontScale > 1.3 || dimensions.width < 360 || dimensions.height < 700}/><View style={{flex: 1, minWidth: 0}}><ThemedText type="smallBold" numberOfLines={2}>Xin chào {session.session?.profile.fullName}</ThemedText><ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>{state.current ? tripPresentation(state.current).title : 'Bạn muốn đi đâu?'}</ThemedText></View></View>
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.root} onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)}>
         <View style={{flex: 1, minHeight: 1}}>

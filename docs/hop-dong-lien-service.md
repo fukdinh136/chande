@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Toàn hệ thống |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](quy-uoc-tai-lieu.md) |
 
 Đối chiếu source/lockfile/config và các stack local ngày 2026-10-06. Đây là bảng tham chiếu hiện tại; báo cáo feature cũ ghi số liệu tại thời điểm kiểm thử của feature đó.
@@ -34,18 +34,18 @@ PostgreSQL test: Trip 55434, Matching 55435; Matching local DB 55436; Trip local
 | --- | --- | --- |
 | Quote Trip | 300000 ms (5 phút) | Chính sách v1; EstimateTrip |
 | Active Trip | Một chuyến / khách và một chuyến / tài xế | Domain + unique DB constraints Trip |
-| Bán kính nearby | 2000 m (2 km) | Routing cố định; Realtime default/tối đa |
+| Bán kính tìm xe | 2000 m (2 km) | Matching gửi cố định `radiusMeters=2000`; Realtime default/tối đa |
 | GPS freshness | 30000 ms | Realtime default/tối đa; Matching lọc lại khi chọn |
-| GPS future tolerance | 5000 ms | Default Realtime và filter Routing/Matching |
-| Realtime result cap | 50 tài xế | NearbyPolicy.maximumResults; khác GEO scan cap 5000 |
-| Routing matrix cap / batch | 50 / 25 ứng viên | Defaults config; ETA luôn driver → pickup |
-| Routing deadline | 4000 ms | Cả lookup, queue, limiter, map và batches |
+| GPS future tolerance | 5000 ms | Default Realtime; Matching lọc lại khi xếp hạng |
+| Vị trí mỗi lần tìm | 200 tài xế | `NEARBY_LIMIT` của Matching; Realtime `driver-locations` trả tối đa 200, gần nhất trước (Redis `GEOSEARCH ... COUNT`) |
+| Routing matrix cap / batch | 50 / 25 ứng viên | Defaults config `eta-matrix`; Matching gửi 25 (`MATRIX_CANDIDATES`); ETA luôn driver → pickup |
+| Routing deadline | 4000 ms | Cả queue, limiter, map và batches |
 | Routing async workers | 2 | Cùng process, xử lý I/O; không phải worker threads |
-| Routing Realtime lookup timeout | Default 1000 ms; Matching stack override 3000 ms | Luôn cắt theo deadline còn lại |
 | Offer TTL | 20000 ms (20 giây) | Tính ở DB/server; retry/reconnect không reset |
-| Search polling / expiry scan | 5000 ms / 1000 ms | Defaults Matching; không deadline kết thúc tìm xe |
-| Matching concurrent jobs / lease | 2 / 60000 ms | Worker lease khác reservation; pending callback không hết theo TTL offer |
-| Retry Matching | Nominal 1000–30000 ms, jitter hệ số 0.8–1.0 | Hiện code có thể bắt đầu ở 800 ms; không diễn giải thành deadline tìm xe |
+| Search polling / expiry scan | 5000 ms / 250 ms | Defaults Matching; worker nghỉ 250 ms khi không còn search tới hạn ([ADR-0008](adr/0008-xu-ly-hang-doi-lien-tuc.md)); không deadline kết thúc tìm xe |
+| Matching concurrent jobs / lease | 16 / 60000 ms | Worker lease khác reservation; pending callback không hết theo TTL offer |
+| Retry Matching | Nominal 1000–30000 ms, jitter hệ số 0.8–1.0; dependency bận (`ROUTING_BUSY`, 429, có `Retry-After`) chờ theo `Retry-After`, tối đa 2000 ms, trong ngân sách 20% số job của 10 giây gần nhất (ít nhất 20 lần); vượt ngân sách thì lùi theo hàm mũ | Delay thực có thể từ 800 ms; log `matching_job_retry` ghi dependency, mã lỗi, status; không diễn giải thành deadline tìm xe |
+| Circuit breaker (D1) | Client HTTP của Matching (Routing, Driver, Trip, Realtime), Trip (Routing, Price, Matching, Gateway, Notification), Driver (Trip, Matching), Realtime (Matching): 5 lỗi liên tiếp (timeout, không kết nối được, 5xx không có `Retry-After`) thì mở 5000 ms, sau đó cho một request thử | Khi mở, gọi thất bại ngay: Matching `CIRCUIT_OPEN` (503, Retry-After là thời gian còn lại), Trip `CIRCUIT_OPEN` retryable, Driver `DEPENDENCY_UNAVAILABLE`, Realtime `MATCHING_UNAVAILABLE`. 4xx, 429 và 503 có `Retry-After` không làm mở breaker; log `circuit_breaker` ghi dependency và trạng thái |
 | REST body cap Node/User | 65536 byte (64 KiB) | Routing/Matching/Trip/Price và User admission |
 | Gateway body cap | 256 KiB | Cấu hình 256KB của Spring DataSize; service vẫn kiểm cap nhỏ hơn |
 
@@ -69,12 +69,13 @@ Nguồn: [policy Price](../service/price-service/config/fare-policy.example.json
 | Trip → Routing | POST /internal/routes/estimate; data chỉ distanceMeters/durationSeconds | Credential Trip riêng |
 | Trip → Price | POST /internal/fares/estimate | Credential Trip; tiền chuỗi VND |
 | Trip → Matching | POST /internal/matching/requests, cancel, completion | Credential Trip; ACK 202 sau durable write |
-| Matching → Routing | POST /routes/matrix; pickup/vehicleType | Credential Matching; không gửi candidate locations |
-| Routing → Realtime | GET /internal/realtime/nearby-drivers | X-Service-Token; latitude/longitude/radiusMeters/vehicleType |
-| Realtime → Driver | POST /internal/drivers/eligibility/batch | Credential Realtime riêng |
-| Driver → Trip / Matching | POST /internal/trips/active-drivers/batch; POST /internal/matching/reservations/batch | Credential lookup Driver riêng; chỉ internal |
-| Matching → Driver | GET /internal/drivers/:driverId/eligibility | Credential Matching; snapshot lấy server |
-| Matching → Trip | POST /internal/trips/:id/assignment; GET /internal/trips/:id/matching-state | Matching callback token; assignment 202 sau commit |
+| Matching → Realtime | GET /internal/realtime/driver-locations; latitude/longitude/radiusMeters/limit ≤200 | `MATCHING_LOCATION_TOKEN`; vị trí thô, gần nhất trước ([ADR-0001](adr/0001-matching-so-huu-tim-ung-vien.md)) |
+| Matching → Driver (lô) | POST /internal/drivers/eligibility/candidates; driverIds ≤100, vehicleType | Credential Matching; luật giống eligibility đơn, kèm snapshot; không hỏi Trip / Matching |
+| Matching → Routing (ETA) | POST /internal/routes/eta-matrix; destination, vehicleType, origins ≤50 | Credential Matching; Routing không gọi Realtime |
+| Driver → Trip / Matching | POST /internal/trips/active-drivers/batch; POST /internal/matching/reservations/batch | Credential lookup Driver riêng; chỉ internal; mỗi phía 1 câu SQL cho cả lô; dùng khi tài xế đổi trạng thái hoặc xe, không dùng khi tìm xe |
+| Matching → Driver | GET /internal/drivers/:driverId/eligibility | Credential Matching; snapshot lấy server; chỉ còn dùng để kiểm lại trước khi gán |
+| Matching → Trip | POST /internal/trips/:id/assignment; GET /internal/trips/:id/matching-state; POST /internal/trips/:id/no-driver-found | Matching callback token; assignment và no-driver-found 202 sau commit (ADR-0004) |
+| Trip → RabbitMQ → Gateway | exchange `trip.events` (topic, routing key = loại sự kiện), queue `gateway.trip-events` | ADR-0002; publisher confirm; Gateway chống trùng theo eventId; `TRIP_EVENT_TRANSPORT=http` quay về POST /internal/events/trips |
 | Driver REST → Matching | GET active/detail offer; POST accept/decline | JWT DRIVER, issuer/JWKS Driver, audience matching-service; decision có Idempotency-Key |
 | Matching → Realtime | Rabbit DRIVER_TRIP_OFFER / UPDATED, đọc state Matching | Publisher confirms/manual ACK; WS driver.trip.offer / updated |
 

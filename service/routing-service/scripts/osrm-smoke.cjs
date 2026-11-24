@@ -30,9 +30,10 @@ async function main() {
   const rerouteDirect = (await raw('/route/v1/driving/' + coordinates([currentLocation, destination]) + '?overview=false')).routes[0];
   const reroute = await post('/routes/recalculate', 'gateway', { currentLocation, destination, vehicleType: 'CAR' });
   assert.equal(reroute.distanceMeters, Math.ceil(rerouteDirect.distance)); await wait();
-  const matrix = await post('/routes/matrix', 'matching', { pickup, vehicleType: 'CAR' });
-  assert.equal(matrix.entries.length, 2); assert.deepEqual(matrix.entries.map(entry => entry.driverId), ['mock-driver-a', 'mock-driver-b']);
-  const table = await raw('/table/v1/driving/' + coordinates([...matrix.entries.map(entry => entry.location), pickup]) + '?sources=0;1&destinations=2&annotations=duration,distance');
+  const origins = [{ id: 'driver-a', lat: pickup.lat + 0.002, lng: pickup.lng }, { id: 'driver-b', lat: pickup.lat, lng: pickup.lng + 0.002 }];
+  const matrix = await post('/internal/routes/eta-matrix', 'matching', { destination: pickup, vehicleType: 'CAR', origins });
+  assert.deepEqual(matrix.entries.map(entry => entry.id), ['driver-a', 'driver-b']);
+  const table = await raw('/table/v1/driving/' + coordinates([...origins, pickup]) + '?sources=0;1&destinations=2&annotations=duration,distance');
   matrix.entries.forEach((entry, i) => { assert.equal(entry.status, 'OK'); assert.equal(entry.distanceMeters, Math.ceil(table.distances[i][0])); assert.equal(entry.durationSeconds, Math.ceil(table.durations[i][0])); }); await wait();
   const unsupported = await fetch(routing + '/internal/routes/estimate', { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-token': tokens.trip }, body: JSON.stringify({ pickup, destination, vehicleType: 'BIKE' }) });
   assert.equal(unsupported.status, 400);
@@ -43,6 +44,6 @@ async function main() {
   const policy = JSON.parse(readFileSync(resolve(__dirname, '../../price-service/config/fare-policy.example.json'), 'utf8')).vehicleTypes.CAR;
   const amount = BigInt(policy.openingFareVnd) + (BigInt(Math.max(0, expected.distanceMeters - policy.includedDistanceMeters)) * BigInt(policy.pricePerKmVnd) + 999n) / 1000n;
   assert.equal(quote.fare.amount, String(amount));
-  console.info(JSON.stringify({ event: 'osrm_smoke_passed', region: 'hanoi', vehicleType: 'CAR', ...expected, amount: String(amount), matrixEntries: matrix.entries.length, realtime: 'mock' }));
+  console.info(JSON.stringify({ event: 'osrm_smoke_passed', region: 'hanoi', vehicleType: 'CAR', ...expected, amount: String(amount), matrixEntries: matrix.entries.length }));
 }
 main().catch(error => { console.error('OSRM smoke failed:', error.message); process.exitCode = 1; });

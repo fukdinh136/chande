@@ -3,10 +3,10 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | realtime-service |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-16 |
 | Quy ước | [Format và số liệu](../../../docs/quy-uoc-tai-lieu.md) |
 
-Ngày đối chiếu: 06/10/2026. GPS/nearby/offer đã kiểm chứng Docker local Hà Nội; thiết bị và ingress production chưa nghiệm thu. [API](api.md), [Kiến trúc](kien-truc.md), [Nghiệp vụ](nghiep-vu.md), [Deploy](deploy.md).
+Ngày đối chiếu: 06/10/2026. GPS/offer đã kiểm chứng Docker local Hà Nội; thiết bị và ingress production chưa nghiệm thu. [API](api.md), [Kiến trúc](kien-truc.md), [Nghiệp vụ](nghiep-vu.md), [Deploy](deploy.md).
 
 ## 1. Exposure và prefix
 
@@ -14,7 +14,7 @@ Realtime mặc định port 3004, cùng process cho HTTP và Socket.IO, không g
 
 main.ts listen 0.0.0.0; chưa có ingress/firewall/TLS được tạo trong service. Internal route có guard nhưng vẫn cần mạng private. Health không có auth guard, cần hạn chế exposure ở tầng vận hành. Socket dùng JWT, allowlist Origin và websocket-only; CORS/Origin không thay authentication.
 
-Gateway chính thức có thể proxy sau này nhưng chưa có proxy trong Realtime. Không yêu cầu Gateway demo. Không expose nearby cho Rider hoặc chuyển service credential vào app.
+Gateway chính thức có thể proxy sau này nhưng chưa có proxy trong Realtime. Không yêu cầu Gateway demo. Không expose driver-locations cho Rider hoặc chuyển service credential vào app.
 
 ## 2. Driver App → Realtime qua Socket.IO
 
@@ -27,13 +27,13 @@ Gateway chính thức có thể proxy sau này nhưng chưa có proxy trong Real
 
 Payload/ACK xem API mục 3. Transport chỉ websocket, không polling fallback. Không có event ONLINE/OFFLINE, heartbeat presence, offer, trip tracking hoặc subscribe vị trí tài xế khác. Scheduler 10 giây nằm phía app.
 
-## 3. Routing → Realtime qua HTTP nội bộ
+## 3. Matching → Realtime qua HTTP nội bộ
 
 | Mã | Method / route | Caller | Authentication | Handler / use case | Exposure / kết quả |
 | --- | --- | --- | --- | --- | --- |
-| R01 | GET /internal/realtime/nearby-drivers | Routing được cấp credential | X-Service-Token = ROUTING_INBOUND_TOKEN, RoutingServiceGuard | NearbyController.nearby → FindNearby.execute | Nội bộ; 200 {data:{radiusMeters,drivers},meta}; tối đa 50 |
+| R02 | GET /internal/realtime/driver-locations | Matching | X-Service-Token = MATCHING_LOCATION_TOKEN, MatchingServiceGuard | DriverLocationsController.locations → ListDriverLocations.execute | Nội bộ; vị trí thô gần nhất trước, `limit` mặc định 50, tối đa 200 ([ADR-0001](../../../docs/adr/0001-matching-so-huu-tim-ung-vien.md)) |
 
-Query latitude/longitude bắt buộc; vehicleType/radiusMeters tùy chọn. Không có actor/trip/limit/cursor query. Routing phải phân biệt 200 drivers:[] với 503 dependency/unknown. Kết quả không phải assignment. Guard chưa có registry/mTLS hoặc allowlist caller name; quyền hiện dựa trên credential riêng và deployment network.
+R01 `GET /internal/realtime/nearby-drivers` cho Routing đã gỡ ngày 2026-11-05. Kết quả không lọc loại xe hay trạng thái tài xế; Matching kiểm điều kiện ở Driver.
 
 ## 4. Probes tại Realtime
 
@@ -42,16 +42,11 @@ Query latitude/longitude bắt buộc; vehicleType/radiusMeters tùy chọn. Kh�
 | H01 | GET /health/live | Operator/probe | Không guard trong code | HealthController.live | Nên ở mạng vận hành; 200 {status:ok} |
 | H02 | GET /health/ready | Operator/probe | Không guard trong code | HealthController.ready → LocationStore.ready | Redis PING; 200 ready / 503 not_ready |
 
-Health không business envelope; ready không kiểm Driver/JWKS/Trip hay quyền EVAL/GEO. Chưa có /metrics, /docs hoặc /openapi.json. Invalid HTTP route nhận 404 qua ErrorFilter, không phải API mới.
+Health không business envelope; ready không kiểm Driver/JWKS/Trip hay quyền EVAL/GEO. Chưa có /metrics, /docs hoặc /openapi.json; khi bật observability ([ADR-0003](../../../docs/adr/0003-observability-opentelemetry.md)) metric và trace được đẩy qua OTLP, gồm `realtime_location_update_duration` cho mỗi bản tin GPS. Invalid HTTP route nhận 404 qua ErrorFilter, không phải API mới.
 
 ## 5. Realtime → Driver Service
 
-| Mã | Caller → đích | Method / route | Authentication | Handler/client | Trạng thái |
-| --- | --- | --- | --- | --- | --- |
-| O01 | FindNearby → Driver | POST DRIVER_BASE_URL + /internal/drivers/eligibility/batch | X-Service-Token = DRIVER_ELIGIBILITY_TOKEN; Driver kiểm REALTIME_INBOUND_TOKEN | DriverEligibilityClient.find → RealtimeInternalController.eligibility → BatchEligibilityUseCase.execute | Có mã hai phía; chưa nghiệm thu service thật |
-| O02 | JWT verifier → Driver JWKS | GET AUTH_JWKS_URL; sample /.well-known/jwks.json | Public key endpoint, không service credential | JwksTokenVerifier → OperationsController.jwks | Có mã, fetch/cache khi cần key |
-
-O01 gửi 1–100 UUID/lô, một deadline chung cho các lô. Không gửi JWT tài xế hoặc credential Routing tới batch. Không dùng GET /internal/drivers/:driverId/eligibility của Matching thay batch vì quyền và profileEligible khác nhau. Snapshot Driver không phải lease chống assignment race.
+Realtime không gọi API nghiệp vụ của Driver; chỉ đọc JWKS để xác thực JWT tài xế (mục 6). Lời gọi `POST /internal/drivers/eligibility/batch` (O01) đã gỡ ngày 2026-11-05.
 
 ## 6. App → Driver: dependency của luồng GPS
 
@@ -75,7 +70,7 @@ Profile/vehicle update và Trip routes xem tài liệu tương ứng. GET /trips
 | Mã | Caller | Thao tác | Authentication / ownership | Adapter |
 | --- | --- | --- | --- | --- |
 | D01 | UpdateLocation | EVAL UPDATE_LOCATION; TIME/GEOADD/HSET/ZADD | REDIS_URL hoặc REDIS_URL_FILE; chỉ key Realtime | RedisLocationRepository.update |
-| D02 | FindNearby | EVAL FIND_NEARBY; TIME/GEOSEARCH/ZSCORE/HGET | Cùng credential, không đọc Driver keys | RedisLocationRepository.nearby |
+| D02 | ListDriverLocations | EVAL FIND_NEAREST; TIME/GEOSEARCH COUNT/ZSCORE/HGET | Cùng credential, không đọc Driver keys | RedisLocationRepository.nearest |
 | D03 | CleanupScheduler → CleanupStale | EVAL CLEANUP_STALE; TIME/ZRANGEBYSCORE/ZREM/HDEL | Cùng ownership | RedisLocationRepository.cleanup |
 | D04 | HealthController | PING | Cùng Redis connection | RedisLocationRepository.ready |
 
@@ -88,6 +83,8 @@ Năm key realtime:{gps}:geo/meta/expiry/order/order-expiry ở [Kiến trúc](ki
 | Rabbit → Realtime | DRIVER_TRIP_OFFER / DRIVER_TRIP_OFFER_UPDATED | Durable queue driver.offers; manual ACK, retry/DLQ |
 | Realtime → Matching | GET /internal/matching/offers/:offerId | MATCHING_REALTIME_TOKEN; state authoritative |
 | Realtime → Matching | GET /internal/matching/drivers/:driverId/offer | Cùng credential; reconnect chính driver đã xác thực |
+
+Hai lookup sang Matching dùng chung một circuit breaker (D1): 5 lỗi liên tiếp (timeout, không kết nối được, 5xx không có `Retry-After`) thì ngừng gọi Matching 5 giây, lookup thất bại ngay với `MATCHING_UNAVAILABLE` và message đi theo đường retry/DLQ như khi Matching lỗi.
 | Realtime → Driver App | driver.trip.offer / driver.trip.offer.updated | Room driver từ JWT; `{data:<offer>}` |
 
 Accept/decline thuộc REST Matching, không thêm socket command trong Realtime. Registry/rotation credential, ingress Gateway, trip room US8 và legacy GEO migration chưa nghiệm thu; producer occupancy Driver đã triển khai.

@@ -2,6 +2,8 @@ import {BackendError} from '../backend/http';
 
 const messages: Record<string, string> = {
   INVALID_CREDENTIALS: 'Số điện thoại hoặc mật khẩu chưa đúng.',
+  // The user service sheds BCrypt work under load (503 with Retry-After): the password is not the problem.
+  SERVICE_BUSY: 'Hệ thống đang bận. Vui lòng thử lại sau giây lát.',
   WRONG_OLD_PASSWORD: 'Mật khẩu hiện tại chưa đúng.',
   NEW_PASSWORD_SAME_AS_OLD: 'Mật khẩu mới phải khác mật khẩu hiện tại.',
   ADDRESS_NOT_FOUND: 'Địa chỉ không còn tồn tại hoặc bạn không được xem.',

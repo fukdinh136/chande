@@ -5,10 +5,11 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import { NestFactory } from '@nestjs/core';
 import { Catch, Controller, Get, Post, HttpCode, Inject, Module, Req, Res, HttpException, type ArgumentsHost, type ExceptionFilter, type INestApplication } from '@nestjs/common';
 import { ApiBody, ApiSecurity, ApiTags, ApiOkResponse, DocumentBuilder, SwaggerModule, type SchemaObject } from '@nestjs/swagger';
-import { envelopeSchema, summaryResponse, routeResponse, matrixResponse,navigationResponse } from './documentation';
+import { envelopeSchema, summaryResponse, routeResponse, etaMatrixResponse, navigationResponse } from './documentation';
 import { RoutingRuntime } from '../bootstrap/runtime';
-import { RoutingError } from '../domain/errors';
-import { estimateSchema, routeRequestSchema, matrixRequestSchema, recalculateSchema } from '../domain/requests';
+import { RoutingError, busy } from '../domain/errors';
+import { countFailure } from '../infrastructure/pipeline/metrics';
+import { estimateSchema, routeRequestSchema, etaMatrixRequestSchema, recalculateSchema } from '../domain/requests';
 import type { Context } from '../application/ports/clients';
 import { checkpoint } from '../application/context';
 interface RoutingRequest extends Request { routing: { requestId: string; started: number } }
@@ -21,7 +22,7 @@ function authorize(req: Request, runtime: RoutingRuntime, operation: 'trip' | 'g
   }
   if (!caller) throw new RoutingError('INVALID_SERVICE_CREDENTIAL', 401);
   if (caller !== operation) throw new RoutingError('FORBIDDEN_OPERATION', 403);
-  if (!runtime.pool.stats.accepting) throw new RoutingError('ROUTING_BUSY', 503);
+  if (!runtime.pool.stats.accepting) throw busy('shutting_down');
 }
 @Catch()
 class ErrorFilter implements ExceptionFilter {
@@ -31,6 +32,7 @@ class ErrorFilter implements ExceptionFilter {
     if (error instanceof HttpException) failure = new RoutingError('INVALID_REQUEST', error.getStatus());
     if (error instanceof SyntaxError) failure = new RoutingError('INVALID_REQUEST', 400);
     if (typeof error === 'object' && error !== null && 'type' in error && error.type === 'entity.too.large') failure = new RoutingError('INVALID_REQUEST', 413);
+    countFailure(failure.code, failure.reason);
     if (res.destroyed || res.headersSent) return;
     if (failure.code === 'ROUTING_BUSY') res.setHeader('Retry-After', '1');
     res.status(failure.status).json({ error: { code: failure.code, message: failure.code, details: [] }, meta: { requestId: req.routing?.requestId ?? randomUUID() } });
@@ -64,10 +66,10 @@ class RoutingController {
   route(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
     return this.execute(req, res, 'gateway', ctx => this.runtime.route.full(req.body, ctx));
   }
-  @Post('routes/matrix') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(matrixRequestSchema) })
-  @ApiOkResponse({ schema: bodySchema(envelopeSchema(matrixResponse)) })
-  matrix(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
-    return this.execute(req, res, 'matching', ctx => this.runtime.matrix.execute(req.body, ctx));
+  @Post('internal/routes/eta-matrix') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(etaMatrixRequestSchema) })
+  @ApiOkResponse({ schema: bodySchema(envelopeSchema(etaMatrixResponse)) })
+  etaMatrix(@Req() req: RoutingRequest, @Res({ passthrough: true }) res: Response) {
+    return this.execute(req, res, 'matching', ctx => this.runtime.etaMatrix.execute(req.body, ctx));
   }
   @Post('routes/navigation') @HttpCode(200) @ApiSecurity('service-token') @ApiBody({ schema: bodySchema(routeRequestSchema) })
   @ApiOkResponse({schema:bodySchema(envelopeSchema(navigationResponse))})
@@ -81,7 +83,7 @@ class RoutingController {
   }
   @Get('health/live') live() { return { status: 'ok' }; }
   @Get('health/ready') ready() {
-    if (!this.runtime.pool.stats.accepting) throw new RoutingError('ROUTING_BUSY', 503);
+    if (!this.runtime.pool.stats.accepting) throw busy('shutting_down');
     return { status: 'ok' };
   }
 }
