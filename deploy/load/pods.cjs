@@ -8,6 +8,12 @@ const {kubectl, args} = require('./lib.cjs');
 const options = args({interval: 10, out: ''});
 const pods = JSON.parse(kubectl(['get', 'pods', '-o', 'json'])).items
   .filter(p => p.status.phase === 'Running').map(p => ({pod: p.metadata.name, app: p.metadata.labels?.['app.kubernetes.io/name'] ?? p.metadata.name.replace(/-[a-z0-9]+-[a-z0-9]+$/, '')}));
+// An app with several replicas (user-api) gets one row per pod, user-api#1, user-api#2: CPU is a delta of each pod's
+// own counter, so two pods must not share one series.
+const replicas = {};
+for (const p of pods) replicas[p.app] = (replicas[p.app] ?? 0) + 1;
+const seen = {};
+for (const p of pods) if (replicas[p.app] > 1) { seen[p.app] = (seen[p.app] ?? 0) + 1; p.app = `${p.app}#${seen[p.app]}`; }
 const series = Object.fromEntries(pods.map(p => [p.app, {cpuMillicores: [], memoryMiB: [], rxKBps: [], txKBps: [], last: null}]));
 const db = {maxConnections: {}, last: null, totals: null, samples: 0};
 const exec = (cmd, input) => new Promise(resolve => {

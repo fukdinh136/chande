@@ -1101,7 +1101,7 @@ Mỗi dòng giữ thay đổi của dòng trên, trừ dòng cuối là thử ri
 
 Kết quả ở `deploy/.local/load/results/2026-11-21T03-48-31-453Z` (72), `03-53-10-970Z` (88), `03-56-49-332Z` (104), `04-01-06-545Z` (WAL 4 GB), `04-09-20-693Z` (4 core), `04-13-00-458Z` (2 replica); tên thư mục theo giờ UTC.
 
-## 18. Ba thay đổi kiến trúc mới: RabbitMQ, hạn chót tìm xe, breaker (2026-11-22 đến 2026-11-23)
+## 18. Ba thay đổi kiến trúc mới: RabbitMQ, hạn chót tìm xe, breaker; đăng nhập (2026-11-22 đến 2026-11-23)
 
 Đo sau ba commit `a2d6ca6` ([ADR-0004](adr/0004-gioi-han-thoi-gian-tim-xe.md), hạn chót tìm xe), `f9c853d` (B5, làm mới JWT trên socket GPS) và `ec485d7` ([ADR-0002](adr/0002-truc-su-kien-rabbitmq.md), sự kiện chuyến qua RabbitMQ). Kubernetes local, tắt observability, dữ liệu test đã dọn bằng `accounts.cjs purge` (64.537 chuyến) trước loạt đo. Lệnh chung như mục 17, mỗi bậc 2 phút, 1000 tài xế. Hai chế độ chạy trên cùng image, chỉ đổi `TRIP_EVENT_TRANSPORT` khi `kube-up`; thứ tự chạy: bus → http → bus 72.
 
@@ -1175,3 +1175,31 @@ Cùng kịch bản với lần 2 ở mục 16.9 (`2026-11-18T10-35-02-819Z`): 50
 - RAM pod đầu → cuối (MiB): Gateway 427 → 375, realtime-api 383 → 361, matching-worker 39 → 90, trip-worker 54 → 82, Redis 187 → 180, PostgreSQL 1373 → 1533.
 
 Kết quả ở `deploy/.local/load/results/2026-11-22T21-27-56-798Z` (giờ UTC).
+
+### 18.5 Đăng nhập: hai replica user-api và từ chối sớm (T1, 2026-11-23)
+
+Đo lại T1 theo từng bậc, mỗi bậc một lần chạy riêng 1 phút, k6 trong cụm qua edge và Gateway (`k6-pod.cjs login.js -e STAGES=<n> -e STAGE=1m`). Trong lúc đo, giới hạn đăng nhập theo IP của Gateway được nâng tạm (`AUTH_MAX_ATTEMPTS=1000000` trên Deployment, đã gỡ sau bài) vì mọi request đi từ một pod. BCrypt cost 10, khoảng 58 ms CPU mỗi lượt.
+
+Ba cấu hình:
+
+- **Trước:** 1 replica user-api, giới hạn CPU 2 core, phép băm xếp hàng không giới hạn sau một semaphore.
+- **Sau, bản 1:** 2 replica, semaphore chờ tối đa 1 giây (`BCRYPT_MAX_WAIT`) rồi trả 503. Phép băm vẫn chạy trên virtual thread của request.
+- **Sau:** như bản 1, nhưng phép băm chạy trên 2 platform thread riêng mỗi pod; virtual thread của request chỉ đứng chờ.
+
+| Bậc | Trước: p95 / bị bỏ | Sau bản 1: p95 / bị bỏ | Sau: p95 / 503 / bị bỏ | CPU user-api (sau) |
+| --- | --- | --- | --- | --- |
+| 10/s | 98 ms / 0 | 78 ms / 0 | 81 ms / 0 / 0 | 0,62 core |
+| 30/s | 176 ms / 0 | 95 ms / 0 | 101 ms / 0 / 0 | 1,77 core |
+| 40/s | **8,7 s / 142** | 119 ms / 0 | — | — |
+| 50/s | 10,2 s / 209 | 196 ms / 0 | 141 ms / 0 / 0 | 3,0 core |
+| 60/s | — | 342 ms / 0 | **278 ms / 0 / 0** | 3,7 core |
+| 70/s | — | **5,0 s / 191** | 1,09 s / 462 (10%) / 28 | 3,9 core |
+| 80/s | — | — | 1,10 s / 1047 (20%) / 41 | 3,9 core |
+
+- **Trần gấp đôi:** một replica đạt tới 30 lượt/giây và gãy ở 40; hai replica đạt tới 60 (p95 278 ms, ngưỡng 500 ms). Hai pod chia tải đều (ở 70/s mỗi pod 1,96 core) dù Gateway giữ kết nối keep-alive.
+- **Quá trần thì từ chối thay vì để mọi người chờ:** ở 70 và 80 lượt/giây, phần vượt năng lực nhận 503 `SERVICE_BUSY` với `Retry-After: 1`; p95 của mọi request dừng ở khoảng 1,1 giây (bằng `BCRYPT_MAX_WAIT`) thay vì 5–10 giây, và số lượt k6 bị bỏ vì hết VU giảm từ 191 xuống 28.
+- **Bản 1 không từ chối lượt nào** dù p50 đã lên 1,4 giây. Nguyên nhân: BCrypt là việc CPU, chạy trên virtual thread thì chiếm cả 2 carrier thread của JVM (bằng số CPU của pod); request mới không được chạy tới chỗ chờ semaphore, nên hàng đợi thật nằm trong scheduler của virtual thread và bộ đếm 1 giây không bao giờ hết hạn. Kiểm bằng 300 request dồn thẳng vào user-api: bản 1 trả 300 lần 200, chậm nhất 4,4 giây; bản sau trả 58 lần 200 trong 1,2 giây và 242 lần 503 sau khoảng 1,1 giây. Bài học: việc nặng CPU không chạy trên virtual thread.
+- Request được nhận ở bậc 70–80 cũng chờ gần 1 giây trước khi được băm (p95 của lượt thành công 1,1 giây). Muốn giữ p95 dưới 500 ms khi quá tải thì hạ `BCRYPT_MAX_WAIT`, đổi lại từ chối nhiều hơn.
+- Trên thực tế đăng nhập bằng mật khẩu hiếm: app dùng refresh token (SHA-256, không qua BCrypt) để lấy token mới. Đợt đăng nhập đồng loạt chỉ xảy ra khi nhiều người cài app mới hoặc refresh token hết hạn cùng lúc.
+
+Kết quả ở `deploy/.local/load/results/`: trước `2026-11-23T12-18-04-866Z-login` … `12-24-07-249Z-login`; sau bản 1 `12-27-15-124Z-login` … `12-36-25-844Z-login`; sau `12-41-24-703Z-login` … `12-48-59-737Z-login` (giờ UTC).

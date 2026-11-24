@@ -211,7 +211,7 @@ Cấu hình liên quan: Gateway giới hạn **5 request/phút cho mỗi cặp (
 
 | ID | Kịch bản | Chỉ số | Trạng thái |
 | --- | --- | --- | --- |
-| T1 | Khách đăng nhập tăng 5 → 10 → 15 → 20 → 25 → 30 lượt/giây, 1 phút mỗi bậc | p95 ≤ 500 ms; CPU user-api; bậc đầu không đạt | Đo lại 2026-11-18 tới 40 lượt/giây (gỡ giới hạn Gateway): user-api chạm 2 core, p95 gộp 6,8 s, 2,6% lỗi; chưa có số theo từng bậc, bậc gãy nằm giữa 15 và 40 ([báo cáo 16.8](bao-cao-kiem-thu-tai.md#168-đăng-nhập-và-giới-hạn-số-lần-thử)) |
+| T1 | Khách đăng nhập tăng 5 → 10 → 15 → 20 → 25 → 30 lượt/giây, 1 phút mỗi bậc | p95 ≤ 500 ms; CPU user-api; bậc đầu không đạt | Đo lại 2026-11-18 tới 40 lượt/giây (gỡ giới hạn Gateway): user-api chạm 2 core, p95 gộp 6,8 s, 2,6% lỗi; chưa có số theo từng bậc, bậc gãy nằm giữa 15 và 40. **Đo lại 2026-11-23 theo từng bậc:** 1 replica đạt tới 30, gãy ở 40 (p95 8,7 s); sau khi chạy 2 replica và từ chối sớm bằng 503 `SERVICE_BUSY`, đạt tới 60 (p95 278 ms), ở 70–80 p95 giữ khoảng 1,1 s và 10–20% lượt nhận 503 ([báo cáo 18.5](bao-cao-kiem-thu-tai.md#185-đăng-nhập-hai-replica-user-api-và-từ-chối-sớm-t1-2026-11-23)) ([báo cáo 16.8](bao-cao-kiem-thu-tai.md#168-đăng-nhập-và-giới-hạn-số-lần-thử)) |
 | T2 | Tài xế yêu cầu và xác nhận OTP | Như T1, ở driver-api | Đạt (2026-11-18, gọi thẳng driver-api): tới 40 lượt/giây, p95 2 / 10 ms, 0 lỗi |
 | T3 | Đợt đăng nhập buổi sáng: 3000 khách trong 5 phút (10 lượt/giây) đồng thời với L2 | T1 đạt; L2 vẫn đạt | Đạt (2026-11-18): đăng nhập p95 173 ms; L2 vẫn đạt (p95 0,86 s); user-api 0,78 core |
 
