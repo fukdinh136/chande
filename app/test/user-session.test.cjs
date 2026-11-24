@@ -9,3 +9,18 @@ test('customer single-flight refresh and logout never restore token; newest rota
   const logout=session.logout();release();await Promise.allSettled([a,b]);await logout;
   assert.equal(session.getSnapshot().session,null);assert.equal(saved,null);assert.deepEqual(loggedOut,['refresh-new']);
 });
+
+test('customer restore keeps stored refresh contract, loads profile and rotates once',async()=>{
+  const rotations=[],tokens={accessToken:'fresh-access',refreshToken:'fresh-refresh',expiresIn:900,tokenType:'Bearer'};let saved='stored-refresh';
+  const session=new UserSession({refresh:async token=>{rotations.push(token);return tokens},profile:async()=>({id:'customer-b'}),logout:async()=>{}},{read:async()=>saved,write:async value=>{saved=value}});
+  await session.restore();assert.deepEqual(rotations,['stored-refresh']);assert.equal(saved,'fresh-refresh');assert.equal(session.getSnapshot().session.profile.id,'customer-b');assert.equal(session.getSnapshot().restoring,false);
+});
+
+test('customer authorized never dispatches an old action with a new owner token after refresh',async()=>{
+  let release,actor='a',calls=0;const tokens={accessToken:'old',refreshToken:'r',expiresIn:1,tokenType:'Bearer'};
+  const api={login:async()=>({...tokens,...(actor==='b'?{accessToken:'b-token',expiresIn:900}:{})}),profile:async()=>({id:actor}),refresh:()=>new Promise(resolve=>{release=resolve}),logout:async()=>{}};
+  const session=new UserSession(api,{read:async()=>null,write:async()=>{}});await session.login('','');
+  const action=session.authorized(async()=>{calls++;});await new Promise(resolve=>setImmediate(resolve));
+  const logout=session.logout();actor='b';await session.login('','');release({...tokens,accessToken:'old-rotated',refreshToken:'rotated-r',expiresIn:900});
+  await assert.rejects(action,error=>error.code==='CANCELLED');await logout;assert.equal(calls,0);assert.equal(session.getSnapshot().session.profile.id,'b');
+});

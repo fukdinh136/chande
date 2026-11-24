@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{load}=require('../scripts/test-client.cjs');
-const {tokenExpiry,renewDelay,reconnectDelay}=load('src/features/driver/gps/socket-location-client.ts');
+const {tokenExpiry,renewDelay,reconnectDelay}=load('src/features/driver/realtime/driver-socket.ts');
 // B5: the GPS socket renews its JWT 1 to 3 minutes before expiry, at a random point, and reconnects within 2 to 10 s.
 test('renewal time is spread before the JWT expires and reads exp from the token',()=>{
   const encode=v=>Buffer.from(JSON.stringify(v)).toString('base64url');

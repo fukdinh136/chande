@@ -3,10 +3,12 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Service | Customer App / Driver App |
-| Rà soát | 2026-10-06 |
+| Rà soát | 2026-11-18 |
 | Quy ước | [Format và số liệu](../quy-uoc-tai-lieu.md) |
 
 ## Trạng thái thực thi hiện tại
+
+Tiến độ riêng của kế hoạch “Hoàn thiện frontend Customer theo thiết kế Velox” được ghi tại [tiến độ Customer Velox](tien-do-customer-velox.md). Đã có nền route/phiên/auth, [trải nghiệm trước tạo chuyến](buoc-2-customer-dat-xe.md) và [vòng đời chuyến bước 3/5](buoc-3-vong-doi-chuyen.md): xác nhận, lệnh chưa rõ kết quả, đồng bộ, hủy và tổng kết. Phần tương tác Android và backend thật còn cần nghiệm thu; các mô tả thiết kế và kết quả lịch sử bên dưới không thay cho kiểm chứng hiện tại.
 
 Các mô tả dưới đây là thiết kế đích. Đã triển khai từng phần kết nối trong app/; trạng thái, commit, kiểm thử và giới hạn APK/native được ghi tại [báo cáo thực thi](bao-cao-ket-noi.md). Shared-source Android variants hiện dùng com.chande.customer/com.chande.driver; workspace mobile riêng vẫn là đề xuất.
 
@@ -16,6 +18,11 @@ Người dùng đã chốt: hai app, MapLibre Navigation SDK, tận dụng API b
 
 | Tài liệu | Nội dung |
 | --- | --- |
+| [Tiến độ Customer Velox](tien-do-customer-velox.md) | Bước 1/5, hiện trạng đã khảo sát, thay đổi mã nguồn, kiểm tra và checklist bàn giao |
+| [Bước 2: Đặt xe trước tạo chuyến](buoc-2-customer-dat-xe.md) | Bảng hai mức, xác nhận điểm/GPS, hiệu lực báo giá và điều kiện nghiệm thu còn thiếu |
+| [Bước 3: Vòng đời chuyến Customer](buoc-3-vong-doi-chuyen.md) | Đối soát lệnh/chuyến, đồng bộ REST/WebSocket, hủy có xác nhận và tổng kết |
+| [Bước 4: Lịch sử và tài khoản Customer](buoc-4-lich-su-tai-khoan.md) | Bộ lọc server/phân trang, chi tiết/đặt lại, hồ sơ/bảo mật và địa chỉ dùng chung |
+| [Bước 5: Kiểm chứng Customer](buoc-5-nghiem-thu-customer.md) | Kiểm tra toàn phạm vi, backend test riêng, build/thiết bị và ma trận nghiệm thu theo mức bằng chứng |
 | [Báo cáo kết nối](bao-cao-ket-noi.md) | Code/commit đã triển khai, smoke backend thật, CI, cách chạy và giới hạn Android/native |
 | [Phạm vi và UI](pham-vi-ui.md) | 15 ảnh/14 HTML, giữ/đổi/skip từng màn hình, design tokens, 28 user story |
 | [Kiến trúc](kien-truc.md) | Hai app/workspace, component/ports, cache/session, state machine, reuse app hiện tại |

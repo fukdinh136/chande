@@ -126,10 +126,33 @@ test(
       assert.deepEqual([...batch.found.keys()], [id]);
       assert.equal(batch.found.get(id).desiredStatus, "OFFLINE");
       assert.equal(batch.migrationRequired.size, 0);
-      const [owned] = await store.read((repo) => repo.vehicles(id));
-      const vehicles = await store.read((repo) => repo.vehiclesById([owned.id, missing]));
-      assert.deepEqual(vehicles.map((v) => [v.id, v.driverId, v.vehicleType]), [[owned.id, id, "BIKE"]]);
+      const [bike] = await store.read((repo) => repo.vehicles(id));
+      const vehicles = await store.read((repo) => repo.vehiclesById([bike.id, missing]));
+      assert.deepEqual(vehicles.map((v) => [v.id, v.driverId, v.vehicleType]), [[bike.id, id, "BIKE"]]);
       assert.deepEqual(await store.read((repo) => repo.vehiclesById([])), []);
+      // Actual repositories/transactions, mocked external occupancy only.
+      // Multiple active vehicles are valid; selection remains an independent cache field.
+      const f = require("../helpers/fixture.cjs").fixture();
+      const app = require("../helpers/use-cases.cjs").createTestUseCases(
+        store, f.state, { active: async () => null }, runtime,
+        ["BIKE", "CAR_4", "CAR_7"], 20,
+      );
+      const cars = [];
+      for (const [index, vehicleType] of ["CAR_4", "CAR_7"].entries()) {
+        cars.push(await app.createVehicle(id, {
+          vehicleType, licensePlate: plate + index, brandModel: "Integration Car", color: "Blue",
+        }));
+      }
+      const owned = (await app.vehicles(id)).items;
+      assert.equal(owned.length, 3);
+      assert.ok(owned.every(vehicle => vehicle.isActive));
+      assert.equal(f.cache.vehicleId, null);
+      await app.select(id, cars[0].vehicleId, "test-authorization");
+      assert.equal(f.cache.vehicleId, cars[0].vehicleId);
+      await assert.rejects(app.vehicle(other, cars[0].vehicleId), error => error.code === "RESOURCE_NOT_FOUND");
+      await app.updateVehicle(id, cars[1].vehicleId, { isActive: false }, "test-authorization");
+      assert.equal(f.cache.vehicleId, cars[0].vehicleId);
+      await assert.rejects(app.select(id, cars[1].vehicleId, "test-authorization"), error => error.code === "VEHICLE_INACTIVE");
       const otp = new MockOtp(runtime, "123456", 60, 1, 5),
         tokens = new RsaTokens(
           "https://isolated-driver.test",

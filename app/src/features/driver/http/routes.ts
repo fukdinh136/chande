@@ -35,7 +35,7 @@ export function route(config: HttpConfig, operation: Operation, id?: string) {
     if (!id || !/^[0-9a-f-]{36}$/i.test(id)) throw new ApiError('INVALID_ROUTE');
     path = path.replace(':id', encodeURIComponent(id));
   }
-  if (!/^\/[A-Za-z0-9/_-]+$/.test(path) || path.includes('//')) throw new ApiError('INVALID_ROUTE');
+  if (!/^\/[A-Za-z0-9/_-]+$/.test(path) || path.includes('//') || path.includes('/api/v1/api/v1')) throw new ApiError('INVALID_ROUTE');
   const service: Service = ['activeTrip', 'history', 'detail', 'status', 'cancel'].includes(operation) ? 'trip' : 'driver';
   return { service, path };
 }

@@ -80,6 +80,10 @@ export function challenge(value: unknown): OtpChallenge {
 export function trip(value: unknown): Trip {
   const data = object(value);
   const fare = object(data.fare);
+  const timestamp = (value: unknown) => { const result = string(value); if (!Number.isFinite(Date.parse(result))) throw new ApiError('INVALID_RESPONSE'); return result; };
+  const nullableTimestamp = (value: unknown) => value === null ? null : timestamp(value);
+  const times = data.timestamps === undefined ? undefined : object(data.timestamps);
+  const cancellation = data.cancellation == null ? data.cancellation : object(data.cancellation);
   const point = (value: unknown) => {
     const p = object(value);
     const lat = number(p.lat), lng = number(p.lng);
@@ -91,10 +95,12 @@ export function trip(value: unknown): Trip {
     vehicleId: data.vehicleId === null ? null : uuid(data.vehicleId),
     status: oneOf(data.status, statuses), version: integer(data.version),
     pickup: point(data.pickup), destination: point(data.destination), vehicleType: string(data.vehicleType),
-    fare: { currency: oneOf(fare.currency, ['VND']), estimatedAmount: string(fare.estimatedAmount), finalAmount: nullableString(fare.finalAmount) },
+    ...(data.route === undefined ? {} : {route: {distanceMeters: integer(object(data.route).distanceMeters), durationSeconds: integer(object(data.route).durationSeconds)}}),
+    fare: { currency: oneOf(fare.currency, ['VND']), estimatedAmount: string(fare.estimatedAmount), finalAmount: nullableString(fare.finalAmount), ...(fare.breakdown === undefined ? {} : {breakdown: array(fare.breakdown).map(value => {const entry=object(value);const amount=string(entry.amount);if(!/^(0|[1-9]\d*)$/.test(amount))throw new ApiError('INVALID_RESPONSE');return {code:string(entry.code),amount};})}) },
+    ...(times ? { timestamps: { requestedAt: timestamp(times.requestedAt), assignedAt: nullableTimestamp(times.assignedAt), driverArrivedAt: nullableTimestamp(times.driverArrivedAt), startedAt: nullableTimestamp(times.startedAt), completedAt: nullableTimestamp(times.completedAt), cancelledAt: nullableTimestamp(times.cancelledAt) } } : {}),
+    ...(cancellation === undefined ? {} : { cancellation: cancellation === null ? null : { actorType: oneOf(cancellation.actorType, ['RIDER', 'DRIVER', 'SYSTEM']), reason: string(cancellation.reason), cancelledAt: timestamp(cancellation.cancelledAt) } }),
     ...(data.driver===undefined?{}:{driver:data.driver===null?null:{fullName:string(object(data.driver).fullName),avatarUrl:nullableString(object(data.driver).avatarUrl)}}),
     ...(data.vehicle===undefined?{}:{vehicle:data.vehicle===null?null:{licensePlate:string(object(data.vehicle).licensePlate),brand:nullableString(object(data.vehicle).brand),color:nullableString(object(data.vehicle).color)}}),
-    ...(data.cancellation===undefined?{}:{cancellation:data.cancellation===null?null:{actorType:oneOf(object(data.cancellation).actorType,['RIDER','DRIVER','SYSTEM'] as const),reason:string(object(data.cancellation).reason)}}),
   };
 }
 export function activeTrip(value: unknown) { return value === null ? null : trip(value); }

@@ -12,6 +12,11 @@ expo-env.d.ts
 # Native
 .kotlin/
 *.orig.*
+# Installable packages are generated output, even when copied outside build/.
+*.apk
+*.aab
+# Local Expo modules contain tracked Android source; ignore only their SDK paths.
+/modules/*/android/local.properties
 *.jks
 *.p8
 *.p12
@@ -36,9 +41,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-example
+# CNG projects at the app root are generated; modules/*/android stays versioned.
+/ios/
+/android/
 
-# generated native folders
-/ios
-/android
-/artifacts
+# Local runtime captures; reviewed screenshots live in ../artifacts/.
+/artifacts/

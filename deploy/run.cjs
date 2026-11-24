@@ -1,6 +1,7 @@
 const fs = require('node:fs'), path = require('node:path'), {spawnSync, spawn} = require('node:child_process');
 const {root, images} = require('./stack.cjs');
 const observability = require('./observability.cjs');
+const {ensurePortForward} = require('./port-forward.cjs');
 const action = process.argv[2], directory = path.join(__dirname,'.local','backend');
 const command = (bin,args,cwd=root,quiet=false) => {
   const r = spawnSync(bin,args,{cwd,encoding:'utf8',windowsHide:true,maxBuffer:32*1024*1024});
@@ -10,8 +11,8 @@ const command = (bin,args,cwd=root,quiet=false) => {
 };
 const kube = args => command('kubectl',['--context','docker-desktop','--namespace','chande-local',...args]);
 function generate() { delete require.cache[require.resolve('./generate.cjs')]; return require('./generate.cjs'); }
-if (!['generate','build','docker-up','kube-up','status'].includes(action)) throw new Error('Usage: node deploy/run.cjs generate|build|docker-up|kube-up|status');
-const {apps} = generate();
+if (!['generate','build','docker-up','kube-up','kube-forward','status'].includes(action)) throw new Error('Usage: node deploy/run.cjs generate|build|docker-up|kube-up|kube-forward|status');
+const {apps} = action==='kube-forward' ? {} : generate();
 if(action==='build') {
   const ids={};
   for(const [service,a] of new Map(Object.values(apps).map(a=>[a.service,a]))) {
@@ -61,20 +62,22 @@ if(action==='kube-up') {
   else kube(['delete','deployment,service,configmap,secret','-l','app.kubernetes.io/component=observability','--ignore-not-found']);
   kube(['apply','-f',path.join(directory,'workloads.json')]);
   for(const name of [...Object.keys(apps),'edge']) kube(['rollout','status','deployment/'+name,'--timeout=300s']);
-  const forward=(pidName,target,mapping)=>{
-    const pidFile=path.join(directory,pidName+'.pid');
-    if(fs.existsSync(pidFile)) return;
-    const output=fs.openSync(path.join(directory,pidName+'.log'),'a');
-    const child=spawn('kubectl',['--context','docker-desktop','-n','chande-local','port-forward','--address','127.0.0.1',target,mapping],{detached:true,windowsHide:true,stdio:['ignore',output,output]});
-    fs.writeFileSync(pidFile,String(child.pid)); child.unref(); fs.closeSync(output);
-  };
-  forward('port-forward','service/edge','18081:8088');
+  // The edge forward is supervised by port-forward.cjs (below); observability ports keep a plain forward each.
   if(observability.enabled()) {
+    const forward=(pidName,target,mapping)=>{
+      const pidFile=path.join(directory,pidName+'.pid');
+      if(fs.existsSync(pidFile)) return;
+      const output=fs.openSync(path.join(directory,pidName+'.log'),'a');
+      const child=spawn('kubectl',['--context','docker-desktop','-n','chande-local','port-forward','--address','127.0.0.1',target,mapping],{detached:true,windowsHide:true,stdio:['ignore',output,output]});
+      fs.writeFileSync(pidFile,String(child.pid)); child.unref(); fs.closeSync(output);
+    };
     for(const [name,[local,remote]] of Object.entries(observability.ports)) forward('port-forward-'+name,'service/'+name,`${local}:${remote}`);
     console.info(`Observability: Grafana http://127.0.0.1:${observability.ports.grafana[0]}  Jaeger http://127.0.0.1:${observability.ports.jaeger[0]}  Prometheus http://127.0.0.1:${observability.ports.prometheus[0]}`);
   }
-  console.info('Kubernetes backend: http://127.0.0.1:18081 (loopback port-forward)');
 }
+if(action==='kube-up'||action==='kube-forward') ensurePortForward().then(()=>{
+  console.info('Kubernetes backend ready: http://127.0.0.1:18081 (loopback port-forward)');
+}).catch(error=>{console.error(error.message);process.exitCode=1});
 if(action==='status') {
   command('docker',['compose','-f',path.join(directory,'compose.json'),'ps']);
   kube(['get','pods,services,pvc,jobs']);

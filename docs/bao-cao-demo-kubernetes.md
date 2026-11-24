@@ -89,11 +89,25 @@ $env:BROWSER='none'
 node --dns-result-order=ipv4first node_modules/expo/bin/cli start --web --localhost --port 8081 --max-workers 2
 ```
 
-`EXPO_OFFLINE` chỉ bỏ kiểm tra Expo bên ngoài khi start Metro; app vẫn gọi backend và tải tile bản đồ. Giữ Metro và port-forward chạy trong lúc demo. Nếu port-forward cũ đã dừng, có thể chạy riêng:
+`EXPO_OFFLINE` chỉ bỏ kiểm tra Expo bên ngoài khi start Metro; app vẫn gọi backend và tải tile bản đồ. Giữ Metro và Docker Desktop/Kubernetes chạy trong lúc demo. Runner hiện kiểm tra Gateway thật và helper tự nối lại nếu kubectl mất kết nối với pod. Nếu port-forward cũ đã dừng, khôi phục riêng kết nối, không cần chạy lại migration:
+
+```powershell
+node deploy/run.cjs kube-forward
+```
+
+Reload tab Customer/Driver nếu app đã hiển thị lỗi trước khi cổng được khôi phục. Có thể thay helper bằng lệnh thủ công trong terminal riêng:
 
 ```powershell
 kubectl --context docker-desktop -n chande-local port-forward --address 127.0.0.1 service/edge 18081:8088
 ```
+
+## Khôi phục lỗi kết nối sau restart
+
+Lần kiểm tra tiếp theo ngày 2026-10-06 xác nhận 15 deployment vẫn Ready nhưng kubectl port-forward đã thoát với `lost connection to pod`, cổng 18081 không còn listen. File PID cũ vẫn tồn tại nên runner cũ không mở lại cổng; cả Customer và Driver dừng ở màn hình kết nối.
+
+Đã sửa runner dùng response auth của Gateway để xác nhận kết nối, bổ sung `kube-forward` và helper tự nối lại sau khi tiến trình kubectl thoát. File PID chỉ còn dùng chẩn đoán; không kill hoặc thay một tiến trình/endpoint khác đang chiếm cổng.
+
+Kiểm chứng: 3 test port-forward và 1 test topology pass; chủ động dừng đúng kubectl của demo rồi quan sát PID mới và Gateway 401 phục hồi tự động. Customer đăng nhập bằng account test, lấy quote 27460 VND; Driver OTP đăng nhập và đọc availability/xe đang chọn thành công trên trình duyệt. Không chạy lại toàn bộ backend suites cho bản sửa helper này.
 
 ## Phần còn thiếu để hoàn thiện
 
