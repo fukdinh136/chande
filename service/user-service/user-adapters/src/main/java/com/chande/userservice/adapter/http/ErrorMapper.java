@@ -1,5 +1,6 @@
 package com.chande.userservice.adapter.http;
 
+import com.chande.userservice.application.port.PasswordHasher;
 import com.chande.userservice.domain.common.DomainException;
 import com.chande.userservice.domain.common.ErrorCode;
 import com.chande.userservice.domain.common.ValidationException;
@@ -20,6 +21,10 @@ final class ErrorMapper {
                     HttpResult.of(400, new ErrorJson(e.code().name(), e.code().message(), e.fieldErrors()));
             case DomainException e ->
                     HttpResult.of(status(e.code()), new ErrorJson(e.code().name(), e.code().message(), null));
+            // Quá tải BCrypt: báo client thử lại sau 1 giây (Gateway chuyển nguyên status và Retry-After cho app).
+            case PasswordHasher.BusyException e ->
+                    HttpResult.of(503, new ErrorJson("SERVICE_BUSY", "Hệ thống đang bận, vui lòng thử lại sau giây lát", null))
+                            .withHeader("Retry-After", "1");
             case HttpError e -> {
                 HttpResult result = HttpResult.of(e.status(), new ErrorJson(e.code(), e.errorMessage(), null));
                 for (var header : e.headers().entrySet()) {

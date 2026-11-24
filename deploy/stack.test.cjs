@@ -30,6 +30,7 @@ test('the Gateway gets 1 GiB: 5000 /ws sessions plus 32 trips/s peaked at 763 MB
   const apps=stack(secrets);
   assert.equal(apps['gateway-api'].memory,'1Gi');
   assert.equal(apps['user-api'].memory,undefined);
+  assert.equal(apps['user-api'].replicas,2);
 });
 test('edge nginx is sized from the drivers online at peak',()=>{
   const {edgeSizing}=require('./stack.cjs');

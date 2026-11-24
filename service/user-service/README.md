@@ -68,6 +68,7 @@ Biến môi trường (thiếu hoặc sai thì service dừng ngay và liệt k�
 | `JWT_CLOCK_SKEW` | `60s` | |
 | `INTERNAL_API_KEY` | — | bắt buộc, ≥ 16 ký tự |
 | `BCRYPT_COST` | `10` | |
+| `BCRYPT_MAX_WAIT` | `1s` | Thời gian tối đa chờ chỗ băm; quá thì trả 503 `SERVICE_BUSY` với `Retry-After: 1`. Phép băm chạy trên số platform thread bằng số CPU của container |
 | `MAX_BODY_BYTES` | `65536` | quá thì trả 413 `PAYLOAD_TOO_LARGE` |
 | `SHUTDOWN_GRACE` | `20s` | |
 

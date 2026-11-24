@@ -16,8 +16,8 @@ import java.util.regex.Pattern;
  * Toàn bộ cấu hình, đọc từ biến môi trường lúc khởi động (mục 9). Thiếu hoặc sai giá trị thì
  * {@link #fromEnv(Map)} ném lỗi liệt kê <b>mọi</b> vấn đề, và service dừng ngay.
  */
-public record AppConfig(int port, Db db, Jwt jwt, String internalApiKey, int bcryptCost, int maxBodyBytes,
-                        Duration shutdownGrace) {
+public record AppConfig(int port, Db db, Jwt jwt, String internalApiKey, int bcryptCost, Duration bcryptMaxWait,
+                        int maxBodyBytes, Duration shutdownGrace) {
 
     public record Db(String url, String username, String password, int poolSize) {
 
@@ -56,16 +56,17 @@ public record AppConfig(int port, Db db, Jwt jwt, String internalApiKey, int bcr
             r.error("INTERNAL_API_KEY must be at least 16 characters");
         }
         int bcryptCost = r.intValue("BCRYPT_COST", 10, 4, 31);
+        Duration bcryptMaxWait = r.duration("BCRYPT_MAX_WAIT", Duration.ofSeconds(1), true);
         int maxBodyBytes = r.intValue("MAX_BODY_BYTES", 65536, 1, 16 * 1024 * 1024);
         Duration shutdownGrace = r.duration("SHUTDOWN_GRACE", Duration.ofSeconds(20), true);
         r.throwIfErrors();
-        return new AppConfig(port, db, jwt, internalApiKey, bcryptCost, maxBodyBytes, shutdownGrace);
+        return new AppConfig(port, db, jwt, internalApiKey, bcryptCost, bcryptMaxWait, maxBodyBytes, shutdownGrace);
     }
 
     @Override
     public String toString() {
         return "AppConfig[port=" + port + ", db=" + db + ", jwt=" + jwt + ", internalApiKey=***, bcryptCost="
-                + bcryptCost + ", maxBodyBytes=" + maxBodyBytes + ", shutdownGrace=" + shutdownGrace + "]";
+                + bcryptCost + ", bcryptMaxWait=" + bcryptMaxWait + ", maxBodyBytes=" + maxBodyBytes + ", shutdownGrace=" + shutdownGrace + "]";
     }
 
     /** Đọc từng biến, gom lỗi thay vì dừng ở lỗi đầu tiên. */
